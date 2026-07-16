@@ -4,6 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
+const ERRORS: Record<string, string> = {
+  "Invalid login credentials": "Email o contraseña incorrectos.",
+  "User already registered": "Ese email ya tiene cuenta. Prueba a entrar.",
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -22,7 +27,7 @@ export default function LoginPage() {
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({ email, password });
     setLoading(false);
-    if (error) setError(error.message);
+    if (error) setError(ERRORS[error.message] ?? "No se pudo completar. Inténtalo de nuevo.");
     else {
       router.push("/admin");
       router.refresh();
@@ -30,43 +35,62 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-6">
-      <form onSubmit={submit} className="w-full max-w-sm flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-center">
-          {mode === "login" ? "Entrar" : "Crear cuenta"}
+    <main className="flex-1 flex items-center justify-center p-6">
+      <div className="w-full max-w-sm">
+        <h1 className="font-display text-3xl font-semibold text-center text-brand">
+          ElBooksyKiller
         </h1>
-        <input
-          type="email"
-          required
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent p-3"
-        />
-        <input
-          type="password"
-          required
-          minLength={6}
-          placeholder="Contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent p-3"
-        />
-        <button
-          disabled={loading}
-          className="rounded-lg bg-black text-white dark:bg-white dark:text-black p-3 font-medium disabled:opacity-40"
-        >
-          {loading ? "…" : mode === "login" ? "Entrar" : "Crear cuenta"}
-        </button>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        <p className="text-center text-muted mt-2 mb-8">
+          {mode === "login"
+            ? "Entra en tu panel"
+            : "Crea tu cuenta y monta tu web de reservas"}
+        </p>
+        <form onSubmit={submit} className="panel p-6 flex flex-col gap-4">
+          <div>
+            <label htmlFor="email" className="label">Email</label>
+            <input
+              id="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="field"
+            />
+          </div>
+          <div>
+            <label htmlFor="password" className="label">Contraseña</label>
+            <input
+              id="password"
+              type="password"
+              required
+              minLength={6}
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="field"
+            />
+          </div>
+          {error && (
+            <p className="text-sm text-danger" role="alert">
+              {error}
+            </p>
+          )}
+          <button disabled={loading} className="btn-primary">
+            {loading ? "Un momento…" : mode === "login" ? "Entrar" : "Crear cuenta"}
+          </button>
+        </form>
         <button
           type="button"
-          onClick={() => setMode(mode === "login" ? "signup" : "login")}
-          className="text-sm text-gray-500 underline"
+          onClick={() => {
+            setMode(mode === "login" ? "signup" : "login");
+            setError("");
+          }}
+          className="block mx-auto mt-4 text-sm text-muted underline underline-offset-4 hover:text-ink"
         >
           {mode === "login" ? "¿No tienes cuenta? Regístrate" : "Ya tengo cuenta"}
         </button>
-      </form>
+      </div>
     </main>
   );
 }

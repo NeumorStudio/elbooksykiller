@@ -1,26 +1,54 @@
+import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { createSalon, cancelBooking } from "./actions";
 
+type Row = {
+  id: string;
+  starts_at: string;
+  customer_name: string;
+  customer_phone: string;
+  services: { name: string; price_cents: number } | null;
+  employees: { name: string } | null;
+};
+
 export default async function AdminHome() {
   const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
   const { data: salon } = await supabase
     .from("salons")
     .select("*")
+    .eq("owner_id", user!.id)
     .limit(1)
     .maybeSingle();
 
   if (!salon) {
     return (
-      <main className="max-w-md mx-auto flex flex-col gap-4 pt-12">
-        <h1 className="text-2xl font-bold">Crea tu peluquería</h1>
-        <form action={createSalon} className="flex flex-col gap-3">
-          <input name="name" required placeholder="Nombre (Barbería Paco)" className="rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent p-3" />
-          <input name="slug" required minLength={3} placeholder="Dirección web (barberia-paco)" className="rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent p-3" />
-          <input name="phone" placeholder="Teléfono (opcional)" className="rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent p-3" />
-          <input name="address" placeholder="Dirección (opcional)" className="rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent p-3" />
-          <button className="rounded-lg bg-black text-white dark:bg-white dark:text-black p-3 font-medium">
-            Crear
-          </button>
+      <main className="mx-auto max-w-md pt-8">
+        <h1 className="font-display text-3xl font-semibold">Crea tu peluquería</h1>
+        <p className="text-muted mt-2 mb-8">
+          Dos datos y tienes tu web de reservas funcionando.
+        </p>
+        <form action={createSalon} className="panel p-6 flex flex-col gap-4">
+          <div>
+            <label htmlFor="s-name" className="label">Nombre del salón</label>
+            <input id="s-name" name="name" required placeholder="Barbería Paco" className="field" />
+          </div>
+          <div>
+            <label htmlFor="s-slug" className="label">Dirección web</label>
+            <input id="s-slug" name="slug" required minLength={3} placeholder="barberia-paco" className="field" />
+            <p className="text-xs text-muted mt-1.5">
+              Tus clientes reservarán en elbooksykiller.vercel.app/<b>lo-que-pongas</b>
+            </p>
+          </div>
+          <div>
+            <label htmlFor="s-phone" className="label">Teléfono (opcional)</label>
+            <input id="s-phone" name="phone" type="tel" className="field" />
+          </div>
+          <div>
+            <label htmlFor="s-address" className="label">Dirección (opcional)</label>
+            <input id="s-address" name="address" className="field" />
+          </div>
+          <button className="btn-primary mt-2">Crear mi peluquería</button>
         </form>
       </main>
     );
@@ -29,77 +57,123 @@ export default async function AdminHome() {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-  const [{ data: upcoming }, { data: monthBookings }] = await Promise.all([
-    supabase
-      .from("bookings")
-      .select("id, starts_at, status, customer_name, customer_phone, services(name, price_cents), employees(name)")
-      .eq("salon_id", salon.id)
-      .gte("starts_at", now.toISOString())
-      .neq("status", "cancelled")
-      .order("starts_at")
-      .limit(50),
-    supabase
-      .from("bookings")
-      .select("services(price_cents)")
-      .eq("salon_id", salon.id)
-      .gte("starts_at", monthStart)
-      .neq("status", "cancelled"),
-  ]);
+  const [{ data: upcomingRaw }, { data: monthBookings }, { count: serviceCount }] =
+    await Promise.all([
+      supabase
+        .from("bookings")
+        .select("id, starts_at, customer_name, customer_phone, services(name, price_cents), employees(name)")
+        .eq("salon_id", salon.id)
+        .gte("starts_at", now.toISOString())
+        .neq("status", "cancelled")
+        .order("starts_at")
+        .limit(80),
+      supabase
+        .from("bookings")
+        .select("services(price_cents)")
+        .eq("salon_id", salon.id)
+        .gte("starts_at", monthStart)
+        .neq("status", "cancelled"),
+      supabase
+        .from("services")
+        .select("id", { count: "exact", head: true })
+        .eq("salon_id", salon.id)
+        .eq("active", true),
+    ]);
 
+  const upcoming = (upcomingRaw ?? []) as unknown as Row[];
   const revenue = (monthBookings ?? []).reduce(
     (sum, b) => sum + ((b.services as unknown as { price_cents: number })?.price_cents ?? 0),
     0
   );
 
-  const fmt = (iso: string) =>
-    new Date(iso).toLocaleString("es-ES", {
-      weekday: "short",
+  const dayLabel = (iso: string) =>
+    new Date(iso).toLocaleDateString("es-ES", {
+      weekday: "long",
       day: "numeric",
-      month: "short",
+      month: "long",
+      timeZone: salon.timezone,
+    });
+  const timeLabel = (iso: string) =>
+    new Date(iso).toLocaleTimeString("es-ES", {
       hour: "2-digit",
       minute: "2-digit",
       timeZone: salon.timezone,
     });
 
+  const byDay = new Map<string, Row[]>();
+  for (const b of upcoming) {
+    const key = dayLabel(b.starts_at);
+    byDay.set(key, [...(byDay.get(key) ?? []), b]);
+  }
+
   return (
-    <main className="flex flex-col gap-6">
-      <div className="flex gap-4">
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4 flex-1">
-          <p className="text-sm text-gray-500">Citas este mes</p>
-          <p className="text-2xl font-bold">{monthBookings?.length ?? 0}</p>
-        </div>
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4 flex-1">
-          <p className="text-sm text-gray-500">Facturación estimada</p>
-          <p className="text-2xl font-bold">
+    <main className="flex flex-col gap-8">
+      <div className="flex items-baseline justify-between flex-wrap gap-2">
+        <h1 className="font-display text-3xl font-semibold">Agenda</h1>
+        <p className="text-sm text-muted">
+          Este mes: <b className="text-ink">{monthBookings?.length ?? 0} citas</b>
+          {" · "}
+          <b className="text-ink">
             {(revenue / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
-          </p>
-        </div>
+          </b>{" "}
+          estimados
+        </p>
       </div>
 
-      <h2 className="text-xl font-bold">Próximas citas</h2>
-      {!upcoming?.length && <p className="text-gray-500">No hay citas pendientes.</p>}
-      <ul className="flex flex-col gap-2">
-        {upcoming?.map((b) => (
-          <li
-            key={b.id}
-            className="rounded-lg border border-gray-200 dark:border-gray-800 p-3 flex items-center justify-between gap-3"
-          >
-            <div>
-              <p className="font-medium">
-                {fmt(b.starts_at)} — {(b.services as unknown as { name: string })?.name}
-              </p>
-              <p className="text-sm text-gray-500">
-                {b.customer_name} · {b.customer_phone} · con{" "}
-                {(b.employees as unknown as { name: string })?.name}
-              </p>
-            </div>
-            <form action={cancelBooking}>
-              <input type="hidden" name="id" value={b.id} />
-              <button className="text-sm text-red-600">Cancelar</button>
-            </form>
-          </li>
-        ))}
-      </ul>
+      {upcoming.length === 0 && (
+        <div className="panel p-10 text-center">
+          <p className="text-lg font-medium">No hay citas pendientes</p>
+          <p className="text-muted mt-2 max-w-md mx-auto text-pretty">
+            {serviceCount === 0
+              ? "Para que tus clientes puedan reservar, añade primero tus servicios y el horario de tu equipo."
+              : "Comparte tu web con tus clientes y las citas aparecerán aquí."}
+          </p>
+          <div className="mt-6 flex justify-center gap-3 flex-wrap">
+            {serviceCount === 0 ? (
+              <>
+                <Link href="/admin/services" className="btn-primary">Añadir servicios</Link>
+                <Link href="/admin/employees" className="btn-quiet">Configurar equipo</Link>
+              </>
+            ) : (
+              <Link href={`/${salon.slug}`} target="_blank" className="btn-primary">
+                Abrir mi web ↗
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
+      {[...byDay.entries()].map(([label, rows]) => (
+        <section key={label}>
+          <h2 className="text-sm font-semibold text-muted uppercase tracking-wide mb-3 first-letter:uppercase">
+            {label}
+          </h2>
+          <ul className="panel divide-y divide-line">
+            {rows.map((b) => (
+              <li key={b.id} className="flex items-center gap-4 p-4">
+                <span className="font-semibold tabular-nums text-lg w-14 shrink-0">
+                  {timeLabel(b.starts_at)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">
+                    {b.services?.name} — {b.customer_name}
+                  </p>
+                  <p className="text-sm text-muted truncate">
+                    <a href={`tel:${b.customer_phone}`} className="hover:underline">
+                      {b.customer_phone}
+                    </a>
+                    {" · "}con {b.employees?.name}
+                  </p>
+                </div>
+                <form action={cancelBooking}>
+                  <input type="hidden" name="id" value={b.id} />
+                  <button className="btn-danger text-sm">Cancelar</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </main>
   );
 }

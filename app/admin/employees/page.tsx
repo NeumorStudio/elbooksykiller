@@ -9,71 +9,113 @@ const fmtMin = (m: number) =>
 
 export default async function EmployeesPage() {
   const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
   const { data: salon } = await supabase
     .from("salons")
     .select("id, employees(*, working_hours(*))")
+    .eq("owner_id", user!.id)
     .limit(1)
     .maybeSingle();
 
-  if (!salon) return <p>Primero crea tu peluquería en la Agenda.</p>;
+  if (!salon) return <p className="text-muted">Primero crea tu peluquería en la Agenda.</p>;
 
   const employees = salon.employees.filter((e) => e.active);
 
   return (
-    <main className="flex flex-col gap-8">
-      <h1 className="text-xl font-bold">Equipo y horarios</h1>
+    <main className="flex flex-col gap-8 max-w-2xl">
+      <div>
+        <h1 className="font-display text-3xl font-semibold">Equipo y horarios</h1>
+        <p className="text-muted mt-1">
+          Quién trabaja y cuándo. Los huecos de reserva salen de aquí.
+        </p>
+      </div>
 
-      {employees.map((emp) => (
-        <section key={emp.id} className="rounded-xl border border-gray-200 dark:border-gray-800 p-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">{emp.name}</h2>
-            <form action={deactivateEmployee}>
-              <input type="hidden" name="id" value={emp.id} />
-              <button className="text-sm text-red-600">Dar de baja</button>
-            </form>
-          </div>
+      {employees.length === 0 && (
+        <div className="panel p-8 text-center text-muted">
+          <p className="font-medium text-ink">Aún no hay nadie en el equipo</p>
+          <p className="mt-1 text-pretty">
+            Añade al menos un profesional (aunque seas solo tú) y su horario semanal.
+          </p>
+        </div>
+      )}
 
-          <ul className="flex flex-col gap-1 text-sm">
-            {(emp.working_hours as WH[])
-              .sort((a, b) => a.weekday - b.weekday || a.start_min - b.start_min)
-              .map((h) => (
-                <li key={h.id} className="flex items-center gap-2">
-                  <span className="w-24">{DAYS[h.weekday]}</span>
-                  <span>{fmtMin(h.start_min)}–{fmtMin(h.end_min)}</span>
-                  <form action={deleteHours}>
-                    <input type="hidden" name="id" value={h.id} />
-                    <button className="text-red-600">×</button>
-                  </form>
-                </li>
-              ))}
-            {!emp.working_hours.length && (
-              <p className="text-gray-500">Sin horario: no aparecerá en la web de reservas.</p>
+      {employees.map((emp) => {
+        const hours = (emp.working_hours as WH[]).sort(
+          (a, b) => a.weekday - b.weekday || a.start_min - b.start_min
+        );
+        return (
+          <section key={emp.id} className="panel p-5 flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">{emp.name}</h2>
+              <form action={deactivateEmployee}>
+                <input type="hidden" name="id" value={emp.id} />
+                <button className="btn-danger text-sm">Dar de baja</button>
+              </form>
+            </div>
+
+            {hours.length > 0 ? (
+              <ul className="flex flex-col gap-1.5 text-sm">
+                {hours.map((h) => (
+                  <li key={h.id} className="flex items-center gap-3">
+                    <span className="w-24 text-muted">{DAYS[h.weekday]}</span>
+                    <span className="tabular-nums font-medium">
+                      {fmtMin(h.start_min)} – {fmtMin(h.end_min)}
+                    </span>
+                    <form action={deleteHours}>
+                      <input type="hidden" name="id" value={h.id} />
+                      <button
+                        className="text-danger hover:bg-danger/10 rounded px-2 py-0.5"
+                        aria-label={`Quitar tramo de ${DAYS[h.weekday]}`}
+                      >
+                        ×
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-danger/90">
+                Sin horario: no aparecerá en la web de reservas.
+              </p>
             )}
-          </ul>
 
-          <form action={addHours} className="flex flex-wrap gap-2 items-center text-sm">
-            <input type="hidden" name="employee_id" value={emp.id} />
-            <select name="weekday" className="rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent p-2">
-              {[1, 2, 3, 4, 5, 6, 0].map((d) => (
-                <option key={d} value={d}>{DAYS[d]}</option>
-              ))}
-            </select>
-            <input name="start" type="time" required defaultValue="10:00" className="rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent p-2" />
-            <span>a</span>
-            <input name="end" type="time" required defaultValue="20:00" className="rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent p-2" />
-            <button className="rounded-lg bg-black text-white dark:bg-white dark:text-black px-3 py-2">
-              Añadir tramo
-            </button>
-          </form>
-        </section>
-      ))}
+            <form
+              action={addHours}
+              className="flex flex-wrap gap-2 items-end border-t border-line pt-4"
+            >
+              <input type="hidden" name="employee_id" value={emp.id} />
+              <div>
+                <label htmlFor={`wd-${emp.id}`} className="label">Día</label>
+                <select id={`wd-${emp.id}`} name="weekday" className="field w-36">
+                  {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                    <option key={d} value={d}>{DAYS[d]}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor={`st-${emp.id}`} className="label">De</label>
+                <input id={`st-${emp.id}`} name="start" type="time" required defaultValue="10:00" className="field w-28" />
+              </div>
+              <div>
+                <label htmlFor={`en-${emp.id}`} className="label">A</label>
+                <input id={`en-${emp.id}`} name="end" type="time" required defaultValue="20:00" className="field w-28" />
+              </div>
+              <button className="btn-quiet">Añadir tramo</button>
+            </form>
+          </section>
+        );
+      })}
 
-      <form action={addEmployee} className="flex gap-2">
+      <form action={addEmployee} className="panel p-5">
+        <h2 className="font-semibold mb-4">Añadir profesional</h2>
         <input type="hidden" name="salon_id" value={salon.id} />
-        <input name="name" required placeholder="Nombre del profesional" className="rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent p-2 flex-1" />
-        <button className="rounded-lg bg-black text-white dark:bg-white dark:text-black px-4 py-2">
-          Añadir
-        </button>
+        <div className="flex gap-3 items-end flex-wrap">
+          <div className="flex-1 min-w-48">
+            <label htmlFor="emp-name" className="label">Nombre</label>
+            <input id="emp-name" name="name" required placeholder="Paco" className="field" />
+          </div>
+          <button className="btn-primary">Añadir</button>
+        </div>
       </form>
     </main>
   );

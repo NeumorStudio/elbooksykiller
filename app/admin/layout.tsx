@@ -10,32 +10,51 @@ export default async function AdminLayout({
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // /admin/login no lleva nav
-  if (!user) return <>{children}</>;
+  // /admin/login no lleva nav, pero sí el tema claro
+  if (!user) return <div className="day min-h-screen bg-bg text-ink flex flex-col">{children}</div>;
 
   const { data: salon } = await supabase
     .from("salons")
     .select("name, slug")
+    .eq("owner_id", user.id)
     .limit(1)
     .maybeSingle();
 
   return (
-    <div className="min-h-screen">
-      <nav className="border-b border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center gap-6 text-sm">
-        <span className="font-bold">{salon?.name ?? "Mi salón"}</span>
-        <Link href="/admin">Agenda</Link>
-        <Link href="/admin/services">Servicios</Link>
-        <Link href="/admin/employees">Equipo</Link>
-        {salon && (
-          <Link href={`/${salon.slug}`} className="text-gray-500" target="_blank">
-            Ver mi web ↗
+    <div className="day min-h-screen bg-bg text-ink flex flex-col">
+      <nav className="border-b border-line bg-bg sticky top-0 z-10">
+        <div className="mx-auto max-w-4xl px-5 h-14 flex items-center gap-1">
+          <span className="font-display text-lg font-semibold text-brand mr-4 truncate hidden sm:block">
+            {salon?.name ?? "Mi salón"}
+          </span>
+          <Link href="/admin" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface">
+            Agenda
           </Link>
-        )}
-        <form action={logout} className="ml-auto">
-          <button className="text-gray-500">Salir</button>
-        </form>
+          <Link href="/admin/services" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface">
+            Servicios
+          </Link>
+          <Link href="/admin/employees" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface">
+            Equipo
+          </Link>
+          <div className="ml-auto flex items-center gap-1">
+            {salon && (
+              <Link
+                href={`/${salon.slug}`}
+                target="_blank"
+                className="px-3 py-2 rounded-lg text-sm text-muted hover:bg-surface hidden sm:block"
+              >
+                Ver mi web ↗
+              </Link>
+            )}
+            <form action={logout}>
+              <button className="px-3 py-2 rounded-lg text-sm text-muted hover:bg-surface">
+                Salir
+              </button>
+            </form>
+          </div>
+        </div>
       </nav>
-      <div className="max-w-3xl mx-auto p-6">{children}</div>
+      <div className="mx-auto w-full max-w-4xl px-5 py-8 flex-1">{children}</div>
     </div>
   );
 }
