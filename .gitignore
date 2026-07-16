@@ -40,3 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 !.env.example
+
+# agent skills (se reinstalan con npx skills)
+.agents/
+.claude/skills/
+.impeccable/
