@@ -1,12 +1,19 @@
+import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
-import { addService, deleteService } from "../actions";
+import { addService, deleteService, updateServicePayment } from "../actions";
+
+const PAY_LABEL: Record<string, string> = {
+  none: "Se paga en el local",
+  deposit: "Señal al reservar",
+  full: "Pago completo al reservar",
+};
 
 export default async function ServicesPage() {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: salon } = await supabase
     .from("salons")
-    .select("id, services(*)")
+    .select("id, charges_enabled, services(*)")
     .eq("owner_id", user!.id)
     .limit(1)
     .maybeSingle();
@@ -27,18 +34,56 @@ export default async function ServicesPage() {
       {services.length > 0 ? (
         <ul className="panel divide-y divide-line">
           {services.map((s) => (
-            <li key={s.id} className="flex items-center gap-4 p-4">
-              <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{s.name}</p>
-                <p className="text-sm text-muted">{s.duration_min} min</p>
+            <li key={s.id} className="p-4 flex flex-col gap-3">
+              <div className="flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{s.name}</p>
+                  <p className="text-sm text-muted">
+                    {s.duration_min} min · {PAY_LABEL[s.payment_type ?? "none"]}
+                    {s.payment_type === "deposit" && s.deposit_cents
+                      ? ` (${(s.deposit_cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })})`
+                      : ""}
+                  </p>
+                </div>
+                <span className="font-semibold tabular-nums">
+                  {(s.price_cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
+                </span>
+                <form action={deleteService}>
+                  <input type="hidden" name="id" value={s.id} />
+                  <button className="btn-danger text-sm">Quitar</button>
+                </form>
               </div>
-              <span className="font-semibold tabular-nums">
-                {(s.price_cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
-              </span>
-              <form action={deleteService}>
-                <input type="hidden" name="id" value={s.id} />
-                <button className="btn-danger text-sm">Quitar</button>
-              </form>
+              {salon.charges_enabled && (
+                <form action={updateServicePayment} className="flex flex-wrap items-end gap-2 text-sm">
+                  <input type="hidden" name="id" value={s.id} />
+                  <div>
+                    <label htmlFor={`pt-${s.id}`} className="label">Cobro al reservar</label>
+                    <select
+                      id={`pt-${s.id}`}
+                      name="payment_type"
+                      defaultValue={s.payment_type ?? "none"}
+                      className="field w-52"
+                    >
+                      <option value="none">Nada (se paga en el local)</option>
+                      <option value="deposit">Señal</option>
+                      <option value="full">Importe completo</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor={`dp-${s.id}`} className="label">Señal (€)</label>
+                    <input
+                      id={`dp-${s.id}`}
+                      name="deposit"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      defaultValue={s.deposit_cents ? s.deposit_cents / 100 : ""}
+                      className="field w-24"
+                    />
+                  </div>
+                  <button className="btn-quiet">Guardar</button>
+                </form>
+              )}
             </li>
           ))}
         </ul>
@@ -70,6 +115,16 @@ export default async function ServicesPage() {
           <button className="btn-primary col-span-2 sm:col-span-1">Añadir</button>
         </div>
       </form>
+
+      {!salon.charges_enabled && (
+        <p className="text-sm text-muted">
+          Para cobrar señales o citas al reservar,{" "}
+          <Link href="/admin/payments" className="underline underline-offset-4">
+            activa los cobros
+          </Link>
+          .
+        </p>
+      )}
     </main>
   );
 }

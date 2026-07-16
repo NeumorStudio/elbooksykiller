@@ -36,6 +36,9 @@ export default async function AdminLayout({
           <Link href="/admin/employees" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface">
             Equipo
           </Link>
+          <Link href="/admin/payments" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface">
+            Cobros
+          </Link>
           <div className="ml-auto flex items-center gap-1">
             {salon && (
               <Link

@@ -1,23 +1,23 @@
 "use server";
 
+import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import {
-  sendEmail,
-  customerConfirmationHtml,
-  ownerNotificationHtml,
-  type BookingEmailData,
-} from "@/lib/email";
+import { stripe } from "@/lib/stripe";
+import { notifyBookingConfirmed } from "@/lib/notifications";
 
-const fmtWhen = (iso: string, tz: string) =>
-  new Date(iso).toLocaleString("es-ES", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: tz,
-  });
+async function origin() {
+  const h = await headers();
+  return `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
+}
+
+function anonClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false } }
+  );
+}
 
 export async function bookAppointment(input: {
   employeeId: string;
@@ -26,15 +26,31 @@ export async function bookAppointment(input: {
   name: string;
   phone: string;
   email: string;
-}): Promise<{ ok: true } | { error: "slot_unavailable" | "invalid" }> {
-  // La validación real vive en la RPC create_booking (security definer):
-  // horario, ausencias, solapes, futuro. Aquí solo se transporta.
-  const anon = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false } }
-  );
+}): Promise<
+  | { ok: true }
+  | { checkoutUrl: string }
+  | { error: "slot_unavailable" | "invalid" }
+> {
+  const anon = anonClient();
 
+  // Datos públicos: qué se cobra y si el salón puede cobrar
+  const { data: svc } = await anon
+    .from("services")
+    .select("name, price_cents, payment_type, deposit_cents, salons(slug, name, stripe_account_id, charges_enabled)")
+    .eq("id", input.serviceId)
+    .maybeSingle();
+  if (!svc) return { error: "invalid" };
+
+  const salon = svc.salons as unknown as {
+    slug: string; name: string; stripe_account_id: string | null; charges_enabled: boolean;
+  };
+  const amount =
+    svc.payment_type === "full" ? svc.price_cents
+    : svc.payment_type === "deposit" ? (svc.deposit_cents ?? 0)
+    : 0;
+  const needsPayment = amount > 0 && salon.charges_enabled && !!salon.stripe_account_id;
+
+  // La validación real (horario, solapes, futuro) vive en la RPC create_booking
   const { data: bookingId, error } = await anon.rpc("create_booking", {
     p_employee: input.employeeId,
     p_service: input.serviceId,
@@ -42,65 +58,112 @@ export async function bookAppointment(input: {
     p_name: input.name,
     p_phone: input.phone,
     p_email: input.email || null,
+    p_pending_payment: needsPayment,
   });
 
   if (error) {
     return { error: error.message.includes("slot_unavailable") ? "slot_unavailable" : "invalid" };
   }
 
-  // Emails después de reservar; si fallan, la reserva sigue en pie.
-  try {
-    const admin = supabaseAdmin();
-    const { data: b } = await admin
-      .from("bookings")
-      .select(
-        "starts_at, customer_name, customer_phone, customer_email, services(name, price_cents), employees(name), salons(name, phone, timezone, owner_id)"
-      )
-      .eq("id", bookingId)
-      .single();
-    if (!b) return { ok: true };
-
-    const salon = b.salons as unknown as { name: string; phone: string | null; timezone: string; owner_id: string };
-    const d: BookingEmailData = {
-      salonName: salon.name,
-      salonPhone: salon.phone,
-      serviceName: (b.services as unknown as { name: string }).name,
-      employeeName: (b.employees as unknown as { name: string }).name,
-      when: fmtWhen(b.starts_at, salon.timezone),
-      price: ((b.services as unknown as { price_cents: number }).price_cents / 100).toLocaleString(
-        "es-ES",
-        { style: "currency", currency: "EUR" }
-      ),
-      customerName: b.customer_name,
-      customerPhone: b.customer_phone,
-    };
-
-    const sends: Promise<void>[] = [];
-    if (b.customer_email) {
-      sends.push(
-        sendEmail({
-          to: b.customer_email,
-          subject: `Cita confirmada en ${d.salonName}`,
-          html: customerConfirmationHtml(d),
-          idempotencyKey: `booking-confirm/${bookingId}`,
-        })
-      );
-    }
-    const { data: ownerRes } = await admin.auth.admin.getUserById(salon.owner_id);
-    if (ownerRes?.user?.email) {
-      sends.push(
-        sendEmail({
-          to: ownerRes.user.email,
-          subject: `Nueva reserva: ${d.serviceName} — ${d.when}`,
-          html: ownerNotificationHtml(d),
-          idempotencyKey: `booking-owner/${bookingId}`,
-        })
-      );
-    }
-    await Promise.all(sends);
-  } catch (e) {
-    console.error("[email] error notificando reserva", bookingId, e);
+  if (!needsPayment) {
+    await notifyBookingConfirmed(bookingId);
+    return { ok: true };
   }
 
-  return { ok: true };
+  // Cobro directo en la cuenta conectada del salón: el dinero es suyo.
+  const base = await origin();
+  try {
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: "payment",
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: "eur",
+              unit_amount: amount,
+              product_data: {
+                name:
+                  svc.payment_type === "deposit"
+                    ? `Señal — ${svc.name} en ${salon.name}`
+                    : `${svc.name} en ${salon.name}`,
+              },
+            },
+          },
+        ],
+        customer_email: input.email || undefined,
+        metadata: { booking_id: bookingId },
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+        success_url: `${base}/${salon.slug}?paid={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${base}/${salon.slug}?cancelled=1`,
+      },
+      { stripeAccount: salon.stripe_account_id! }
+    );
+
+    await supabaseAdmin()
+      .from("bookings")
+      .update({ stripe_session_id: session.id })
+      .eq("id", bookingId);
+
+    return { checkoutUrl: session.url! };
+  } catch (e) {
+    // No se pudo abrir el cobro: liberar el hueco y avisar
+    console.error("[stripe] error creando checkout", e);
+    await supabaseAdmin()
+      .from("bookings")
+      .update({ status: "cancelled" })
+      .eq("id", bookingId);
+    return { error: "invalid" };
+  }
+}
+
+// Verificación al volver del pago (camino rápido; el webhook es el respaldo).
+// Corre en el servidor: consulta Stripe y confirma la reserva si está pagada.
+export async function confirmPaidSession(slug: string, sessionId: string) {
+  const admin = supabaseAdmin();
+  const { data: salon } = await admin
+    .from("salons")
+    .select("stripe_account_id, timezone")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (!salon?.stripe_account_id) return null;
+
+  let session;
+  try {
+    session = await stripe.checkout.sessions.retrieve(
+      sessionId,
+      {},
+      { stripeAccount: salon.stripe_account_id }
+    );
+  } catch {
+    return null;
+  }
+  const bookingId = session.metadata?.booking_id;
+  if (!bookingId || session.payment_status !== "paid") return null;
+
+  const { data: updated } = await admin
+    .from("bookings")
+    .update({ status: "confirmed", payment_status: "paid" })
+    .eq("id", bookingId)
+    .eq("stripe_session_id", sessionId)
+    .neq("status", "cancelled")
+    .select("starts_at, customer_name, services(name), employees(name)")
+    .maybeSingle();
+  if (!updated) return null;
+
+  await notifyBookingConfirmed(bookingId);
+
+  return {
+    serviceName: (updated.services as unknown as { name: string }).name,
+    employeeName: (updated.employees as unknown as { name: string }).name,
+    when: new Date(updated.starts_at).toLocaleString("es-ES", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: salon.timezone,
+    }),
+    customerName: updated.customer_name,
+  };
 }

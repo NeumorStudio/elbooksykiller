@@ -4,7 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { bookAppointment } from "./actions";
 
-type Service = { id: string; name: string; price_cents: number; duration_min: number };
+type Service = {
+  id: string;
+  name: string;
+  price_cents: number;
+  duration_min: number;
+  payment_type?: "none" | "deposit" | "full";
+  deposit_cents?: number | null;
+};
+
+const amountDue = (s: Service) =>
+  s.payment_type === "full" ? s.price_cents
+  : s.payment_type === "deposit" ? (s.deposit_cents ?? 0)
+  : 0;
 type Employee = { id: string; name: string };
 
 const fmtPrice = (cents: number) =>
@@ -115,6 +127,8 @@ export default function BookingWidget({
       } else {
         setError("No se pudo crear la reserva. Revisa tus datos.");
       }
+    } else if ("checkoutUrl" in result) {
+      window.location.href = result.checkoutUrl; // pago en Stripe
     } else {
       setDone(true);
     }
@@ -187,7 +201,12 @@ export default function BookingWidget({
               >
                 <span>
                   <span className={`block font-medium ${on ? "text-brand" : ""}`}>{s.name}</span>
-                  <span className="block text-sm text-muted">{s.duration_min} min</span>
+                  <span className="block text-sm text-muted">
+                    {s.duration_min} min
+                    {s.payment_type === "deposit" && amountDue(s) > 0 &&
+                      ` · señal de ${fmtPrice(amountDue(s))} al reservar`}
+                    {s.payment_type === "full" && ` · se paga al reservar`}
+                  </span>
                 </span>
                 <span className={`font-semibold tabular-nums ${on ? "text-brand" : ""}`}>
                   {fmtPrice(s.price_cents)}
@@ -340,7 +359,9 @@ export default function BookingWidget({
             >
               {saving
                 ? "Reservando…"
-                : `Confirmar — ${service!.name}, ${fmtTime(slot)}`}
+                : amountDue(service!) > 0
+                  ? `Continuar al pago — ${fmtPrice(amountDue(service!))}`
+                  : `Confirmar — ${service!.name}, ${fmtTime(slot)}`}
             </button>
           </form>
         </Step>

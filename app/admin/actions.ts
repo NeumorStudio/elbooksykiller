@@ -137,6 +137,58 @@ export async function cancelBooking(formData: FormData) {
   revalidatePath("/admin");
 }
 
+export async function connectStripe() {
+  const { supabase, user } = await db();
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("id, name, stripe_account_id")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!salon) redirect("/admin");
+
+  const { headers } = await import("next/headers");
+  const h = await headers();
+  const base = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
+
+  const { stripe } = await import("@/lib/stripe");
+  let accountId = salon.stripe_account_id;
+  if (!accountId) {
+    const account = await stripe.accounts.create({
+      type: "express",
+      country: "ES",
+      email: user.email ?? undefined,
+      business_profile: { name: salon.name },
+    });
+    accountId = account.id;
+    await supabase.from("salons").update({ stripe_account_id: accountId }).eq("id", salon.id);
+  }
+
+  const link = await stripe.accountLinks.create({
+    account: accountId,
+    type: "account_onboarding",
+    refresh_url: `${base}/admin/payments`,
+    return_url: `${base}/admin/payments`,
+  });
+  redirect(link.url);
+}
+
+export async function updateServicePayment(formData: FormData) {
+  const { supabase } = await db();
+  const type = String(formData.get("payment_type"));
+  if (!["none", "deposit", "full"].includes(type)) return;
+  const deposit = Math.round(Number(formData.get("deposit") ?? 0) * 100);
+  if (type === "deposit" && deposit <= 0) return;
+  await supabase
+    .from("services")
+    .update({
+      payment_type: type,
+      deposit_cents: type === "deposit" ? deposit : null,
+    })
+    .eq("id", String(formData.get("id")));
+  revalidatePath("/admin/services");
+}
+
 export async function logout() {
   const supabase = await supabaseServer();
   await supabase.auth.signOut();

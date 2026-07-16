@@ -1,13 +1,17 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import BookingWidget from "./booking-widget";
+import { confirmPaidSession } from "./actions";
 
 export default async function SalonPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ paid?: string; cancelled?: string }>;
 }) {
   const { slug } = await params;
+  const { paid, cancelled } = await searchParams;
   const supabase = await supabaseServer();
 
   const { data: salon } = await supabase
@@ -17,6 +21,8 @@ export default async function SalonPage({
     .maybeSingle();
 
   if (!salon) notFound();
+
+  const paidBooking = paid ? await confirmPaidSession(slug, paid) : null;
 
   const services = salon.services.filter((s) => s.active);
   const employees = salon.employees.filter((e) => e.active);
@@ -43,6 +49,30 @@ export default async function SalonPage({
           </p>
         )}
       </header>
+
+      {paidBooking && (
+        <div className="panel p-6 text-center mb-2" role="status">
+          <span className="font-display text-4xl text-ok block" aria-hidden>✓</span>
+          <h2 className="mt-3 text-xl font-semibold">Pago recibido, cita confirmada</h2>
+          <p className="mt-2 text-muted">
+            {paidBooking.serviceName} con {paidBooking.employeeName}
+            <br />
+            {paidBooking.when}
+          </p>
+          <p className="mt-3 text-sm text-muted">Te esperamos, {paidBooking.customerName}.</p>
+        </div>
+      )}
+      {paid && !paidBooking && (
+        <p className="text-center text-muted mb-2" role="status">
+          Estamos confirmando tu pago… si tu cita no aparece confirmada en unos
+          minutos, {salon.phone ? `llámanos al ${salon.phone}.` : "contacta con el salón."}
+        </p>
+      )}
+      {cancelled && (
+        <p className="text-center text-danger mb-2" role="alert">
+          Pago cancelado: la reserva no se ha completado. El hueco quedará libre de nuevo en unos minutos.
+        </p>
+      )}
 
       {services.length === 0 || employees.length === 0 ? (
         <div className="panel p-8 text-center">
