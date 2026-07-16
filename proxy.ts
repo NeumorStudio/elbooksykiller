@@ -26,9 +26,13 @@ export default async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user && request.nextUrl.pathname.startsWith("/admin") &&
-      request.nextUrl.pathname !== "/admin/login") {
+  const isLogin = request.nextUrl.pathname === "/admin/login";
+
+  if (!user && !isLogin) {
     return NextResponse.redirect(new URL("/admin/login", request.url));
+  }
+  if (user && isLogin) {
+    return NextResponse.redirect(new URL("/admin", request.url));
   }
 
   return response;
