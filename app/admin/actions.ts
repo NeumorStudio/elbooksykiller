@@ -77,6 +77,46 @@ const toMin = (hhmm: string) => {
   return h * 60 + m;
 };
 
+// Medianoche local de `day` en la zona `tz`, como instante UTC.
+function zonedMidnightUtc(day: string, tz: string): string {
+  const utcGuess = new Date(`${day}T00:00:00Z`);
+  const asLocal = new Date(utcGuess.toLocaleString("en-US", { timeZone: tz }));
+  return new Date(utcGuess.getTime() + (utcGuess.getTime() - asLocal.getTime())).toISOString();
+}
+
+export async function addTimeOff(formData: FormData) {
+  const { supabase, user } = await db();
+  const from = String(formData.get("from"));
+  const to = String(formData.get("to") || from); // un solo día si no hay "hasta"
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from) return;
+
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("timezone")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  const tz = salon?.timezone ?? "Europe/Madrid";
+
+  const end = new Date(to);
+  end.setDate(end.getDate() + 1); // "hasta" inclusive
+
+  const { error } = await supabase.from("time_off").insert({
+    employee_id: String(formData.get("employee_id")),
+    starts_at: zonedMidnightUtc(from, tz),
+    ends_at: zonedMidnightUtc(end.toISOString().slice(0, 10), tz),
+    reason: String(formData.get("reason") ?? "").trim() || null,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/employees");
+}
+
+export async function deleteTimeOff(formData: FormData) {
+  const { supabase } = await db();
+  await supabase.from("time_off").delete().eq("id", String(formData.get("id")));
+  revalidatePath("/admin/employees");
+}
+
 export async function addHours(formData: FormData) {
   const { supabase } = await db();
   const { error } = await supabase.from("working_hours").insert({

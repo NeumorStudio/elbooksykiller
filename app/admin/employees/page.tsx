@@ -1,7 +1,10 @@
 import { supabaseServer } from "@/lib/supabase/server";
-import { addEmployee, deactivateEmployee, addHours, deleteHours } from "../actions";
+import {
+  addEmployee, deactivateEmployee, addHours, deleteHours, addTimeOff, deleteTimeOff,
+} from "../actions";
 
 type WH = { id: string; weekday: number; start_min: number; end_min: number };
+type TO = { id: string; starts_at: string; ends_at: string; reason: string | null };
 
 const DAYS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const fmtMin = (m: number) =>
@@ -12,7 +15,7 @@ export default async function EmployeesPage() {
   const { data: { user } } = await supabase.auth.getUser();
   const { data: salon } = await supabase
     .from("salons")
-    .select("id, employees(*, working_hours(*))")
+    .select("id, timezone, employees(*, working_hours(*), time_off(*))")
     .eq("owner_id", user!.id)
     .limit(1)
     .maybeSingle();
@@ -78,6 +81,64 @@ export default async function EmployeesPage() {
                 Sin horario: no aparecerá en la web de reservas.
               </p>
             )}
+
+            {(() => {
+              const offs = (emp.time_off as TO[])
+                .filter((t) => new Date(t.ends_at) > new Date())
+                .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+              const fmtDay = (iso: string) =>
+                new Date(iso).toLocaleDateString("es-ES", {
+                  day: "numeric", month: "short", timeZone: salon.timezone,
+                });
+              // ends_at es exclusivo: el último día real es el anterior
+              const lastDay = (iso: string) =>
+                fmtDay(new Date(new Date(iso).getTime() - 86400000).toISOString());
+              return offs.length > 0 ? (
+                <div className="border-t border-line pt-3">
+                  <p className="label">Ausencias próximas</p>
+                  <ul className="flex flex-col gap-1.5 text-sm">
+                    {offs.map((t) => (
+                      <li key={t.id} className="flex items-center gap-3">
+                        <span className="tabular-nums">
+                          {fmtDay(t.starts_at)}
+                          {lastDay(t.ends_at) !== fmtDay(t.starts_at) && ` – ${lastDay(t.ends_at)}`}
+                        </span>
+                        {t.reason && <span className="text-muted">{t.reason}</span>}
+                        <form action={deleteTimeOff}>
+                          <input type="hidden" name="id" value={t.id} />
+                          <button
+                            className="text-danger hover:bg-danger/10 rounded px-2 py-0.5"
+                            aria-label="Quitar ausencia"
+                          >
+                            ×
+                          </button>
+                        </form>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null;
+            })()}
+
+            <form
+              action={addTimeOff}
+              className="flex flex-wrap gap-2 items-end border-t border-line pt-4"
+            >
+              <input type="hidden" name="employee_id" value={emp.id} />
+              <div>
+                <label htmlFor={`tf-${emp.id}`} className="label">Ausente desde</label>
+                <input id={`tf-${emp.id}`} name="from" type="date" required className="field w-40" />
+              </div>
+              <div>
+                <label htmlFor={`tt-${emp.id}`} className="label">Hasta (incluido)</label>
+                <input id={`tt-${emp.id}`} name="to" type="date" className="field w-40" />
+              </div>
+              <div className="flex-1 min-w-36">
+                <label htmlFor={`tr-${emp.id}`} className="label">Motivo (opcional)</label>
+                <input id={`tr-${emp.id}`} name="reason" placeholder="Vacaciones" className="field" />
+              </div>
+              <button className="btn-quiet">Bloquear días</button>
+            </form>
 
             <form
               action={addHours}

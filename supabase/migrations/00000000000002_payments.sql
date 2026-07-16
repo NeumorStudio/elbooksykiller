@@ -22,6 +22,9 @@ alter table bookings add constraint bookings_status_check
   check (status in ('confirmed', 'pending_payment', 'cancelled', 'completed', 'no_show'));
 
 -- create_booking acepta pago pendiente y devuelve la reserva creada.
+-- La firma cambia: hay que tirar la versión anterior o PostgREST ve dos
+-- funciones ambiguas y devuelve 300.
+drop function if exists create_booking(uuid, uuid, timestamptz, text, text, text, text);
 create or replace function create_booking(
   p_employee uuid, p_service uuid, p_start timestamptz,
   p_name text, p_phone text, p_email text default null, p_notes text default null,
