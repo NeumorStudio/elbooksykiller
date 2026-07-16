@@ -3,6 +3,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { sendEmail, cancellationHtml } from "@/lib/email";
 
 async function db() {
   const supabase = await supabaseServer();
@@ -96,10 +97,43 @@ export async function deleteHours(formData: FormData) {
 
 export async function cancelBooking(formData: FormData) {
   const { supabase } = await db();
-  await supabase
+  const id = String(formData.get("id"));
+
+  // Leer antes de cancelar (RLS: solo el dueño llega aquí con datos)
+  const { data: b } = await supabase
+    .from("bookings")
+    .select("customer_name, customer_email, starts_at, services(name), salons(name, phone, timezone)")
+    .eq("id", id)
+    .maybeSingle();
+
+  const { error } = await supabase
     .from("bookings")
     .update({ status: "cancelled" })
-    .eq("id", String(formData.get("id")));
+    .eq("id", id);
+
+  if (!error && b?.customer_email) {
+    const salon = b.salons as unknown as { name: string; phone: string | null; timezone: string };
+    await sendEmail({
+      to: b.customer_email,
+      subject: `Tu cita en ${salon.name} se ha cancelado`,
+      html: cancellationHtml({
+        salonName: salon.name,
+        salonPhone: salon.phone,
+        serviceName: (b.services as unknown as { name: string }).name,
+        employeeName: "",
+        customerName: b.customer_name,
+        when: new Date(b.starts_at).toLocaleString("es-ES", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: salon.timezone,
+        }),
+      }),
+      idempotencyKey: `booking-cancel/${id}`,
+    });
+  }
   revalidatePath("/admin");
 }
 

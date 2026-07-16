@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { bookAppointment } from "./actions";
 
 type Service = { id: string; name: string; price_cents: number; duration_min: number };
 type Employee = { id: string; name: string };
@@ -43,6 +44,7 @@ export default function BookingWidget({
   const [slot, setSlot] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -96,16 +98,17 @@ export default function BookingWidget({
   async function book() {
     setSaving(true);
     setError("");
-    const { error } = await supabaseBrowser().rpc("create_booking", {
-      p_employee: employee!.id,
-      p_service: service!.id,
-      p_start: slot,
-      p_name: name,
-      p_phone: phone,
+    const result = await bookAppointment({
+      employeeId: employee!.id,
+      serviceId: service!.id,
+      startIso: slot,
+      name,
+      phone,
+      email: email.trim(),
     });
     setSaving(false);
-    if (error) {
-      if (error.message.includes("slot_unavailable")) {
+    if ("error" in result) {
+      if (result.error === "slot_unavailable") {
         setError("Ese hueco se acaba de ocupar. Elige otro.");
         setSlot("");
         setRefresh((r) => r + 1);
@@ -314,6 +317,19 @@ export default function BookingWidget({
                 autoComplete="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
+                className="field"
+              />
+            </div>
+            <div>
+              <label htmlFor="bk-email" className="label">
+                Email <span className="font-normal">(opcional, para enviarte la confirmación)</span>
+              </label>
+              <input
+                id="bk-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="field"
               />
             </div>
