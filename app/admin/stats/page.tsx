@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 
 type Row = {
@@ -10,7 +11,12 @@ type Row = {
 const eur = (cents: number) =>
   (cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 
-export default async function StatsPage() {
+export default async function StatsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mes?: string }>;
+}) {
+  const { mes } = await searchParams;
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: salon } = await supabase
@@ -23,19 +29,31 @@ export default async function StatsPage() {
   if (!salon) return <p className="text-muted">Primero crea tu peluquería en la Agenda.</p>;
 
   const now = new Date();
-  const since = new Date(now.getTime() - 91 * 86400000);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  // Mes seleccionado (?mes=YYYY-MM); por defecto, el actual
+  const [y, m] = /^\d{4}-\d{2}$/.test(mes ?? "")
+    ? mes!.split("-").map(Number)
+    : [now.getFullYear(), now.getMonth() + 1];
+  const monthStart = new Date(y, m - 1, 1);
+  const monthEnd = new Date(y, m, 1);
+  const monthKey = `${y}-${String(m).padStart(2, "0")}`;
+  const prevKey = `${m === 1 ? y - 1 : y}-${String(m === 1 ? 12 : m - 1).padStart(2, "0")}`;
+  const nextKey = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, "0")}`;
+
+  const since = new Date(Math.min(now.getTime() - 91 * 86400000, monthStart.getTime()));
+  const until = new Date(Math.max(now.getTime() + 86400000, monthEnd.getTime()));
   const { data } = await supabase
     .from("bookings")
     .select("starts_at, status, services(name, price_cents), employees(name)")
     .eq("salon_id", salon.id)
     .gte("starts_at", since.toISOString())
-    .lt("starts_at", monthEnd.toISOString()) // incluye lo ya reservado del mes
+    .lt("starts_at", until.toISOString())
     .neq("status", "pending_payment");
   const rows = (data ?? []) as unknown as Row[];
 
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const month = rows.filter((r) => new Date(r.starts_at) >= monthStart);
+  const month = rows.filter((r) => {
+    const d = new Date(r.starts_at);
+    return d >= monthStart && d < monthEnd;
+  });
   const kept = (list: Row[]) => list.filter((r) => r.status !== "cancelled");
   const monthKept = kept(month);
   const revenue = monthKept.reduce((s, r) => s + (r.services?.price_cents ?? 0), 0);
@@ -80,13 +98,42 @@ export default async function StatsPage() {
   }
   const maxWeek = Math.max(1, ...weeks.map((w) => w.count));
 
-  const monthName = now.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+  const monthName = monthStart.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
 
   return (
     <main className="flex flex-col gap-8 max-w-2xl">
-      <div>
-        <h1 className="font-display text-3xl font-semibold">Estadísticas</h1>
-        <p className="text-muted mt-1 first-letter:uppercase">{monthName}</p>
+      <div className="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="font-display text-3xl font-semibold">Estadísticas</h1>
+          <p className="text-muted mt-1 first-letter:uppercase">{monthName}</p>
+        </div>
+        <div className="flex items-center gap-1">
+          <Link
+            href={`/admin/stats?mes=${prevKey}`}
+            aria-label="Mes anterior"
+            className="btn-quiet px-3"
+          >
+            ←
+          </Link>
+          <form className="flex items-center gap-1">
+            <label htmlFor="mes" className="sr-only">Mes</label>
+            <input
+              id="mes"
+              type="month"
+              name="mes"
+              defaultValue={monthKey}
+              className="field w-40"
+            />
+            <button className="btn-quiet px-3">Ver</button>
+          </form>
+          <Link
+            href={`/admin/stats?mes=${nextKey}`}
+            aria-label="Mes siguiente"
+            className="btn-quiet px-3"
+          >
+            →
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -123,7 +170,7 @@ export default async function StatsPage() {
 
       {byService.length > 0 && (
         <section>
-          <h2 className="font-semibold mb-3">Por servicio (este mes)</h2>
+          <h2 className="font-semibold mb-3">Por servicio</h2>
           <ul className="panel divide-y divide-line">
             {byService.map(([name, v]) => (
               <li key={name} className="flex items-center px-4 py-2 text-sm">
@@ -138,7 +185,7 @@ export default async function StatsPage() {
 
       {byEmployee.length > 1 && (
         <section>
-          <h2 className="font-semibold mb-3">Por profesional (este mes)</h2>
+          <h2 className="font-semibold mb-3">Por profesional</h2>
           <ul className="panel divide-y divide-line">
             {byEmployee.map(([name, v]) => (
               <li key={name} className="flex items-center px-4 py-2 text-sm">
