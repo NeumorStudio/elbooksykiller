@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { addService, deleteService, updateServicePayment } from "../actions";
+import SubmitButton from "../submit-button";
 
 const PAY_LABEL: Record<string, string> = {
   none: "Se paga en el local",
@@ -81,7 +82,7 @@ export default async function ServicesPage() {
                       className="field w-24"
                     />
                   </div>
-                  <button className="btn-quiet">Guardar</button>
+                  <SubmitButton className="btn-quiet">Guardar</SubmitButton>
                 </form>
               )}
             </li>
@@ -112,7 +113,7 @@ export default async function ServicesPage() {
             <label htmlFor="sv-duration" className="label">Minutos</label>
             <input id="sv-duration" name="duration" required type="number" min="5" max="480" step="5" defaultValue={30} className="field" />
           </div>
-          <button className="btn-primary col-span-2 sm:col-span-1">Añadir</button>
+          <SubmitButton className="btn-primary col-span-2 sm:col-span-1" pendingText="Añadiendo…">Añadir</SubmitButton>
         </div>
       </form>
 

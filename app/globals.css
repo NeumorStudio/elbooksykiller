@@ -55,6 +55,19 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+/* Tailwind v4 dejó los botones con cursor:default (como los nativos);
+   en una web de acciones, la manita es la señal esperada. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  select:not(:disabled),
+  input[type="date"],
+  input[type="month"],
+  input[type="time"] {
+    cursor: pointer;
+  }
+}
+
 h1,
 h2,
 h3 {
@@ -67,7 +80,7 @@ h3 {
   .btn-quiet,
   .btn-danger {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 font-medium
-      transition-colors duration-150 select-none
+      transition-all duration-150 select-none active:scale-[0.98]
       focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand
       disabled:opacity-40 disabled:pointer-events-none;
     min-height: 44px;
@@ -93,8 +106,8 @@ h3 {
   }
   .chip {
     @apply inline-flex items-center justify-center rounded-lg border border-line bg-surface
-      px-3 text-sm text-ink transition-colors duration-150 cursor-pointer
-      hover:border-muted
+      px-3 text-sm text-ink transition-all duration-150 cursor-pointer
+      hover:border-muted active:scale-[0.97]
       focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
     min-height: 44px;
   }

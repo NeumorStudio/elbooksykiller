@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { supabaseServer } from "@/lib/supabase/server";
 import { domainStatus } from "@/lib/vercel";
 import { setCustomDomain, removeCustomDomain } from "../actions";
+import SubmitButton from "../submit-button";
 
 export default async function WebsitePage() {
   const supabase = await supabaseServer();
@@ -101,7 +102,7 @@ export default async function WebsitePage() {
                 className="field"
               />
             </div>
-            <button className="btn-primary">Conectar dominio</button>
+            <SubmitButton className="btn-primary" pendingText="Conectando…">Conectar dominio</SubmitButton>
           </form>
         )}
       </div>

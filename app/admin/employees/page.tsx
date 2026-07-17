@@ -2,6 +2,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import {
   addEmployee, deactivateEmployee, addHours, deleteHours, addTimeOff, deleteTimeOff,
 } from "../actions";
+import SubmitButton from "../submit-button";
 
 type WH = { id: string; weekday: number; start_min: number; end_min: number };
 type TO = { id: string; starts_at: string; ends_at: string; reason: string | null };
@@ -137,7 +138,7 @@ export default async function EmployeesPage() {
                 <label htmlFor={`tr-${emp.id}`} className="label">Motivo (opcional)</label>
                 <input id={`tr-${emp.id}`} name="reason" placeholder="Vacaciones" className="field" />
               </div>
-              <button className="btn-quiet">Bloquear días</button>
+              <SubmitButton className="btn-quiet" pendingText="Bloqueando…">Bloquear días</SubmitButton>
             </form>
 
             <form
@@ -161,7 +162,7 @@ export default async function EmployeesPage() {
                 <label htmlFor={`en-${emp.id}`} className="label">A</label>
                 <input id={`en-${emp.id}`} name="end" type="time" required defaultValue="20:00" className="field w-28" />
               </div>
-              <button className="btn-quiet">Añadir tramo</button>
+              <SubmitButton className="btn-quiet" pendingText="Añadiendo…">Añadir tramo</SubmitButton>
             </form>
           </section>
         );
@@ -175,7 +176,7 @@ export default async function EmployeesPage() {
             <label htmlFor="emp-name" className="label">Nombre</label>
             <input id="emp-name" name="name" required placeholder="Paco" className="field" />
           </div>
-          <button className="btn-primary">Añadir</button>
+          <SubmitButton className="btn-primary" pendingText="Añadiendo…">Añadir</SubmitButton>
         </div>
       </form>
     </main>

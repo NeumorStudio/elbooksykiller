@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { createSalon, cancelBooking, dismissOnboarding } from "./actions";
+import SubmitButton from "./submit-button";
 
 type Row = {
   id: string;
@@ -48,7 +49,7 @@ export default async function AdminHome() {
             <label htmlFor="s-address" className="label">Dirección (opcional)</label>
             <input id="s-address" name="address" className="field" />
           </div>
-          <button className="btn-primary mt-2">Crear mi peluquería</button>
+          <SubmitButton className="btn-primary mt-2" pendingText="Creando…">Crear mi peluquería</SubmitButton>
         </form>
       </main>
     );

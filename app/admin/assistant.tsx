@@ -86,6 +86,7 @@ export default function Assistant() {
         }}
         aria-label="Asistente de voz"
         className="fixed bottom-5 right-5 z-20 h-14 w-14 rounded-full bg-brand text-brand-ink text-2xl shadow-lg
+          transition-all duration-150 hover:bg-brand-hover hover:scale-105 active:scale-95
           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
         {open ? "×" : "🎤"}

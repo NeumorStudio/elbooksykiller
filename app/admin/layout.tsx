@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { logout } from "./actions";
 import Assistant from "./assistant";
+import NavLinks from "./nav-links";
 
 export default async function AdminLayout({
   children,
@@ -28,21 +29,7 @@ export default async function AdminLayout({
           <span className="font-display text-lg font-semibold text-brand mr-4 truncate hidden sm:block">
             {salon?.name ?? "Mi salón"}
           </span>
-          <Link href="/admin" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface">
-            Agenda
-          </Link>
-          <Link href="/admin/services" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface">
-            Servicios
-          </Link>
-          <Link href="/admin/employees" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface">
-            Equipo
-          </Link>
-          <Link href="/admin/payments" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface">
-            Cobros
-          </Link>
-          <Link href="/admin/stats" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface">
-            Estadísticas
-          </Link>
+          <NavLinks />
           <div className="ml-auto flex items-center gap-1">
             {salon && (
               <Link
