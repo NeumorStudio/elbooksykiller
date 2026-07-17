@@ -1,10 +1,42 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Refresca la sesión de Supabase en rutas /admin.
-// ponytail: dominios propios por cliente se resolverán aquí por hostname
-// cuando exista el primero; hoy cada salón vive en /[slug].
+function isPlatformHost(host: string) {
+  const h = host.split(":")[0];
+  return (
+    h === "localhost" ||
+    h === "127.0.0.1" ||
+    h.endsWith(".vercel.app") ||
+    h.endsWith(".vercel.dev")
+  );
+}
+
 export default async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Dominio propio de un salón: la raíz sirve su página de reservas.
+  // (Las rutas profundas tipo /mi-slug funcionan en cualquier host sin rewrite.)
+  if (pathname === "/") {
+    const host = request.headers.get("host") ?? "";
+    if (host && !isPlatformHost(host)) {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/salons?custom_domain=eq.${encodeURIComponent(
+          host.split(":")[0]
+        )}&select=slug`,
+        {
+          headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! },
+          next: { revalidate: 60 },
+        }
+      );
+      const rows = res.ok ? await res.json() : [];
+      if (rows[0]?.slug) {
+        return NextResponse.rewrite(new URL(`/${rows[0].slug}`, request.url));
+      }
+    }
+    return NextResponse.next();
+  }
+
+  // Rutas /admin: refresco de sesión + guard en ambos sentidos
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -25,8 +57,7 @@ export default async function proxy(request: NextRequest) {
   );
 
   const { data: { user } } = await supabase.auth.getUser();
-
-  const isLogin = request.nextUrl.pathname === "/admin/login";
+  const isLogin = pathname === "/admin/login";
 
   if (!user && !isLogin) {
     return NextResponse.redirect(new URL("/admin/login", request.url));
@@ -38,4 +69,4 @@ export default async function proxy(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ["/admin/:path*"] };
+export const config = { matcher: ["/admin/:path*", "/"] };

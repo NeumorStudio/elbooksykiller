@@ -45,11 +45,10 @@ export default async function AdminLayout({
           <div className="ml-auto flex items-center gap-1">
             {salon && (
               <Link
-                href={`/${salon.slug}`}
-                target="_blank"
+                href="/admin/website"
                 className="px-3 py-2 rounded-lg text-sm text-muted hover:bg-surface hidden sm:block"
               >
-                Ver mi web ↗
+                Mi web
               </Link>
             )}
             <form action={logout}>

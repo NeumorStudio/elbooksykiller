@@ -229,6 +229,60 @@ export async function updateServicePayment(formData: FormData) {
   revalidatePath("/admin/services");
 }
 
+const DOMAIN_RE = /^(?!-)([a-z0-9-]{1,63}\.)+[a-z]{2,}$/;
+
+export async function setCustomDomain(formData: FormData) {
+  const { supabase, user } = await db();
+  const domain = String(formData.get("domain") ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
+  if (!DOMAIN_RE.test(domain) || domain.endsWith(".vercel.app")) {
+    throw new Error("invalid_domain");
+  }
+
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("id, custom_domain")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!salon) redirect("/admin");
+
+  const { addDomainToProject, removeDomainFromProject } = await import("@/lib/vercel");
+  await addDomainToProject(domain);
+
+  const { error } = await supabase
+    .from("salons")
+    .update({ custom_domain: domain })
+    .eq("id", salon.id);
+  if (error) {
+    await removeDomainFromProject(domain);
+    throw new Error(error.message); // p. ej. dominio ya usado por otro salón
+  }
+  if (salon.custom_domain && salon.custom_domain !== domain) {
+    await removeDomainFromProject(salon.custom_domain);
+  }
+  revalidatePath("/admin/website");
+}
+
+export async function removeCustomDomain() {
+  const { supabase, user } = await db();
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("id, custom_domain")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!salon?.custom_domain) return;
+
+  const { removeDomainFromProject } = await import("@/lib/vercel");
+  await removeDomainFromProject(salon.custom_domain);
+  await supabase.from("salons").update({ custom_domain: null }).eq("id", salon.id);
+  revalidatePath("/admin/website");
+}
+
 export async function logout() {
   const supabase = await supabaseServer();
   await supabase.auth.signOut();
