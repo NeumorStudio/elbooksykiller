@@ -278,6 +278,12 @@ export async function removeCustomDomain() {
   revalidatePath("/admin/website");
 }
 
+export async function dismissOnboarding() {
+  const { supabase, user } = await db();
+  await supabase.from("salons").update({ onboarded: true }).eq("owner_id", user.id);
+  revalidatePath("/admin");
+}
+
 export async function logout() {
   const supabase = await supabaseServer();
   await supabase.auth.signOut();

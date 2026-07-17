@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
-import { createSalon, cancelBooking } from "./actions";
+import { createSalon, cancelBooking, dismissOnboarding } from "./actions";
 
 type Row = {
   id: string;
@@ -57,7 +57,7 @@ export default async function AdminHome() {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-  const [{ data: upcomingRaw }, { data: monthBookings }, { count: serviceCount }] =
+  const [{ data: upcomingRaw }, { data: monthBookings }, { count: serviceCount }, { data: staffed }] =
     await Promise.all([
       supabase
         .from("bookings")
@@ -76,6 +76,11 @@ export default async function AdminHome() {
       supabase
         .from("services")
         .select("id", { count: "exact", head: true })
+        .eq("salon_id", salon.id)
+        .eq("active", true),
+      supabase
+        .from("employees")
+        .select("id, working_hours(id)")
         .eq("salon_id", salon.id)
         .eq("active", true),
     ]);
@@ -106,8 +111,86 @@ export default async function AdminHome() {
     byDay.set(key, [...(byDay.get(key) ?? []), b]);
   }
 
+  const hasServices = (serviceCount ?? 0) > 0;
+  const hasTeam = (staffed ?? []).some(
+    (e) => (e.working_hours as { id: string }[]).length > 0
+  );
+  const check = (done: boolean) => (
+    <span
+      aria-hidden
+      className={`w-6 h-6 rounded-full border shrink-0 inline-flex items-center justify-center text-sm mt-0.5
+        ${done ? "border-ok bg-ok/10 text-ok" : "border-line text-muted"}`}
+    >
+      {done ? "✓" : ""}
+    </span>
+  );
+
   return (
     <main className="flex flex-col gap-8">
+      {!salon.onboarded && (
+        <section className="panel p-6 flex flex-col gap-4" aria-label="Primeros pasos">
+          <div>
+            <h2 className="font-display text-2xl font-semibold">
+              Bienvenido — tu web ya existe 👋
+            </h2>
+            <p className="text-muted mt-1 text-pretty">
+              Con estos pasos empiezas a recibir reservas. Esta guía desaparece
+              cuando tú quieras.
+            </p>
+          </div>
+          <ol className="flex flex-col gap-3">
+            <li className="flex gap-3">
+              {check(hasServices)}
+              <p className="text-sm text-pretty">
+                <Link href="/admin/services" className="font-semibold underline underline-offset-4">
+                  Servicios
+                </Link>{" "}
+                — lo que tus clientes pueden reservar, con precio y duración.
+              </p>
+            </li>
+            <li className="flex gap-3">
+              {check(hasTeam)}
+              <p className="text-sm text-pretty">
+                <Link href="/admin/employees" className="font-semibold underline underline-offset-4">
+                  Equipo y horarios
+                </Link>{" "}
+                — quién trabaja y cuándo: de aquí salen los huecos libres. También
+                se bloquean vacaciones y ausencias.
+              </p>
+            </li>
+            <li className="flex gap-3">
+              {check(salon.charges_enabled)}
+              <p className="text-sm text-pretty">
+                <Link href="/admin/payments" className="font-semibold underline underline-offset-4">
+                  Cobros
+                </Link>{" "}
+                <span className="text-muted">(opcional)</span> — cobra una señal o
+                la cita al reservar; el dinero va directo a tu banco.
+              </p>
+            </li>
+            <li className="flex gap-3">
+              {check(!!salon.custom_domain)}
+              <p className="text-sm text-pretty">
+                <Link href="/admin/website" className="font-semibold underline underline-offset-4">
+                  Mi web
+                </Link>{" "}
+                — comparte tu dirección con tus clientes, o conecta tu propio
+                dominio.
+              </p>
+            </li>
+          </ol>
+          <p className="text-sm text-muted text-pretty">
+            💡 Truco: el botón 🎤 de abajo lo configura todo por voz — di
+            «añade el servicio corte caballero a 15 euros, 30 minutos» y confirma.
+            Las citas aparecerán aquí en la Agenda, y en Estadísticas verás cómo va
+            el negocio.
+          </p>
+          <form action={dismissOnboarding}>
+            <button className="btn-quiet text-sm">Entendido, no volver a mostrar</button>
+          </form>
+        </section>
+      )}
+
       <div className="flex items-baseline justify-between flex-wrap gap-2">
         <h1 className="font-display text-3xl font-semibold">Agenda</h1>
         <p className="text-sm text-muted">
