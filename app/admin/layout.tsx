@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { logout } from "./actions";
+import Assistant from "./assistant";
 
 export default async function AdminLayout({
   children,
@@ -60,6 +61,7 @@ export default async function AdminLayout({
         </div>
       </nav>
       <div className="mx-auto w-full max-w-4xl px-5 py-8 flex-1">{children}</div>
+      {salon && <Assistant />}
     </div>
   );
 }

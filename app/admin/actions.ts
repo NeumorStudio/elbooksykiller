@@ -72,17 +72,12 @@ export async function deactivateEmployee(formData: FormData) {
   revalidatePath("/admin/employees");
 }
 
+import { zonedMidnightUtc } from "@/lib/tz";
+
 const toMin = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
 };
-
-// Medianoche local de `day` en la zona `tz`, como instante UTC.
-function zonedMidnightUtc(day: string, tz: string): string {
-  const utcGuess = new Date(`${day}T00:00:00Z`);
-  const asLocal = new Date(utcGuess.toLocaleString("en-US", { timeZone: tz }));
-  return new Date(utcGuess.getTime() + (utcGuess.getTime() - asLocal.getTime())).toISOString();
-}
 
 export async function addTimeOff(formData: FormData) {
   const { supabase, user } = await db();
