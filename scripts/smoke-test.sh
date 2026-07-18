@@ -4,9 +4,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export $(grep -v '^#' .env.local | xargs)
-URL=$NEXT_PUBLIC_SUPABASE_URL
-KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env.local | cut -d= -f2)
+KEY=$(grep '^NEXT_PUBLIC_SUPABASE_ANON_KEY=' .env.local | cut -d= -f2)
 TS=$(date +%s)
 EMAIL="smoke-$TS@test.local"
 DAY=$(date -d "next monday" +%F)
