@@ -306,6 +306,60 @@ export async function dismissOnboarding() {
   revalidatePath("/admin");
 }
 
+const LOGO_TYPES: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/svg+xml": "svg",
+};
+
+export async function uploadLogo(formData: FormData) {
+  const { supabase, user } = await db();
+  const file = formData.get("logo");
+  if (!(file instanceof File) || file.size === 0) return { error: "Elige una imagen." };
+  if (!LOGO_TYPES[file.type]) return { error: "Formato no válido: usa PNG, JPG, WebP o SVG." };
+  if (file.size > 2 * 1024 * 1024) return { error: "Máximo 2 MB. Reduce la imagen e inténtalo." };
+
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("id")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!salon) return { error: "Primero crea tu peluquería." };
+
+  const { supabaseAdmin } = await import("@/lib/supabase/server");
+  const admin = supabaseAdmin();
+  const path = `${salon.id}.${LOGO_TYPES[file.type]}`;
+  const { error: upErr } = await admin.storage
+    .from("logos")
+    .upload(path, file, { upsert: true, contentType: file.type });
+  if (upErr) return { error: "No se pudo subir el logo. Inténtalo de nuevo." };
+
+  const { data: pub } = admin.storage.from("logos").getPublicUrl(path);
+  await supabase
+    .from("salons")
+    .update({ logo_url: `${pub.publicUrl}?v=${Math.trunc(Math.random() * 1e9)}` })
+    .eq("id", salon.id);
+  revalidatePath("/admin/website");
+}
+
+export async function removeLogo() {
+  const { supabase, user } = await db();
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("id, logo_url")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!salon?.logo_url) return;
+  const { supabaseAdmin } = await import("@/lib/supabase/server");
+  const path = salon.logo_url.split("/logos/")[1]?.split("?")[0];
+  if (path) await supabaseAdmin().storage.from("logos").remove([path]);
+  await supabase.from("salons").update({ logo_url: null }).eq("id", salon.id);
+  revalidatePath("/admin/website");
+}
+
 export async function logout() {
   const supabase = await supabaseServer();
   await supabase.auth.signOut();

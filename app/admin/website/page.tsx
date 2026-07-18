@@ -2,7 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { supabaseServer } from "@/lib/supabase/server";
 import { domainStatus } from "@/lib/vercel";
-import { setCustomDomain, removeCustomDomain } from "../actions";
+import { setCustomDomain, removeCustomDomain, uploadLogo, removeLogo } from "../actions";
 import SubmitButton from "../submit-button";
 import ActionForm from "../action-form";
 import ConfirmSubmit from "../confirm-submit";
@@ -12,7 +12,7 @@ export default async function WebsitePage() {
   const { data: { user } } = await supabase.auth.getUser();
   const { data: salon } = await supabase
     .from("salons")
-    .select("slug, custom_domain")
+    .select("slug, custom_domain, logo_url")
     .eq("owner_id", user!.id)
     .limit(1)
     .maybeSingle();
@@ -39,6 +39,47 @@ export default async function WebsitePage() {
             {platformUrl} ↗
           </Link>
         </p>
+      </div>
+
+      <div className="panel p-6 flex flex-col gap-4">
+        <div>
+          <h2 className="font-semibold">Logo</h2>
+          <p className="text-sm text-muted mt-1 text-pretty">
+            Aparece en la cabecera de tu web y como icono cuando tus clientes
+            la instalan en el móvil. PNG, JPG, WebP o SVG, máx. 2 MB.
+          </p>
+        </div>
+        {salon.logo_url && (
+          <div className="flex items-center gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={salon.logo_url}
+              alt="Logo actual"
+              className="h-16 w-16 rounded-xl object-contain bg-surface-2 border border-line p-1"
+            />
+            <form action={removeLogo}>
+              <ConfirmSubmit message="¿Quitar el logo? Volverá a mostrarse solo el nombre del salón.">
+                Quitar
+              </ConfirmSubmit>
+            </form>
+          </div>
+        )}
+        <ActionForm action={uploadLogo} className="flex flex-wrap gap-2 items-end">
+          <div className="flex-1 min-w-56">
+            <label htmlFor="logo" className="label">
+              {salon.logo_url ? "Cambiar logo" : "Subir logo"}
+            </label>
+            <input
+              id="logo"
+              name="logo"
+              type="file"
+              required
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="field pt-2"
+            />
+          </div>
+          <SubmitButton className="btn-primary" pendingText="Subiendo…">Guardar logo</SubmitButton>
+        </ActionForm>
       </div>
 
       <div className="panel p-6 flex flex-col gap-4">

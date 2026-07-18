@@ -44,7 +44,7 @@ export default async function SalonPage({
 
   const { data: salon } = await supabase
     .from("salons")
-    .select("id, name, slug, phone, address, timezone, services(*), employees(*)")
+    .select("id, name, slug, phone, address, timezone, logo_url, services(*), employees(*)")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -58,6 +58,14 @@ export default async function SalonPage({
   return (
     <main className="mx-auto w-full max-w-xl px-5 pb-24">
       <header className="pt-14 pb-10 text-center">
+        {salon.logo_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={salon.logo_url}
+            alt=""
+            className="mx-auto mb-5 h-24 w-24 rounded-2xl object-contain"
+          />
+        )}
         <p className="text-sm text-muted mb-3">Reserva tu cita en</p>
         <h1
           className="font-display text-5xl sm:text-6xl font-semibold text-brand"
@@ -131,7 +139,7 @@ export default async function SalonPage({
         Reservas por ElBooksyKiller
       </footer>
 
-      <InstallPrompt slug={salon.slug} salonName={salon.name} />
+      <InstallPrompt slug={salon.slug} salonName={salon.name} logoUrl={salon.logo_url} />
     </main>
   );
 }

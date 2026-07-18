@@ -9,9 +9,11 @@ type BipEvent = Event & { prompt: () => Promise<void> };
 export default function InstallPrompt({
   slug,
   salonName,
+  logoUrl,
 }: {
   slug: string;
   salonName: string;
+  logoUrl?: string | null;
 }) {
   const [mode, setMode] = useState<"hidden" | "android" | "ios">("hidden");
   const deferred = useRef<BipEvent | null>(null);
@@ -79,13 +81,22 @@ export default function InstallPrompt({
       aria-label="Instalar aplicación"
       className="fixed bottom-4 inset-x-4 z-30 mx-auto max-w-md panel bg-surface p-4 shadow-xl flex items-start gap-3"
     >
-      <span
-        aria-hidden
-        className="w-11 h-11 shrink-0 rounded-xl bg-bg text-brand font-display font-bold text-xl
-          inline-flex items-center justify-center border border-line"
-      >
-        {salonName.charAt(0).toUpperCase()}
-      </span>
+      {logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logoUrl}
+          alt=""
+          className="w-11 h-11 shrink-0 rounded-xl object-contain bg-bg border border-line p-0.5"
+        />
+      ) : (
+        <span
+          aria-hidden
+          className="w-11 h-11 shrink-0 rounded-xl bg-bg text-brand font-display font-bold text-xl
+            inline-flex items-center justify-center border border-line"
+        >
+          {salonName.charAt(0).toUpperCase()}
+        </span>
+      )}
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-sm">{salonName}, como una app</p>
         {mode === "android" ? (

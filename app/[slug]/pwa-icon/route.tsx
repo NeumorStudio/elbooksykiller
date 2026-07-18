@@ -16,10 +16,37 @@ export async function GET(
   );
   const { data: salon } = await anon
     .from("salons")
-    .select("name")
+    .select("name, logo_url")
     .eq("slug", slug)
     .maybeSingle();
   const letter = (salon?.name ?? "•").trim().charAt(0).toUpperCase();
+
+  if (salon?.logo_url && !salon.logo_url.includes(".svg")) {
+    return new ImageResponse(
+      (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#1b1712",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={salon.logo_url}
+            alt=""
+            width={size * 0.72}
+            height={size * 0.72}
+            style={{ objectFit: "contain" }}
+          />
+        </div>
+      ),
+      { width: size, height: size, headers: { "Cache-Control": "public, max-age=3600" } }
+    );
+  }
 
   return new ImageResponse(
     (
