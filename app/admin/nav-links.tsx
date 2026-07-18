@@ -9,6 +9,7 @@ const LINKS = [
   ["/admin/employees", "Equipo"],
   ["/admin/payments", "Cobros"],
   ["/admin/stats", "Estadísticas"],
+  ["/admin/website", "Mi web"],
 ] as const;
 
 export default function NavLinks() {
@@ -22,7 +23,7 @@ export default function NavLinks() {
             key={href}
             href={href}
             aria-current={current ? "page" : undefined}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
+            className={`px-3 min-h-11 inline-flex items-center rounded-lg text-sm font-medium transition-colors duration-150
               ${current ? "bg-surface text-brand" : "hover:bg-surface"}`}
           >
             {label}

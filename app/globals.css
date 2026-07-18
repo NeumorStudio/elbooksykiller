@@ -93,7 +93,6 @@ h3 {
   }
   .btn-danger {
     @apply text-danger hover:bg-danger/10 px-3;
-    min-height: 36px;
   }
   .field {
     @apply w-full rounded-lg border border-line bg-surface px-3 text-ink

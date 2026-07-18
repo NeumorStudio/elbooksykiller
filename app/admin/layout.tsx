@@ -31,14 +31,6 @@ export default async function AdminLayout({
           </span>
           <NavLinks />
           <div className="ml-auto flex items-center gap-1">
-            {salon && (
-              <Link
-                href="/admin/website"
-                className="px-3 py-2 rounded-lg text-sm text-muted hover:bg-surface hidden sm:block"
-              >
-                Mi web
-              </Link>
-            )}
             <form action={logout}>
               <button className="px-3 py-2 rounded-lg text-sm text-muted hover:bg-surface">
                 Salir
@@ -47,7 +39,7 @@ export default async function AdminLayout({
           </div>
         </div>
       </nav>
-      <div className="mx-auto w-full max-w-4xl px-5 py-8 flex-1">{children}</div>
+      <div className="mx-auto w-full max-w-4xl px-5 py-8 pb-28 flex-1">{children}</div>
       {salon && <Assistant />}
     </div>
   );

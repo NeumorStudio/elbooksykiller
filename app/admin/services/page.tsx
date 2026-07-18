@@ -2,6 +2,8 @@ import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { addService, deleteService, updateServicePayment } from "../actions";
 import SubmitButton from "../submit-button";
+import ActionForm from "../action-form";
+import ConfirmSubmit from "../confirm-submit";
 
 const PAY_LABEL: Record<string, string> = {
   none: "Se paga en el local",
@@ -51,11 +53,13 @@ export default async function ServicesPage() {
                 </span>
                 <form action={deleteService}>
                   <input type="hidden" name="id" value={s.id} />
-                  <button className="btn-danger text-sm">Quitar</button>
+                  <ConfirmSubmit message={`¿Quitar «${s.name}»? Dejará de poder reservarse.`}>
+                    Quitar
+                  </ConfirmSubmit>
                 </form>
               </div>
               {salon.charges_enabled && (
-                <form action={updateServicePayment} className="flex flex-wrap items-end gap-2 text-sm">
+                <ActionForm action={updateServicePayment} className="flex flex-wrap items-end gap-2 text-sm">
                   <input type="hidden" name="id" value={s.id} />
                   <div>
                     <label htmlFor={`pt-${s.id}`} className="label">Cobro al reservar</label>
@@ -83,7 +87,7 @@ export default async function ServicesPage() {
                     />
                   </div>
                   <SubmitButton className="btn-quiet">Guardar</SubmitButton>
-                </form>
+                </ActionForm>
               )}
             </li>
           ))}
@@ -97,7 +101,7 @@ export default async function ServicesPage() {
         </div>
       )}
 
-      <form action={addService} className="panel p-5">
+      <ActionForm action={addService} className="panel p-5">
         <h2 className="font-semibold mb-4">Añadir servicio</h2>
         <input type="hidden" name="salon_id" value={salon.id} />
         <div className="grid grid-cols-2 sm:grid-cols-[1fr_7rem_7rem_auto] gap-3 items-end">
@@ -115,7 +119,7 @@ export default async function ServicesPage() {
           </div>
           <SubmitButton className="btn-primary col-span-2 sm:col-span-1" pendingText="Añadiendo…">Añadir</SubmitButton>
         </div>
-      </form>
+      </ActionForm>
 
       {!salon.charges_enabled && (
         <p className="text-sm text-muted">

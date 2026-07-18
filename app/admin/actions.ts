@@ -20,6 +20,8 @@ export async function createSalon(formData: FormData) {
     .toLowerCase()
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9-]/g, "");
+  if (name.length < 2) return { error: "Pon el nombre del salón." };
+  if (slug.length < 3) return { error: "La dirección web necesita al menos 3 letras." };
   const { error } = await supabase.from("salons").insert({
     owner_id: user.id,
     name,
@@ -27,7 +29,13 @@ export async function createSalon(formData: FormData) {
     phone: String(formData.get("phone") ?? "").trim() || null,
     address: String(formData.get("address") ?? "").trim() || null,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    return {
+      error: error.message.includes("salons_slug_key")
+        ? "Esa dirección web ya está cogida — prueba con otra."
+        : "No se pudo crear el salón. Inténtalo de nuevo.",
+    };
+  }
   revalidatePath("/admin");
 }
 
@@ -39,7 +47,7 @@ export async function addService(formData: FormData) {
     price_cents: Math.round(Number(formData.get("price") ?? 0) * 100),
     duration_min: Number(formData.get("duration") ?? 30),
   });
-  if (error) throw new Error(error.message);
+  if (error) return { error: "No se pudo añadir el servicio. Revisa precio y duración." };
   revalidatePath("/admin/services");
 }
 
@@ -59,7 +67,7 @@ export async function addEmployee(formData: FormData) {
     salon_id: String(formData.get("salon_id")),
     name: String(formData.get("name") ?? "").trim(),
   });
-  if (error) throw new Error(error.message);
+  if (error) return { error: "No se pudo añadir. Inténtalo de nuevo." };
   revalidatePath("/admin/employees");
 }
 
@@ -83,7 +91,9 @@ export async function addTimeOff(formData: FormData) {
   const { supabase, user } = await db();
   const from = String(formData.get("from"));
   const to = String(formData.get("to") || from); // un solo día si no hay "hasta"
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) return { error: "Pon la fecha de inicio." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from)
+    return { error: "La fecha «hasta» no puede ser anterior al inicio." };
 
   const { data: salon } = await supabase
     .from("salons")
@@ -102,7 +112,7 @@ export async function addTimeOff(formData: FormData) {
     ends_at: zonedMidnightUtc(end.toISOString().slice(0, 10), tz),
     reason: String(formData.get("reason") ?? "").trim() || null,
   });
-  if (error) throw new Error(error.message);
+  if (error) return { error: "No se pudo bloquear. Inténtalo de nuevo." };
   revalidatePath("/admin/employees");
 }
 
@@ -114,13 +124,20 @@ export async function deleteTimeOff(formData: FormData) {
 
 export async function addHours(formData: FormData) {
   const { supabase } = await db();
-  const { error } = await supabase.from("working_hours").insert({
-    employee_id: String(formData.get("employee_id")),
-    weekday: Number(formData.get("weekday")),
-    start_min: toMin(String(formData.get("start"))),
-    end_min: toMin(String(formData.get("end"))),
-  });
-  if (error) throw new Error(error.message);
+  const start = toMin(String(formData.get("start")));
+  const end = toMin(String(formData.get("end")));
+  if (end <= start) return { error: "La hora de fin debe ser posterior a la de inicio." };
+  const weekdays = formData.getAll("weekday").map(Number).filter((d) => d >= 0 && d <= 6);
+  if (weekdays.length === 0) return { error: "Elige al menos un día." };
+  const { error } = await supabase.from("working_hours").insert(
+    weekdays.map((weekday) => ({
+      employee_id: String(formData.get("employee_id")),
+      weekday,
+      start_min: start,
+      end_min: end,
+    }))
+  );
+  if (error) return { error: "No se pudo guardar el tramo. Inténtalo de nuevo." };
   revalidatePath("/admin/employees");
 }
 
@@ -211,9 +228,10 @@ export async function connectStripe() {
 export async function updateServicePayment(formData: FormData) {
   const { supabase } = await db();
   const type = String(formData.get("payment_type"));
-  if (!["none", "deposit", "full"].includes(type)) return;
+  if (!["none", "deposit", "full"].includes(type)) return { error: "Elige un tipo de cobro." };
   const deposit = Math.round(Number(formData.get("deposit") ?? 0) * 100);
-  if (type === "deposit" && deposit <= 0) return;
+  if (type === "deposit" && deposit <= 0)
+    return { error: "Pon el importe de la señal (mayor que 0)." };
   await supabase
     .from("services")
     .update({
@@ -234,7 +252,7 @@ export async function setCustomDomain(formData: FormData) {
     .replace(/^https?:\/\//, "")
     .replace(/\/.*$/, "");
   if (!DOMAIN_RE.test(domain) || domain.endsWith(".vercel.app")) {
-    throw new Error("invalid_domain");
+    return { error: "Eso no parece un dominio válido (ej. www.barberiapaco.com)." };
   }
 
   const { data: salon } = await supabase
@@ -254,7 +272,11 @@ export async function setCustomDomain(formData: FormData) {
     .eq("id", salon.id);
   if (error) {
     await removeDomainFromProject(domain);
-    throw new Error(error.message); // p. ej. dominio ya usado por otro salón
+    return {
+      error: error.message.includes("custom_domain")
+        ? "Ese dominio ya está conectado a otro salón."
+        : "No se pudo conectar el dominio. Inténtalo de nuevo.",
+    };
   }
   if (salon.custom_domain && salon.custom_domain !== domain) {
     await removeDomainFromProject(salon.custom_domain);

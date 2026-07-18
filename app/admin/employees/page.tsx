@@ -3,6 +3,8 @@ import {
   addEmployee, deactivateEmployee, addHours, deleteHours, addTimeOff, deleteTimeOff,
 } from "../actions";
 import SubmitButton from "../submit-button";
+import ActionForm from "../action-form";
+import ConfirmSubmit from "../confirm-submit";
 
 type WH = { id: string; weekday: number; start_min: number; end_min: number };
 type TO = { id: string; starts_at: string; ends_at: string; reason: string | null };
@@ -53,7 +55,9 @@ export default async function EmployeesPage() {
               <h2 className="text-lg font-semibold">{emp.name}</h2>
               <form action={deactivateEmployee}>
                 <input type="hidden" name="id" value={emp.id} />
-                <button className="btn-danger text-sm">Dar de baja</button>
+                <ConfirmSubmit message={`¿Dar de baja a ${emp.name}? Dejará de aparecer en la web de reservas.`}>
+                  Dar de baja
+                </ConfirmSubmit>
               </form>
             </div>
 
@@ -67,12 +71,13 @@ export default async function EmployeesPage() {
                     </span>
                     <form action={deleteHours}>
                       <input type="hidden" name="id" value={h.id} />
-                      <button
-                        className="text-danger hover:bg-danger/10 rounded px-2 py-0.5"
+                      <ConfirmSubmit
+                        message={`¿Quitar el tramo de ${DAYS[h.weekday]}?`}
+                        className="text-danger hover:bg-danger/10 rounded-lg min-h-11 min-w-11 text-lg"
                         aria-label={`Quitar tramo de ${DAYS[h.weekday]}`}
                       >
                         ×
-                      </button>
+                      </ConfirmSubmit>
                     </form>
                   </li>
                 ))}
@@ -107,12 +112,13 @@ export default async function EmployeesPage() {
                         {t.reason && <span className="text-muted">{t.reason}</span>}
                         <form action={deleteTimeOff}>
                           <input type="hidden" name="id" value={t.id} />
-                          <button
-                            className="text-danger hover:bg-danger/10 rounded px-2 py-0.5"
+                          <ConfirmSubmit
+                            message="¿Quitar esta ausencia? Los huecos volverán a ofrecerse."
+                            className="text-danger hover:bg-danger/10 rounded-lg min-h-11 min-w-11 text-lg"
                             aria-label="Quitar ausencia"
                           >
                             ×
-                          </button>
+                          </ConfirmSubmit>
                         </form>
                       </li>
                     ))}
@@ -121,54 +127,75 @@ export default async function EmployeesPage() {
               ) : null;
             })()}
 
-            <form
-              action={addTimeOff}
-              className="flex flex-wrap gap-2 items-end border-t border-line pt-4"
-            >
-              <input type="hidden" name="employee_id" value={emp.id} />
-              <div>
-                <label htmlFor={`tf-${emp.id}`} className="label">Ausente desde</label>
-                <input id={`tf-${emp.id}`} name="from" type="date" required className="field w-40" />
-              </div>
-              <div>
-                <label htmlFor={`tt-${emp.id}`} className="label">Hasta (incluido)</label>
-                <input id={`tt-${emp.id}`} name="to" type="date" className="field w-40" />
-              </div>
-              <div className="flex-1 min-w-36">
-                <label htmlFor={`tr-${emp.id}`} className="label">Motivo (opcional)</label>
-                <input id={`tr-${emp.id}`} name="reason" placeholder="Vacaciones" className="field" />
-              </div>
-              <SubmitButton className="btn-quiet" pendingText="Bloqueando…">Bloquear días</SubmitButton>
-            </form>
+            <details className="border-t border-line pt-3 group">
+              <summary className="cursor-pointer text-sm font-medium text-muted hover:text-ink py-2 select-none">
+                + Bloquear vacaciones o ausencias
+              </summary>
+              <ActionForm
+                action={addTimeOff}
+                className="flex flex-wrap gap-2 items-end pt-2"
+              >
+                <input type="hidden" name="employee_id" value={emp.id} />
+                <div>
+                  <label htmlFor={`tf-${emp.id}`} className="label">Ausente desde</label>
+                  <input id={`tf-${emp.id}`} name="from" type="date" required className="field w-40" />
+                </div>
+                <div>
+                  <label htmlFor={`tt-${emp.id}`} className="label">Hasta (incluido)</label>
+                  <input id={`tt-${emp.id}`} name="to" type="date" className="field w-40" />
+                </div>
+                <div className="flex-1 min-w-36">
+                  <label htmlFor={`tr-${emp.id}`} className="label">Motivo (opcional)</label>
+                  <input id={`tr-${emp.id}`} name="reason" placeholder="Vacaciones" className="field" />
+                </div>
+                <SubmitButton className="btn-quiet" pendingText="Bloqueando…">Bloquear días</SubmitButton>
+              </ActionForm>
+            </details>
 
-            <form
-              action={addHours}
-              className="flex flex-wrap gap-2 items-end border-t border-line pt-4"
-            >
-              <input type="hidden" name="employee_id" value={emp.id} />
-              <div>
-                <label htmlFor={`wd-${emp.id}`} className="label">Día</label>
-                <select id={`wd-${emp.id}`} name="weekday" className="field w-36">
-                  {[1, 2, 3, 4, 5, 6, 0].map((d) => (
-                    <option key={d} value={d}>{DAYS[d]}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor={`st-${emp.id}`} className="label">De</label>
-                <input id={`st-${emp.id}`} name="start" type="time" required defaultValue="10:00" className="field w-28" />
-              </div>
-              <div>
-                <label htmlFor={`en-${emp.id}`} className="label">A</label>
-                <input id={`en-${emp.id}`} name="end" type="time" required defaultValue="20:00" className="field w-28" />
-              </div>
-              <SubmitButton className="btn-quiet" pendingText="Añadiendo…">Añadir tramo</SubmitButton>
-            </form>
+            <details className="border-t border-line pt-3 group" open={hours.length === 0}>
+              <summary className="cursor-pointer text-sm font-medium text-muted hover:text-ink py-2 select-none">
+                + Añadir tramo de horario
+              </summary>
+              <ActionForm action={addHours} className="flex flex-col gap-3 pt-2">
+                <input type="hidden" name="employee_id" value={emp.id} />
+                <div>
+                  <span className="label">Días (elige varios)</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                      <label
+                        key={d}
+                        className="chip px-3 has-[:checked]:border-brand has-[:checked]:bg-brand has-[:checked]:text-brand-ink has-[:checked]:font-semibold"
+                      >
+                        <input
+                          type="checkbox"
+                          name="weekday"
+                          value={d}
+                          defaultChecked={d >= 1 && d <= 5 && hours.length === 0}
+                          className="sr-only"
+                        />
+                        {DAYS[d].slice(0, 3)}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 items-end">
+                  <div>
+                    <label htmlFor={`st-${emp.id}`} className="label">De</label>
+                    <input id={`st-${emp.id}`} name="start" type="time" required defaultValue="10:00" className="field w-28" />
+                  </div>
+                  <div>
+                    <label htmlFor={`en-${emp.id}`} className="label">A</label>
+                    <input id={`en-${emp.id}`} name="end" type="time" required defaultValue="20:00" className="field w-28" />
+                  </div>
+                  <SubmitButton className="btn-quiet" pendingText="Añadiendo…">Añadir tramo</SubmitButton>
+                </div>
+              </ActionForm>
+            </details>
           </section>
         );
       })}
 
-      <form action={addEmployee} className="panel p-5">
+      <ActionForm action={addEmployee} className="panel p-5">
         <h2 className="font-semibold mb-4">Añadir profesional</h2>
         <input type="hidden" name="salon_id" value={salon.id} />
         <div className="flex gap-3 items-end flex-wrap">
@@ -178,7 +205,7 @@ export default async function EmployeesPage() {
           </div>
           <SubmitButton className="btn-primary" pendingText="Añadiendo…">Añadir</SubmitButton>
         </div>
-      </form>
+      </ActionForm>
     </main>
   );
 }

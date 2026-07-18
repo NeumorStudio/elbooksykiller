@@ -111,7 +111,7 @@ export default async function StatsPage({
           <Link
             href={`/admin/stats?mes=${prevKey}`}
             aria-label="Mes anterior"
-            className="btn-quiet px-3"
+            className="btn-quiet w-11 px-0"
           >
             ←
           </Link>
@@ -129,7 +129,7 @@ export default async function StatsPage({
           <Link
             href={`/admin/stats?mes=${nextKey}`}
             aria-label="Mes siguiente"
-            className="btn-quiet px-3"
+            className="btn-quiet w-11 px-0"
           >
             →
           </Link>

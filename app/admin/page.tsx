@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { createSalon, cancelBooking, dismissOnboarding } from "./actions";
+import ActionForm from "./action-form";
+import ConfirmSubmit from "./confirm-submit";
 import SubmitButton from "./submit-button";
 
 type Row = {
@@ -29,7 +31,7 @@ export default async function AdminHome() {
         <p className="text-muted mt-2 mb-8">
           Dos datos y tienes tu web de reservas funcionando.
         </p>
-        <form action={createSalon} className="panel p-6 flex flex-col gap-4">
+        <ActionForm action={createSalon} className="panel p-6 flex flex-col gap-4">
           <div>
             <label htmlFor="s-name" className="label">Nombre del salón</label>
             <input id="s-name" name="name" required placeholder="Barbería Paco" className="field" />
@@ -50,7 +52,7 @@ export default async function AdminHome() {
             <input id="s-address" name="address" className="field" />
           </div>
           <SubmitButton className="btn-primary mt-2" pendingText="Creando…">Crear mi peluquería</SubmitButton>
-        </form>
+        </ActionForm>
       </main>
     );
   }
@@ -240,7 +242,8 @@ export default async function AdminHome() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-medium truncate">
-                    {b.services?.name} — {b.customer_name}
+                    {b.customer_name}
+                    <span className="text-muted font-normal"> · {b.services?.name}</span>
                   </p>
                   <p className="text-sm text-muted truncate">
                     <a href={`tel:${b.customer_phone}`} className="hover:underline">
@@ -251,7 +254,11 @@ export default async function AdminHome() {
                 </div>
                 <form action={cancelBooking}>
                   <input type="hidden" name="id" value={b.id} />
-                  <button className="btn-danger text-sm">Cancelar</button>
+                  <ConfirmSubmit
+                    message={`¿Cancelar la cita de ${b.customer_name}? Si dejó su email, se le avisará automáticamente.`}
+                  >
+                    Cancelar
+                  </ConfirmSubmit>
                 </form>
               </li>
             ))}

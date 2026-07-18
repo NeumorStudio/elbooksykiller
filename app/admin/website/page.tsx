@@ -4,6 +4,8 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { domainStatus } from "@/lib/vercel";
 import { setCustomDomain, removeCustomDomain } from "../actions";
 import SubmitButton from "../submit-button";
+import ActionForm from "../action-form";
+import ConfirmSubmit from "../confirm-submit";
 
 export default async function WebsitePage() {
   const supabase = await supabaseServer();
@@ -58,7 +60,9 @@ export default async function WebsitePage() {
                 <span className="text-sm text-muted">Esperando DNS…</span>
               )}
               <form action={removeCustomDomain} className="ml-auto">
-                <button className="btn-danger text-sm">Quitar</button>
+                <ConfirmSubmit message={`¿Desconectar ${salon.custom_domain}? Tu web seguirá activa en la dirección de la plataforma.`}>
+                  Quitar
+                </ConfirmSubmit>
               </form>
             </div>
 
@@ -91,7 +95,7 @@ export default async function WebsitePage() {
             )}
           </>
         ) : (
-          <form action={setCustomDomain} className="flex flex-wrap gap-2 items-end">
+          <ActionForm action={setCustomDomain} className="flex flex-wrap gap-2 items-end">
             <div className="flex-1 min-w-56">
               <label htmlFor="domain" className="label">Dominio</label>
               <input
@@ -103,7 +107,7 @@ export default async function WebsitePage() {
               />
             </div>
             <SubmitButton className="btn-primary" pendingText="Conectando…">Conectar dominio</SubmitButton>
-          </form>
+          </ActionForm>
         )}
       </div>
     </main>

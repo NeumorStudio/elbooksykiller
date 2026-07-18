@@ -36,13 +36,17 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   );
 }
 
+const digitsOf = (s: string) => s.replace(/\D/g, "");
+
 export default function BookingWidget({
+  slug,
   timezone,
   salonName,
   salonPhone,
   services,
   employees,
 }: {
+  slug: string;
   timezone: string;
   salonName: string;
   salonPhone: string | null;
@@ -61,6 +65,28 @@ export default function BookingWidget({
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [restored, setRestored] = useState<null | {
+    serviceName: string; employeeName: string; slotIso: string; price: number;
+  }>(null);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(`cita-${slug}`);
+      if (raw) setRestored(JSON.parse(raw));
+    } catch {}
+  }, [slug]);
+
+  // Cada paso nuevo se monta bajo el fold: acercarlo a la vista
+  const scrollTo = (id: string) => {
+    requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+        block: "start",
+      });
+    });
+  };
 
   const days = useMemo(() => {
     const out: { iso: string; weekday: string; dayNum: string; month: string }[] = [];
@@ -93,7 +119,6 @@ export default function BookingWidget({
     if (!service || !employee || !day) return;
     setSlots(null);
     setSlot("");
-    setError("");
     let stale = false;
     supabaseBrowser()
       .rpc("available_slots", { p_employee: employee.id, p_service: service.id, p_day: day })
@@ -130,9 +155,35 @@ export default function BookingWidget({
     } else if ("checkoutUrl" in result) {
       window.location.href = result.checkoutUrl; // pago en Stripe
     } else {
+      try {
+        sessionStorage.setItem(
+          `cita-${slug}`,
+          JSON.stringify({
+            serviceName: service!.name,
+            employeeName: employee!.name,
+            slotIso: slot,
+            price: service!.price_cents,
+          })
+        );
+      } catch {}
       setDone(true);
     }
   }
+
+  const calLinks = (title: string, startIso: string, durationMin: number) => {
+    const s = new Date(startIso);
+    const e = new Date(s.getTime() + durationMin * 60000);
+    const f = (d: Date) => d.toISOString().replace(/[-:]|\.\d{3}/g, "");
+    const ics = [
+      "BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT",
+      `DTSTART:${f(s)}`, `DTEND:${f(e)}`, `SUMMARY:${title}`,
+      "END:VEVENT", "END:VCALENDAR",
+    ].join("\r\n");
+    return {
+      ics: `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`,
+      gcal: `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${f(s)}/${f(e)}`,
+    };
+  };
 
   if (done)
     return (
@@ -165,6 +216,19 @@ export default function BookingWidget({
             <dd className="font-medium text-right">{fmtPrice(service!.price_cents)}</dd>
           </div>
         </dl>
+        {(() => {
+          const links = calLinks(`${service!.name} en ${salonName}`, slot, service!.duration_min);
+          return (
+            <div className="mt-6 flex flex-wrap justify-center gap-2">
+              <a href={links.ics} download="cita.ics" className="btn-quiet text-sm">
+                Añadir al calendario
+              </a>
+              <a href={links.gcal} target="_blank" rel="noopener" className="btn-quiet text-sm">
+                Google Calendar
+              </a>
+            </div>
+          );
+        })()}
         <p className="mt-6 text-sm text-muted">
           Te esperamos en {salonName}.
           {salonPhone && (
@@ -180,11 +244,36 @@ export default function BookingWidget({
       </div>
     );
 
+  const reminder =
+    restored && new Date(restored.slotIso) > new Date() ? (
+      <div className="panel p-4 flex items-start gap-3 text-sm" role="status">
+        <span className="text-ok text-lg" aria-hidden>✓</span>
+        <p className="flex-1">
+          Ya tienes una cita: <b>{restored.serviceName}</b> con {restored.employeeName},{" "}
+          {new Date(restored.slotIso).toLocaleDateString("es-ES", {
+            weekday: "long", day: "numeric", month: "long", timeZone: timezone,
+          })}{" "}
+          a las {fmtTime(restored.slotIso)}.
+        </p>
+        <button
+          onClick={() => {
+            try { sessionStorage.removeItem(`cita-${slug}`); } catch {}
+            setRestored(null);
+          }}
+          aria-label="Ocultar recordatorio"
+          className="text-muted hover:text-ink min-h-11 min-w-11 rounded-lg"
+        >
+          ×
+        </button>
+      </div>
+    ) : null;
+
   const morning = (slots ?? []).filter((s) => hourOf(s) < 14);
   const afternoon = (slots ?? []).filter((s) => hourOf(s) >= 14);
 
   return (
     <div className="flex flex-col gap-10">
+      {reminder}
       <Step n={1} title="Elige servicio">
         <div className="flex flex-col gap-2" role="radiogroup" aria-label="Servicio">
           {services.map((s) => {
@@ -194,7 +283,10 @@ export default function BookingWidget({
                 key={s.id}
                 role="radio"
                 aria-checked={on}
-                onClick={() => setService(s)}
+                onClick={() => {
+                  setService(s);
+                  scrollTo("paso-2");
+                }}
                 className={`flex items-center justify-between gap-4 rounded-xl border p-4 text-left transition-colors duration-150
                   focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand
                   ${on ? "border-brand bg-brand/10" : "border-line bg-surface hover:border-muted"}`}
@@ -218,6 +310,8 @@ export default function BookingWidget({
       </Step>
 
       {service && (
+        <>
+        <div id="paso-2" className="scroll-mt-4" />
         <Step n={2} title="¿Con quién?">
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Profesional">
             {employees.map((e) => (
@@ -225,7 +319,10 @@ export default function BookingWidget({
                 key={e.id}
                 role="radio"
                 aria-checked={employee?.id === e.id}
-                onClick={() => setEmployee(e)}
+                onClick={() => {
+                  setEmployee(e);
+                  scrollTo("paso-3");
+                }}
                 className={`chip px-5 ${employee?.id === e.id ? "chip-on" : ""}`}
               >
                 {e.name}
@@ -233,9 +330,12 @@ export default function BookingWidget({
             ))}
           </div>
         </Step>
+        </>
       )}
 
       {service && employee && (
+        <>
+        <div id="paso-3" className="scroll-mt-4" />
         <Step n={3} title="Día y hora">
           <div
             className="flex gap-2 overflow-x-auto pb-2 -mx-5 px-5"
@@ -291,7 +391,11 @@ export default function BookingWidget({
                           key={s}
                           role="radio"
                           aria-checked={slot === s}
-                          onClick={() => setSlot(s)}
+                          onClick={() => {
+                            setSlot(s);
+                            setError("");
+                            scrollTo("paso-4");
+                          }}
                           className={`chip tabular-nums min-w-16 ${slot === s ? "chip-on" : ""}`}
                         >
                           {fmtTime(s)}
@@ -303,9 +407,12 @@ export default function BookingWidget({
             </div>
           )}
         </Step>
+        </>
       )}
 
       {slot && (
+        <>
+        <div id="paso-4" className="scroll-mt-4" />
         <Step n={4} title="Tus datos">
           <form
             className="flex flex-col gap-4"
@@ -331,13 +438,19 @@ export default function BookingWidget({
               <input
                 id="bk-phone"
                 required
-                minLength={6}
                 type="tel"
+                inputMode="tel"
                 autoComplete="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
+                aria-invalid={phone.length > 0 && digitsOf(phone).length < 9}
                 className="field"
               />
+              {phone.length > 0 && digitsOf(phone).length < 9 && (
+                <p className="text-sm text-danger mt-1.5">
+                  Pon un teléfono válido (al menos 9 dígitos) — lo usamos para avisarte de cualquier cambio.
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="bk-email" className="label">
@@ -354,17 +467,22 @@ export default function BookingWidget({
             </div>
             <button
               type="submit"
-              disabled={saving || name.trim().length < 2 || phone.trim().length < 6}
+              disabled={saving || name.trim().length < 2 || digitsOf(phone).length < 9}
               className="btn-primary mt-2 text-base"
             >
-              {saving
-                ? "Reservando…"
-                : amountDue(service!) > 0
-                  ? `Continuar al pago — ${fmtPrice(amountDue(service!))}`
-                  : `Confirmar — ${service!.name}, ${fmtTime(slot)}`}
+              {(() => {
+                const d = days.find((x) => x.iso === day);
+                const when = d ? `${d.weekday} ${d.dayNum}, ${fmtTime(slot)}` : fmtTime(slot);
+                return saving
+                  ? "Reservando…"
+                  : amountDue(service!) > 0
+                    ? `Continuar al pago — ${fmtPrice(amountDue(service!))}`
+                    : `Confirmar — ${when}`;
+              })()}
             </button>
           </form>
         </Step>
+        </>
       )}
 
       {error && (

@@ -3,6 +3,28 @@ import { notFound } from "next/navigation";
 import BookingWidget from "./booking-widget";
 import { confirmPaidSession } from "./actions";
 
+// La pestaña y el preview de WhatsApp muestran el salón, no la plataforma
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const supabase = await supabaseServer();
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("name, address")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (!salon) return {};
+  const description = `Reserva tu cita en ${salon.name}${salon.address ? ` — ${salon.address}` : ""}. Elige servicio, día y hora en un minuto.`;
+  return {
+    title: `${salon.name} — Reserva tu cita`,
+    description,
+    openGraph: { title: salon.name, description },
+  };
+}
+
 export default async function SalonPage({
   params,
   searchParams,
@@ -90,6 +112,7 @@ export default async function SalonPage({
         </div>
       ) : (
         <BookingWidget
+          slug={salon.slug}
           timezone={salon.timezone}
           salonName={salon.name}
           salonPhone={salon.phone}
@@ -98,7 +121,7 @@ export default async function SalonPage({
         />
       )}
 
-      <footer className="mt-16 text-center text-xs text-muted/70">
+      <footer className="mt-16 text-center text-xs text-muted">
         Reservas por ElBooksyKiller
       </footer>
     </main>
