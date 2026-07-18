@@ -40,7 +40,8 @@ export default async function AdminHome() {
             <label htmlFor="s-slug" className="label">Dirección web</label>
             <input id="s-slug" name="slug" required minLength={3} placeholder="barberia-paco" className="field" />
             <p className="text-xs text-muted mt-1.5">
-              Tus clientes reservarán en elbooksykiller.vercel.app/<b>lo-que-pongas</b>
+              Tus clientes reservarán en tu-web/<b>lo-que-pongas</b> — podrás
+              conectar un dominio propio después.
             </p>
           </div>
           <div>
