@@ -1,7 +1,10 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import BookingWidget from "./booking-widget";
+import InstallPrompt from "./install-prompt";
 import { confirmPaidSession } from "./actions";
+
+export const viewport = { themeColor: "#1b1712" };
 
 // La pestaña y el preview de WhatsApp muestran el salón, no la plataforma
 export async function generateMetadata({
@@ -22,6 +25,9 @@ export async function generateMetadata({
     title: `${salon.name} — Reserva tu cita`,
     description,
     openGraph: { title: salon.name, description },
+    manifest: `/${slug}/manifest.webmanifest`,
+    appleWebApp: { capable: true, title: salon.name, statusBarStyle: "black-translucent" },
+    icons: { apple: `/${slug}/pwa-icon?size=180` },
   };
 }
 
@@ -124,6 +130,8 @@ export default async function SalonPage({
       <footer className="mt-16 text-center text-xs text-muted">
         Reservas por ElBooksyKiller
       </footer>
+
+      <InstallPrompt slug={salon.slug} salonName={salon.name} />
     </main>
   );
 }
