@@ -24,7 +24,7 @@ export default async function AdminLayout({
 
   return (
     <div className="day min-h-screen bg-bg text-ink flex flex-col">
-      <nav className="border-b border-line bg-bg sticky top-0 z-10">
+      <nav className="border-b border-line bg-bg sticky top-0 z-10 print:hidden">
         <div className="mx-auto max-w-4xl px-5 h-14 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
           <span className="font-display text-lg font-semibold text-brand mr-4 truncate hidden sm:block">
             {salon?.name ?? "Mi salón"}

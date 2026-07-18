@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { supabaseServer } from "@/lib/supabase/server";
 import { domainStatus } from "@/lib/vercel";
+import QRCode from "qrcode";
 import { setCustomDomain, removeCustomDomain, uploadLogo, removeLogo } from "../actions";
 import SubmitButton from "../submit-button";
 import ActionForm from "../action-form";
@@ -25,6 +26,16 @@ export default async function WebsitePage() {
   const status = salon.custom_domain ? await domainStatus(salon.custom_domain) : null;
   const isApex = salon.custom_domain ? salon.custom_domain.split(".").length === 2 : false;
 
+  const bookingUrl = salon.custom_domain && status?.configured
+    ? `https://${salon.custom_domain}`
+    : platformUrl;
+  const qrSvg = await QRCode.toString(bookingUrl, {
+    type: "svg",
+    margin: 1,
+    errorCorrectionLevel: "M",
+    color: { dark: "#1b1712", light: "#ffffff" },
+  });
+
   return (
     <main className="flex flex-col gap-6 max-w-2xl">
       <div>
@@ -39,6 +50,32 @@ export default async function WebsitePage() {
             {platformUrl} ↗
           </Link>
         </p>
+      </div>
+
+      <div className="panel p-6 flex flex-col gap-4">
+        <div>
+          <h2 className="font-semibold">Código QR para tu local</h2>
+          <p className="text-sm text-muted mt-1 text-pretty">
+            Imprímelo y ponlo en el mostrador o el escaparate: tus clientes lo
+            escanean, reservan, y pueden instalarse tu web como app.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-5">
+          <div
+            className="w-36 h-36 rounded-lg overflow-hidden bg-white p-1.5 shrink-0 [&_svg]:w-full [&_svg]:h-full"
+            role="img"
+            aria-label={`Código QR de ${bookingUrl}`}
+            dangerouslySetInnerHTML={{ __html: qrSvg }}
+          />
+          <div className="flex flex-col gap-2">
+            <a href="/admin/poster" target="_blank" className="btn-primary text-sm">
+              Cartel para imprimir
+            </a>
+            <a href="/admin/qr" className="btn-quiet text-sm" download>
+              Descargar QR (PNG)
+            </a>
+          </div>
+        </div>
       </div>
 
       <div className="panel p-6 flex flex-col gap-4">
