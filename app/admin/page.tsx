@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { createSalon, dismissOnboarding } from "./actions";
 import { features } from "@/lib/features";
 import Agenda, { type Cita, type Profesional, type Servicio } from "./agenda";
@@ -29,6 +30,23 @@ export default async function AdminHome() {
     .eq("owner_id", user!.id)
     .limit(1)
     .maybeSingle();
+
+  // Cerrar el agujero: en cuanto hay clientes con cuenta, un cliente que
+  // aterrice en /admin no debe ver el onboarding de "crea tu peluquería".
+  // Si tiene ficha de cliente y no es dueño de ningún salón, es un cliente:
+  // a su perfil.
+  if (!salon) {
+    const { clientes } = await features();
+    if (clientes) {
+      const { data: esCliente } = await supabase
+        .from("customers")
+        .select("id")
+        .eq("auth_user_id", user!.id)
+        .limit(1)
+        .maybeSingle();
+      if (esCliente) redirect("/perfil");
+    }
+  }
 
   if (!salon) {
     return (
