@@ -21,6 +21,22 @@ export async function sendEmail({ to, subject, html, idempotencyKey }: SendArgs)
   if (error) console.error(`[email] fallo enviando "${subject}" a ${to}:`, error.message);
 }
 
+/**
+ * Escapa lo que viene del cliente final antes de interpolarlo en el HTML.
+ *
+ * El nombre solo se valida por longitud (≥2), así que un cliente podía
+ * llamarse `<img src=x onerror=...>` y ese marcado llegaba crudo al buzón
+ * del dueño.
+ */
+const esc = (s: string) =>
+  s.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!
+  );
+
+// Los espacios en un href tel: los cortan algunos marcadores de Android.
+const telAttr = (phone: string) =>
+  `tel:${phone.trim().startsWith("+") ? "+" : ""}${phone.replace(/[^\d]/g, "")}`;
+
 const wrap = (title: string, body: string) => `
 <div style="margin:0 auto;max-width:480px;font-family:system-ui,sans-serif;color:#2b2620">
   <div style="padding:28px 24px;border:1px solid #e4ded4;border-radius:12px">
@@ -46,26 +62,41 @@ export type BookingEmailData = {
 
 export function customerConfirmationHtml(d: BookingEmailData) {
   return wrap(
-    `Cita confirmada en ${d.salonName}`,
-    `<table style="font-size:14px">${row("Servicio", d.serviceName)}${row("Con", d.employeeName)}${row("Cuándo", d.when)}${row("Precio", d.price)}</table>
-     <p style="font-size:14px;margin:16px 0 0">Te esperamos, ${d.customerName}.${
-       d.salonPhone ? ` Si no puedes venir, avísanos al <a href="tel:${d.salonPhone}">${d.salonPhone}</a>.` : ""
+    `Cita confirmada en ${esc(d.salonName)}`,
+    `<table style="font-size:14px">${row("Servicio", esc(d.serviceName))}${row("Con", esc(d.employeeName))}${row("Cuándo", esc(d.when))}${row("Precio", esc(d.price))}</table>
+     <p style="font-size:14px;margin:16px 0 0">Te esperamos, ${esc(d.customerName)}.${
+       d.salonPhone ? ` Si no puedes venir, avísanos al <a href="${telAttr(d.salonPhone)}">${esc(d.salonPhone)}</a>.` : ""
      }</p>`
   );
 }
 
 export function ownerNotificationHtml(d: BookingEmailData) {
   return wrap(
-    `Nueva reserva: ${d.serviceName}`,
-    `<table style="font-size:14px">${row("Cuándo", d.when)}${row("Cliente", d.customerName)}${row("Teléfono", `<a href="tel:${d.customerPhone}">${d.customerPhone}</a>`)}${row("Con", d.employeeName)}${row("Precio", d.price)}</table>`
+    `Nueva reserva: ${esc(d.serviceName)}`,
+    `<table style="font-size:14px">${row("Cuándo", esc(d.when))}${row("Cliente", esc(d.customerName))}${row("Teléfono", `<a href="${telAttr(d.customerPhone)}">${esc(d.customerPhone)}</a>`)}${row("Con", esc(d.employeeName))}${row("Precio", esc(d.price))}</table>`
   );
 }
 
 export function cancellationHtml(d: Omit<BookingEmailData, "customerPhone" | "price">) {
   return wrap(
-    `Tu cita en ${d.salonName} se ha cancelado`,
-    `<p style="font-size:14px;margin:0">Hola ${d.customerName}: tu cita de <b>${d.serviceName}</b> (${d.when}) ha sido cancelada por el salón.${
-      d.salonPhone ? ` Para reprogramar, llámanos al <a href="tel:${d.salonPhone}">${d.salonPhone}</a> o reserva de nuevo online.` : " Puedes reservar de nuevo online cuando quieras."
+    `Tu cita en ${esc(d.salonName)} se ha cancelado`,
+    `<p style="font-size:14px;margin:0">Hola ${esc(d.customerName)}: tu cita de <b>${esc(d.serviceName)}</b> (${esc(d.when)}) ha sido cancelada por el salón.${
+      d.salonPhone ? ` Para reprogramar, llámanos al <a href="${telAttr(d.salonPhone)}">${esc(d.salonPhone)}</a> o reserva de nuevo online.` : " Puedes reservar de nuevo online cuando quieras."
     }</p>`
+  );
+}
+
+export function reminderHtml(
+  d: Omit<BookingEmailData, "customerPhone"> & { salonAddress: string | null }
+) {
+  return wrap(
+    `Mañana tienes cita en ${esc(d.salonName)}`,
+    `<p style="font-size:14px;margin:0 0 14px">Hola ${esc(d.customerName)} 👋 Te recordamos tu cita:</p>
+     <table style="font-size:14px">${row("Cuándo", esc(d.when))}${row("Servicio", esc(d.serviceName))}${row("Con", esc(d.employeeName))}${
+       d.salonAddress ? row("Dónde", esc(d.salonAddress)) : ""
+     }</table>
+     <p style="font-size:14px;margin:16px 0 0">Si no puedes venir, avísanos cuanto antes${
+       d.salonPhone ? ` al <a href="${telAttr(d.salonPhone)}">${esc(d.salonPhone)}</a>` : ""
+     } y liberamos el hueco para otra persona. Cancelar a última hora deja la silla vacía (${esc(d.price)}).</p>`
   );
 }

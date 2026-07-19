@@ -45,3 +45,6 @@ next-env.d.ts
 .agents/
 .claude/skills/
 .impeccable/
+
+# masters PNG de NanoBanana (pesados; el artefacto son los .webp de public/)
+scripts/assets/
