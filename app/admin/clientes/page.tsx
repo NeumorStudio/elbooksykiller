@@ -31,8 +31,9 @@ export default async function ClientesPage() {
       <main className="max-w-2xl">
         <h1 className="font-display text-3xl font-semibold">Clientes</h1>
         <p className="panel mt-6 p-6 text-muted text-pretty">
-          Pendiente de activar: falta aplicar las migraciones de base de
-          datos. En cuanto estén, esta pantalla se enciende sola.
+          Muy pronto. Aquí verás quién viene y con qué frecuencia, y podrás
+          activar la tarjeta de fidelidad: un sello por visita y un premio al
+          completarla. Estamos terminando de encenderla.
         </p>
       </main>
     );

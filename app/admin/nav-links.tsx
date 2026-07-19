@@ -3,12 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-export type FeaturesNav = {
-  clientes: boolean;
-  productos: boolean;
-  newsletter: boolean;
-};
-
+// El menú del dueño. Clientes/Productos/Newsletter siempre están visibles
+// para que sepa que existen; si la función aún no está encendida (falta la
+// migración), su pantalla enseña un "muy pronto" en vez de datos. La tarjeta
+// de fidelidad vive dentro de Clientes; las reseñas, dentro de Mi web.
 const LINKS = [
   ["/admin", "Agenda"],
   ["/admin/services", "Servicios"],
@@ -21,22 +19,11 @@ const LINKS = [
   ["/admin/website", "Mi web"],
 ] as const;
 
-// Secciones que solo existen con su migración aplicada: hasta entonces no
-// aparecen en la nav. Sin `features` (llamada vieja) se comportan igual que
-// antes: ocultas.
-const CON_FEATURE: Record<string, keyof FeaturesNav> = {
-  "/admin/clientes": "clientes",
-  "/admin/productos": "productos",
-  "/admin/newsletter": "newsletter",
-};
-
-export default function NavLinks({ features }: { features?: FeaturesNav }) {
+export default function NavLinks() {
   const pathname = usePathname();
   return (
     <>
       {LINKS.map(([href, label]) => {
-        const req = CON_FEATURE[href];
-        if (req && !features?.[req]) return null;
         const current = pathname === href;
         return (
           <Link

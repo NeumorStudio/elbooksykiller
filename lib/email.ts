@@ -102,7 +102,7 @@ export function reminderHtml(
   d: Omit<BookingEmailData, "customerPhone"> & { salonAddress: string | null }
 ) {
   return wrap(
-    `Mañana tienes cita en ${esc(d.salonName)}`,
+    `En 1 hora: tu cita en ${esc(d.salonName)}`,
     `<p style="font-size:14px;margin:0 0 14px">Hola ${esc(d.customerName)} 👋 Te recordamos tu cita:</p>
      <table style="font-size:14px">${row("Cuándo", esc(d.when))}${row("Servicio", esc(d.serviceName))}${row("Con", esc(d.employeeName))}${
        d.salonAddress ? row("Dónde", esc(d.salonAddress)) : ""

@@ -1,5 +1,6 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import BookingWidget from "./booking-widget";
 import InstallPrompt from "./install-prompt";
 import VideoFondo from "../video-fondo";
@@ -377,8 +378,21 @@ export default async function SalonPage({
         </section>
       )}
 
-      <footer className="bg-bg py-10 text-center text-xs text-muted">
-        Reservas por ElBooksyKiller
+      <footer className="bg-bg py-10 text-center text-xs text-muted flex flex-col items-center gap-3">
+        {/* Acceso discreto para quien ya es cliente: magic link en /perfil.
+            Solo aparece con la función "clientes" encendida (migración 0006),
+            para no ofrecer un login que aún no guarda nada. La cita en sí no
+            necesita cuenta: vive en el enlace /cita/[token] del email. */}
+        {f.clientes && (
+          <Link
+            href="/perfil"
+            className="text-sm text-muted transition-colors hover:text-brand"
+          >
+            ¿Ya eres cliente?{" "}
+            <span className="text-brand underline underline-offset-4">Entra a tu cuenta</span>
+          </Link>
+        )}
+        <span>Reservas por ElBooksyKiller</span>
       </footer>
     </main>
     {/* Fuera de <main>: es position:fixed, y cualquier transform/filter en

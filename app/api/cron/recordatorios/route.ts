@@ -5,7 +5,7 @@ import { features } from "@/lib/features";
 import { baseUrl } from "@/lib/urls";
 
 /**
- * Recordatorio de cita ~24 h antes.
+ * Recordatorio de cita ~1 h antes.
  *
  * Es el hueco competitivo frente a GoBarber, que sí los tiene. La evidencia
  * seria (metaanálisis de 10 ECAs, y el estudio del Parc Sanitari Sant Joan
@@ -30,6 +30,7 @@ export const maxDuration = 60;
 type Fila = {
   id: string;
   starts_at: string;
+  created_at: string;
   customer_name: string;
   customer_email: string | null;
   public_token?: string;
@@ -50,15 +51,16 @@ export async function GET(req: Request) {
   // public_token solo existe tras la migración 0006; pedirlo antes rompería
   // la consulta entera.
   const { clientes } = await features();
-  // Ventana amplia (23-25 h) para que un tick perdido no deje a nadie sin
-  // aviso; la deduplicación evita el envío doble en los solapes.
-  const desde = new Date(ahora + 23 * 3600_000).toISOString();
-  const hasta = new Date(ahora + 25 * 3600_000).toISOString();
+  // Recordatorio ~1 h antes. Ventana 50-70 min para que un tick perdido (el
+  // cron corre cada ~10 min) no deje a nadie sin aviso; la deduplicación
+  // evita el envío doble en los solapes.
+  const desde = new Date(ahora + 50 * 60_000).toISOString();
+  const hasta = new Date(ahora + 70 * 60_000).toISOString();
 
   const { data, error } = await admin
     .from("bookings")
     .select(
-      "id, starts_at, customer_name, customer_email" +
+      "id, starts_at, created_at, customer_name, customer_email" +
         (clientes ? ", public_token" : "") +
         ", services(name, price_cents), employees(name), salons(name, phone, address, timezone)"
     )
@@ -83,17 +85,12 @@ export async function GET(req: Request) {
       continue;
     }
 
-    // Ventana de silencio: nada entre las 22:00 y las 9:00 hora del salón.
-    // Aquí sí hace falta la zona horaria — es la única decisión que depende
-    // del reloj de pared.
-    const horaLocal = Number(
-      new Intl.DateTimeFormat("en-GB", {
-        timeZone: salon.timezone,
-        hour: "2-digit",
-        hourCycle: "h23",
-      }).format(new Date())
-    );
-    if (horaLocal >= 22 || horaLocal < 9) {
+    // Regla: si reservó con menos de 1 h de antelación, no se le recuerda —
+    // acaba de recibir la confirmación y el aviso sobraría o llegaría tarde.
+    if (
+      new Date(c.created_at).getTime() >
+      new Date(c.starts_at).getTime() - 60 * 60_000
+    ) {
       omitidos++;
       continue;
     }
@@ -109,7 +106,7 @@ export async function GET(req: Request) {
 
     await sendEmail({
       to: c.customer_email,
-      subject: `Mañana: tu cita en ${salon.name}`,
+      subject: `En 1 hora: tu cita en ${salon.name}`,
       html: reminderHtml({
         salonName: salon.name,
         salonPhone: salon.phone,

@@ -1,5 +1,4 @@
 import { supabaseServer } from "@/lib/supabase/server";
-import { features } from "@/lib/features";
 import { logout } from "./actions";
 import Assistant from "./assistant";
 import NavLinks from "./nav-links";
@@ -15,15 +14,12 @@ export default async function AdminLayout({
   // /admin/login no lleva nav, pero sí el tema claro
   if (!user) return <div className="taller min-h-screen bg-bg text-ink flex flex-col">{children}</div>;
 
-  const [{ data: salon }, f] = await Promise.all([
-    supabase
-      .from("salons")
-      .select("name, slug")
-      .eq("owner_id", user.id)
-      .limit(1)
-      .maybeSingle(),
-    features(),
-  ]);
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("name, slug")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
 
   return (
     <div className="taller min-h-screen bg-bg text-ink flex flex-col">
@@ -34,7 +30,7 @@ export default async function AdminLayout({
           <span className="font-display text-lg font-semibold text-brand mr-4 truncate hidden sm:block">
             {salon?.name ?? "Mi salón"}
           </span>
-          <NavLinks features={f} />
+          <NavLinks />
           <div className="ml-auto flex items-center gap-1">
             <form action={logout}>
               <button className="px-3 py-2 rounded-lg text-sm text-muted hover:bg-surface">
