@@ -23,13 +23,28 @@ const fmtWhen = (iso: string, tz: string) =>
 export async function notifyBookingConfirmed(bookingId: string) {
   try {
     const admin = supabaseAdmin();
-    const { data: b } = await admin
+    // public_token solo existe tras la migración 0006; pedirlo antes haría
+    // fallar el select entero (y con él, todos los emails).
+    const { clientes } = await (await import("@/lib/features")).features();
+    const { data } = await admin
       .from("bookings")
       .select(
-        "starts_at, customer_name, customer_phone, customer_email, services(name, price_cents), employees(name), salons(name, phone, timezone, owner_id)"
+        "starts_at, customer_name, customer_phone, customer_email, services(name, price_cents), employees(name), salons(name, phone, timezone, owner_id)" +
+          (clientes ? ", public_token" : "")
       )
       .eq("id", bookingId)
       .single();
+    // La select dinámica impide la inferencia de tipos de supabase-js.
+    const b = data as unknown as {
+      starts_at: string;
+      customer_name: string;
+      customer_phone: string;
+      customer_email: string | null;
+      services: unknown;
+      employees: unknown;
+      salons: unknown;
+      public_token?: string;
+    } | null;
     if (!b) return;
 
     const salon = b.salons as unknown as {
@@ -47,6 +62,9 @@ export async function notifyBookingConfirmed(bookingId: string) {
       ),
       customerName: b.customer_name,
       customerPhone: b.customer_phone,
+      citaUrl: b.public_token
+        ? `${(await import("@/lib/urls")).baseUrl()}/cita/${b.public_token}`
+        : undefined,
     };
 
     const sends: Promise<void>[] = [];

@@ -26,8 +26,12 @@ export async function bookAppointment(input: {
   name: string;
   phone: string;
   email: string;
+  // Productos apartados junto a la cita y consentimiento de newsletter.
+  // Solo viajan cuando la página los ofreció (features encendidas).
+  productos?: { id: string; qty: number }[];
+  marketing?: boolean;
 }): Promise<
-  | { ok: true }
+  | { ok: true; citaUrl?: string; omitidos?: string[] }
   | { checkoutUrl: string }
   | { error: "slot_unavailable" | "invalid" }
 > {
@@ -50,8 +54,12 @@ export async function bookAppointment(input: {
     : 0;
   const needsPayment = amount > 0 && salon.charges_enabled && !!salon.stripe_account_id;
 
-  // La validación real (horario, solapes, futuro) vive en la RPC create_booking
-  const { data: bookingId, error } = await anon.rpc("create_booking", {
+  // La validación real (horario, solapes, futuro) vive en la RPC. Con las
+  // migraciones aplicadas se usa la v2 (consentimiento + productos, devuelve
+  // también el token de la cita); si no, la original — el mismo código
+  // desplegado funciona con ambos esquemas.
+  const { clientes } = await (await import("@/lib/features")).features();
+  const base_args = {
     p_employee: input.employeeId,
     p_service: input.serviceId,
     p_start: input.startIso,
@@ -59,15 +67,36 @@ export async function bookAppointment(input: {
     p_phone: input.phone,
     p_email: input.email || null,
     p_pending_payment: needsPayment,
-  });
+  };
 
-  if (error) {
-    return { error: error.message.includes("slot_unavailable") ? "slot_unavailable" : "invalid" };
+  let bookingId: string;
+  let citaUrl: string | undefined;
+  let omitidos: string[] = [];
+
+  if (clientes) {
+    const { data, error } = await anon.rpc("create_booking_v2", {
+      ...base_args,
+      p_marketing: !!input.marketing && !!input.email,
+      p_products: input.productos?.length ? input.productos : null,
+    });
+    if (error) {
+      return { error: error.message.includes("slot_unavailable") ? "slot_unavailable" : "invalid" };
+    }
+    const r = data as { booking_id: string; public_token: string; omitidos: string[] | null };
+    bookingId = r.booking_id;
+    omitidos = r.omitidos ?? [];
+    citaUrl = `${(await import("@/lib/urls")).baseUrl()}/cita/${r.public_token}`;
+  } else {
+    const { data, error } = await anon.rpc("create_booking", base_args);
+    if (error) {
+      return { error: error.message.includes("slot_unavailable") ? "slot_unavailable" : "invalid" };
+    }
+    bookingId = data as string;
   }
 
   if (!needsPayment) {
     await notifyBookingConfirmed(bookingId);
-    return { ok: true };
+    return { ok: true, citaUrl, omitidos };
   }
 
   // Cobro directo en la cuenta conectada del salón: el dinero es suyo.

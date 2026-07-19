@@ -48,3 +48,5 @@ next-env.d.ts
 
 # masters PNG de NanoBanana (pesados; el artefacto son los .webp de public/)
 scripts/assets/
+p-*.png
+supabase/.temp/

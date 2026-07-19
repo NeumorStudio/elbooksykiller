@@ -19,6 +19,12 @@ const amountDue = (s: Service) =>
   : s.payment_type === "deposit" ? (s.deposit_cents ?? 0)
   : 0;
 type Employee = { id: string; name: string };
+type Producto = {
+  id: string;
+  name: string;
+  description: string | null;
+  price_cents: number;
+};
 
 const fmtPrice = (cents: number) =>
   (cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
@@ -56,6 +62,8 @@ export default function BookingWidget({
   salonPhone,
   services,
   employees,
+  productos = [],
+  conCuenta = false,
 }: {
   slug: string;
   timezone: string;
@@ -63,6 +71,8 @@ export default function BookingWidget({
   salonPhone: string | null;
   services: Service[];
   employees: Employee[];
+  productos?: Producto[];
+  conCuenta?: boolean;
 }) {
   const [service, setService] = useState<Service | null>(null);
   const [employee, setEmployee] = useState<Employee | null>(null);
@@ -75,6 +85,13 @@ export default function BookingWidget({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  // Productos apartados (id → true). Toggle simple: en un flujo de una mano
+  // un stepper de cantidades es fricción; quien quiere dos botes lo dice en
+  // el mostrador.
+  const [cesta, setCesta] = useState<Record<string, boolean>>({});
+  const [marketing, setMarketing] = useState(false); // sin premarcar (LSSI-CE)
+  const [citaUrl, setCitaUrl] = useState<string | null>(null);
+  const [omitidos, setOmitidos] = useState<string[]>([]);
   const [refresh, setRefresh] = useState(0);
   const [restored, setRestored] = useState<null | {
     serviceName: string; employeeName: string; slotIso: string; price: number;
@@ -159,6 +176,7 @@ export default function BookingWidget({
     setSaving(true);
     setError("");
     let result: Awaited<ReturnType<typeof bookAppointment>>;
+    const enCesta = Object.keys(cesta).filter((id) => cesta[id]);
     try {
       result = await bookAppointment({
         employeeId: employee!.id,
@@ -167,6 +185,8 @@ export default function BookingWidget({
         name,
         phone,
         email: email.trim(),
+        productos: enCesta.length ? enCesta.map((id) => ({ id, qty: 1 })) : undefined,
+        marketing: marketing && !!email.trim(),
       });
     } catch {
       // Sin esto, un corte de red dejaba el botón en "Reservando…" para
@@ -187,6 +207,8 @@ export default function BookingWidget({
     } else if ("checkoutUrl" in result) {
       window.location.href = result.checkoutUrl; // pago en Stripe
     } else {
+      setCitaUrl(result.citaUrl ?? null);
+      setOmitidos(result.omitidos ?? []);
       try {
         sessionStorage.setItem(
           `cita-${slug}`,
@@ -217,7 +239,9 @@ export default function BookingWidget({
     };
   };
 
-  if (done)
+  if (done) {
+    const apartados = productos.filter((p) => cesta[p.id] && !omitidos.includes(p.id));
+    const agotados = productos.filter((p) => omitidos.includes(p.id));
     return (
       <div className="panel p-8 text-center" role="status">
         <span className="font-display text-5xl text-ok block" aria-hidden>✓</span>
@@ -247,7 +271,27 @@ export default function BookingWidget({
             <dt className="text-muted">Precio</dt>
             <dd className="font-medium text-right">{fmtPrice(service!.price_cents)}</dd>
           </div>
+          {apartados.map((p) => (
+            <div key={p.id} className="flex justify-between gap-4">
+              <dt className="text-muted">Apartado</dt>
+              <dd className="font-medium text-right">
+                {p.name} · {fmtPrice(p.price_cents)}
+              </dd>
+            </div>
+          ))}
         </dl>
+        {agotados.length > 0 && (
+          <p className="mt-4 text-sm text-muted" role="alert">
+            {agotados.map((p) => p.name).join(" y ")}{" "}
+            {agotados.length > 1 ? "se han agotado" : "se ha agotado"} — el resto de tu
+            reserva queda igual.
+          </p>
+        )}
+        {citaUrl && (
+          <a href={citaUrl} className="btn-primary mt-6 inline-flex">
+            Ver o cancelar mi cita
+          </a>
+        )}
         {(() => {
           const links = calLinks(`${service!.name} en ${salonName}`, slot, service!.duration_min);
           return (
@@ -275,6 +319,7 @@ export default function BookingWidget({
         </p>
       </div>
     );
+  }
 
   const reminder =
     restored && new Date(restored.slotIso) > new Date() ? (
@@ -537,6 +582,72 @@ export default function BookingWidget({
                 className="field"
               />
             </div>
+
+            {/* La casilla solo aparece con email escrito: sin email no hay
+                nada que consentir. Sin premarcar y con texto propio — es un
+                consentimiento, no un peaje. */}
+            {conCuenta && email.trim().length > 3 && (
+              <label className="flex items-start gap-3 text-sm text-muted cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={marketing}
+                  onChange={(e) => setMarketing(e.target.checked)}
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
+                />
+                <span>
+                  Quiero recibir por email las novedades y promociones de {salonName}.
+                  Podrás darte de baja con un clic en cualquier momento.
+                </span>
+              </label>
+            )}
+
+            {/* Productos, DENTRO del último paso: cero pasos nuevos, cero
+                pantallas extra. Sección invisible si el salón no vende nada.
+                Nada aquí es obligatorio ni puede frenar la reserva. */}
+            {productos.length > 0 && (
+              <div className="mt-2">
+                <p className="rotulo mb-3">
+                  ¿Te llevas algo?
+                  <span className="font-normal normal-case tracking-normal text-faint">
+                    opcional — lo tendrás preparado
+                  </span>
+                </p>
+                <div
+                  className="flex gap-2 overflow-x-auto pb-2 -mx-5 px-5 fade-x"
+                  role="group"
+                  aria-label="Productos para reservar"
+                >
+                  {productos.map((p) => {
+                    const on = !!cesta[p.id];
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => setCesta((c) => ({ ...c, [p.id]: !c[p.id] }))}
+                        className={`chip shrink-0 flex-col items-start gap-1 px-4 py-3 h-auto min-w-[8.5rem] max-w-[11rem] text-left
+                          ${on ? "chip-on" : ""}`}
+                      >
+                        <span className="text-sm font-medium leading-tight">
+                          {on && <span aria-hidden>✓ </span>}
+                          {p.name}
+                        </span>
+                        {p.description && (
+                          <span className="text-xs opacity-70 leading-tight line-clamp-2">
+                            {p.description}
+                          </span>
+                        )}
+                        <span className="font-display tabular-nums">{fmtPrice(p.price_cents)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-faint mt-1">
+                  Se paga en el local al recogerlo. Reservarlo no cuesta nada.
+                </p>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={saving || name.trim().length < 2 || digitsOf(phone).length < 9}
@@ -545,11 +656,12 @@ export default function BookingWidget({
               {(() => {
                 const d = days.find((x) => x.iso === day);
                 const when = d ? `${d.weekday} ${d.dayNum}, ${fmtTime(slot)}` : fmtTime(slot);
+                const nSel = Object.values(cesta).filter(Boolean).length;
                 return saving
                   ? "Reservando…"
                   : amountDue(service!) > 0
                     ? `Continuar al pago — ${fmtPrice(amountDue(service!))}`
-                    : `Confirmar — ${when}`;
+                    : `Confirmar — ${when}${nSel > 0 ? ` · ${nSel} producto${nSel > 1 ? "s" : ""}` : ""}`;
               })()}
             </button>
           </form>

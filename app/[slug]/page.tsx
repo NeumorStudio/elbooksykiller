@@ -7,6 +7,7 @@ import Carrusel from "./carrusel";
 import { confirmPaidSession } from "./actions";
 import { fotosDelSalon } from "./galeria";
 import { telHref } from "@/lib/tel";
+import { features } from "@/lib/features";
 
 export const viewport = { themeColor: "#1b1712" };
 
@@ -101,6 +102,22 @@ export default async function SalonPage({
 
   const services = salon.services.filter((s) => s.active);
   const employees = salon.employees.filter((e) => e.active);
+
+  // Catálogo de productos y features del esquema nuevo. Antes de aplicar
+  // las migraciones ambas consultas devuelven vacío y la página se comporta
+  // exactamente como hoy.
+  const f = await features();
+  const productos = f.productos
+    ? ((
+        await supabase
+          .from("products")
+          .select("id, name, description, price_cents")
+          .eq("salon_id", salon.id)
+          .eq("active", true)
+          .order("sort_order")
+          .order("name")
+      ).data ?? [])
+    : [];
 
   const { data: tramos } = await supabase
     .from("working_hours")
@@ -315,6 +332,8 @@ export default async function SalonPage({
           salonPhone={salon.phone}
           services={services}
           employees={employees}
+          productos={productos}
+          conCuenta={f.clientes}
         />
       )}
 
