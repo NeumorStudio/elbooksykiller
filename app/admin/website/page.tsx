@@ -4,6 +4,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { domainStatus } from "@/lib/vercel";
 import QRCode from "qrcode";
 import {
+  guardarGoogleUrl,
   setCustomDomain,
   removeCustomDomain,
   uploadLogo,
@@ -15,16 +16,27 @@ import SubmitButton from "../submit-button";
 import ActionForm from "../action-form";
 import ConfirmSubmit from "../confirm-submit";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { features } from "@/lib/features";
 
 export default async function WebsitePage() {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: salon } = await supabase
+  const f = await features();
+  // La select dinámica (google_review_url solo existe tras la migración
+  // 0010) rompe la inferencia de supabase-js: se tipa la fila a mano.
+  const { data: salonRaw } = await supabase
     .from("salons")
-    .select("id, slug, custom_domain, logo_url")
+    .select("id, slug, custom_domain, logo_url" + (f.resenas ? ", google_review_url" : ""))
     .eq("owner_id", user!.id)
     .limit(1)
     .maybeSingle();
+  const salon = salonRaw as unknown as {
+    id: string;
+    slug: string;
+    custom_domain: string | null;
+    logo_url: string | null;
+    google_review_url?: string | null;
+  } | null;
 
   if (!salon) return <p className="text-muted">Primero crea tu peluquería en la Agenda.</p>;
 
@@ -198,6 +210,35 @@ export default async function WebsitePage() {
           </SubmitButton>
         </ActionForm>
       </div>
+
+      {f.resenas && (
+        <ActionForm action={guardarGoogleUrl} className="panel p-6 flex flex-col gap-4">
+          <div>
+            <h2 className="font-semibold">Reseñas de Google</h2>
+            <p className="text-sm text-muted mt-1 text-pretty">
+              Tras cada visita pedimos una valoración privada, y después
+              ofrecemos tu ficha de Google a todo el mundo por igual. Pega
+              aquí el enlace de tu ficha.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 items-end">
+            <div className="flex-1 min-w-56">
+              <label htmlFor="gr-url" className="label">Enlace de tu ficha</label>
+              <input
+                id="gr-url"
+                name="google_review_url"
+                type="url"
+                placeholder="https://g.page/r/..."
+                defaultValue={salon.google_review_url ?? ""}
+                className="field"
+              />
+            </div>
+            <SubmitButton className="btn-primary" pendingText="Guardando…">
+              Guardar
+            </SubmitButton>
+          </div>
+        </ActionForm>
+      )}
 
       <div className="panel p-6 flex flex-col gap-4">
         <div>

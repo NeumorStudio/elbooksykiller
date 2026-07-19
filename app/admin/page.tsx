@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { createSalon, dismissOnboarding } from "./actions";
+import { features } from "@/lib/features";
 import Agenda, { type Cita, type Profesional, type Servicio } from "./agenda";
 import ActionForm from "./action-form";
 import SubmitButton from "./submit-button";
@@ -11,6 +12,7 @@ type Row = {
   starts_at: string;
   ends_at: string;
   employee_id: string;
+  customer_id?: string | null;
   customer_name: string;
   customer_phone: string;
   payment_status: string;
@@ -65,6 +67,9 @@ export default async function AdminHome() {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+  // customer_id solo existe tras la migración 0006; pedirlo antes rompería
+  // la consulta entera.
+  const f = await features();
 
   const [
     { data: upcomingRaw },
@@ -76,7 +81,9 @@ export default async function AdminHome() {
       supabase
         .from("bookings")
         .select(
-          "id, starts_at, ends_at, employee_id, customer_name, customer_phone, payment_status, services(name, price_cents), employees(name)"
+          "id, starts_at, ends_at, employee_id, customer_name, customer_phone, payment_status" +
+            (f.clientes ? ", customer_id" : "") +
+            ", services(name, price_cents), employees(name)"
         )
         .eq("salon_id", salon.id)
         // Desde el arranque del mes en curso y hasta 90 días: la rejilla
@@ -151,6 +158,33 @@ export default async function AdminHome() {
 
   const enMin = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
 
+  // Distintivo de sellos en la fila: el barbero necesita saber que el
+  // siguiente va gratis ANTES de cortar, no después. Solo con el programa
+  // activo, y en una consulta para todas las citas visibles.
+  let sellosDe = new Map<string, number>();
+  let programa: { required_visits: number; reward: string } | null = null;
+  if (f.fidelizacion) {
+    const { data: prog } = await supabase
+      .from("loyalty_programs")
+      .select("active, required_visits, reward")
+      .eq("salon_id", salon.id)
+      .maybeSingle();
+    if (prog?.active) {
+      programa = { required_visits: prog.required_visits, reward: prog.reward };
+      const ids = [...new Set(upcoming.map((b) => b.customer_id).filter(Boolean))] as string[];
+      if (ids.length) {
+        const { data: stamps } = await supabase
+          .from("loyalty_stamps")
+          .select("customer_id")
+          .in("customer_id", ids)
+          .is("redemption_id", null);
+        for (const st of stamps ?? []) {
+          sellosDe.set(st.customer_id, (sellosDe.get(st.customer_id) ?? 0) + 1);
+        }
+      }
+    }
+  }
+
   const citas: Cita[] = upcoming.map((b) => {
     const ini = enZona(b.starts_at);
     const fin = enZona(b.ends_at);
@@ -169,11 +203,20 @@ export default async function AdminHome() {
       payment_status: b.payment_status,
       servicio: b.services?.name ?? "",
       profesional: b.employees?.name ?? "",
+      sellos:
+        programa && b.customer_id != null && sellosDe.has(b.customer_id)
+          ? {
+              tiene: sellosDe.get(b.customer_id)!,
+              requiere: programa.required_visits,
+              premio: programa.reward,
+            }
+          : null,
     };
   });
   const zonaAhora = enZona(now.toISOString());
   const hoyEnZona = zonaAhora.dia;
   const ahoraMin = enMin(zonaAhora.hora);
+
 
   const servicios = (serviciosRaw ?? []) as Servicio[];
   const profesionales: Profesional[] = (

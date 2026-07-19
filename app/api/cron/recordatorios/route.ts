@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { sendEmail, reminderHtml } from "@/lib/email";
+import { features } from "@/lib/features";
+import { baseUrl } from "@/lib/urls";
 
 /**
  * Recordatorio de cita ~24 h antes.
@@ -30,6 +32,7 @@ type Fila = {
   starts_at: string;
   customer_name: string;
   customer_email: string | null;
+  public_token?: string;
   services: { name: string; price_cents: number } | null;
   employees: { name: string } | null;
   salons: { name: string; phone: string | null; address: string | null; timezone: string } | null;
@@ -44,6 +47,9 @@ export async function GET(req: Request) {
 
   const admin = supabaseAdmin();
   const ahora = Date.now();
+  // public_token solo existe tras la migración 0006; pedirlo antes rompería
+  // la consulta entera.
+  const { clientes } = await features();
   // Ventana amplia (23-25 h) para que un tick perdido no deje a nadie sin
   // aviso; la deduplicación evita el envío doble en los solapes.
   const desde = new Date(ahora + 23 * 3600_000).toISOString();
@@ -52,7 +58,9 @@ export async function GET(req: Request) {
   const { data, error } = await admin
     .from("bookings")
     .select(
-      "id, starts_at, customer_name, customer_email, services(name, price_cents), employees(name), salons(name, phone, address, timezone)"
+      "id, starts_at, customer_name, customer_email" +
+        (clientes ? ", public_token" : "") +
+        ", services(name, price_cents), employees(name), salons(name, phone, address, timezone)"
     )
     .gte("starts_at", desde)
     .lt("starts_at", hasta)
@@ -114,6 +122,7 @@ export async function GET(req: Request) {
           style: "currency",
           currency: "EUR",
         }),
+        citaUrl: c.public_token ? `${baseUrl()}/cita/${c.public_token}` : undefined,
       }),
       idempotencyKey: `booking-reminder/${c.id}`,
     });

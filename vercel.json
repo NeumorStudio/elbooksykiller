@@ -3,6 +3,18 @@
     {
       "path": "/api/cron/recordatorios",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/autocompletar",
+      "schedule": "30 * * * *"
+    },
+    {
+      "path": "/api/cron/resenas",
+      "schedule": "45 * * * *"
+    },
+    {
+      "path": "/api/cron/newsletter",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

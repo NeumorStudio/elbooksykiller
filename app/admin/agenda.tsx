@@ -20,6 +20,9 @@ export type Cita = {
   payment_status: string;
   servicio: string;
   profesional: string;
+  // Distintivo de fidelidad: el barbero ve que el siguiente va gratis
+  // ANTES de cortar. null = sin programa o cliente sin sellos.
+  sellos?: { tiene: number; requiere: number; premio: string } | null;
 };
 
 export type Profesional = {
@@ -466,7 +469,27 @@ function FilaCita({ b, destacada = false }: { b: Cita; destacada?: boolean }) {
         {b.hora}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="font-medium truncate">{b.customer_name}</p>
+        <p className="font-medium truncate">
+          {b.customer_name}
+          {b.sellos && (
+            <span
+              className={`ml-2 inline-block rounded-full px-2 py-0.5 text-xs tabular-nums align-middle ${
+                b.sellos.tiene >= b.sellos.requiere
+                  ? "bg-brand text-brand-ink font-semibold"
+                  : "neu-in text-muted"
+              }`}
+              title={
+                b.sellos.tiene >= b.sellos.requiere
+                  ? `${b.sellos.premio} conseguido — canjear en Clientes`
+                  : `Tarjeta: ${b.sellos.tiene} de ${b.sellos.requiere}`
+              }
+            >
+              {b.sellos.tiene >= b.sellos.requiere
+                ? `★ ${b.sellos.premio}`
+                : `${b.sellos.tiene}/${b.sellos.requiere}`}
+            </span>
+          )}
+        </p>
         <p className="truncate">{b.servicio}</p>
         <p className="text-sm text-muted truncate">
           <a href={telHref(b.customer_phone)} className="hover:underline">{b.customer_phone}</a>

@@ -410,6 +410,27 @@ export async function updateServicePayment(formData: FormData) {
 
 const DOMAIN_RE = /^(?!-)([a-z0-9-]{1,63}\.)+[a-z]{2,}$/;
 
+/**
+ * URL de la ficha de Google del salón. Se ofrece tras valorar en privado,
+ * a TODOS por igual — el review gating está prohibido.
+ */
+export async function guardarGoogleUrl(formData: FormData) {
+  const { resenas } = await (await import("@/lib/features")).features();
+  if (!resenas) return { error: "Todavía no está activada." };
+
+  const { supabase, user } = await db();
+  const url = String(formData.get("google_review_url") ?? "").trim();
+  if (url && !/^https:\/\/(g\.page|maps\.app\.goo\.gl|search\.google\.com|www\.google\.[a-z.]+)\//i.test(url))
+    return { error: "Pega el enlace de tu ficha de Google (empieza por https://g.page o maps.app.goo.gl)." };
+
+  const { error } = await supabase
+    .from("salons")
+    .update({ google_review_url: url || null })
+    .eq("owner_id", user.id);
+  if (error) return { error: "No se pudo guardar. Inténtalo de nuevo." };
+  revalidatePath("/admin/website");
+}
+
 export async function setCustomDomain(formData: FormData) {
   const { supabase, user } = await db();
   const domain = String(formData.get("domain") ?? "")
