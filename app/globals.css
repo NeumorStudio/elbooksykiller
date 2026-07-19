@@ -1,48 +1,99 @@
 @import "tailwindcss";
 
 /*
-  Sistema de tema — dos escenas:
-  :root  = "noche" (web pública de reservas): oscuro cálido, oro/latón.
-  .day   = panel admin: claro, sobrio, el ámbar solo como acento.
+  Sistema de tema — dos escenas sobre los mismos tokens semánticos:
+    :root    = web pública de reservas
+    .taller  = panel del dueño
+
+  Paleta carbón neutro, elegida POR el neumorfismo: el relieve necesita un
+  tono medio donde quepan las dos sombras. Sobre un casi-negro la sombra
+  clara no tiene recorrido y el efecto no se ve; sobre carbón sí.
+
+  Y el principio del estilo: la pieza y el fondo son EL MISMO color
+  (--surface = --bg). El volumen lo crean las sombras, no un color de
+  tarjeta distinto.
 */
 :root {
-  --bg: oklch(0.155 0.012 75);
-  --surface: oklch(0.2 0.014 75);
-  --surface-2: oklch(0.245 0.016 75);
-  --ink: oklch(0.94 0.012 85);
-  --muted: oklch(0.72 0.02 80);
-  --line: oklch(0.31 0.018 75);
-  --brand: oklch(0.78 0.14 82);
-  --brand-hover: oklch(0.84 0.14 84);
-  --brand-ink: oklch(0.2 0.03 80);
-  --danger: oklch(0.72 0.17 25);
-  --ok: oklch(0.78 0.14 150);
+  --bg: oklch(0.285 0.006 265);
+  --surface: oklch(0.285 0.006 265);
+  --surface-2: oklch(0.325 0.007 265);
+  --surface-3: oklch(0.365 0.008 265);
+  --ink: oklch(0.95 0.004 265);
+  --muted: oklch(0.755 0.006 265);
+  --faint: oklch(0.63 0.006 265);
+  --line: oklch(1 0 0 / 0.07);
+  --line-subtle: oklch(1 0 0 / 0.05);
+  --line-strong: oklch(0.52 0.008 265);
+  --brand: oklch(0.8 0.135 82);
+  --brand-hover: oklch(0.86 0.135 84);
+  --brand-ink: oklch(0.24 0.03 80);
+  --brand-soft: oklch(0.8 0.135 82 / 0.13);
+  --danger: oklch(0.72 0.16 25);
+  --ok: oklch(0.78 0.13 155);
+
+  /* Neumorfismo: la luz entra por arriba-izquierda. Sobre carbón el
+     blanco puede subir a 0.07 sin ensuciar. */
+  --neu-luz: oklch(1 0 0 / 0.07);
+  --neu-sombra: oklch(0 0 0 / 0.42);
+
+  /* ── Motion de aplicación ────────────────────────────────────────
+     Escala corta y sesgada a rápido. La asimetría es deliberada: lo que
+     entra tarda más que lo que sale, porque el usuario ya decidió. */
+  --d-instant: 80ms;
+  --d-fast: 150ms;
+  --d-base: 210ms;
+  --d-slow: 300ms;
+  /* Curvas de Material 3: decelerate para entrar, accelerate para salir. */
+  --e-out: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --e-in: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --e-both: cubic-bezier(0.2, 0, 0, 1);
+
+  --font-display-stack: var(--font-fraunces), Georgia, serif;
 }
 
-.day {
-  --bg: oklch(1 0 0);
-  --surface: oklch(0.972 0.003 80);
-  --surface-2: oklch(0.945 0.004 80);
-  --ink: oklch(0.22 0.012 75);
-  --muted: oklch(0.45 0.015 75);
-  --line: oklch(0.89 0.006 80);
-  --brand: oklch(0.53 0.125 75);
-  --brand-hover: oklch(0.47 0.125 75);
-  --brand-ink: oklch(0.99 0.005 85);
-  --danger: oklch(0.53 0.19 25);
-  --ok: oklch(0.5 0.13 150);
+/*
+  Panel: la trastienda. Misma casa, sin los focos — un punto más oscuro
+  para diferenciarlo, y relieve más plano porque se mira ocho horas y no
+  cuarenta segundos.
+*/
+.taller {
+  --bg: oklch(0.255 0.005 265);
+  --surface: oklch(0.255 0.005 265);
+  --surface-2: oklch(0.295 0.006 265);
+  --surface-3: oklch(0.335 0.007 265);
+  --ink: oklch(0.93 0.004 265);
+  --muted: oklch(0.74 0.006 265);
+  --faint: oklch(0.61 0.006 265);
+  --line: oklch(1 0 0 / 0.07);
+  --line-subtle: oklch(1 0 0 / 0.05);
+  --line-strong: oklch(0.5 0.008 265);
+  /* Oro desaturado ~20%: el color de marca se elige para mirarlo cuarenta
+     segundos, no una jornada. */
+  --brand: oklch(0.8 0.105 82);
+  --brand-hover: oklch(0.86 0.105 84);
+  --brand-ink: oklch(0.22 0.03 80);
+  --brand-soft: oklch(0.8 0.105 82 / 0.12);
+  --danger: oklch(0.7 0.14 25);
+  --ok: oklch(0.775 0.115 155);
+  --neu-luz: oklch(1 0 0 / 0.055);
+  --neu-sombra: oklch(0 0 0 / 0.36);
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
+  --color-faint: var(--faint);
   --color-line: var(--line);
+  --color-line-subtle: var(--line-subtle);
+  --color-line-strong: var(--line-strong);
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
   --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
   --color-danger: var(--danger);
   --color-ok: var(--ok);
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
@@ -66,55 +117,337 @@ body {
   input[type="time"] {
     cursor: pointer;
   }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
 }
 
-h1,
-h2,
-h3 {
-  text-wrap: balance;
-}
-
-/* Vocabulario de componentes: un solo botón, un solo input, en toda la app */
 @layer components {
+  /* ── Neumorfismo ────────────────────────────────────────────────
+     Dos sombras opuestas simulan luz desde arriba-izquierda: la pieza
+     parece extruida del propio fondo.
+
+     El riesgo conocido del estilo es el contraste: un borde difuminado no
+     cumple el 3:1 que WCAG 1.4.11 exige a los componentes. Por eso cada
+     pieza lleva ADEMÁS un borde de 1px, y lo seleccionado se marca con
+     relleno de color, no solo con relieve. */
+  .neu {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow:
+      -6px -6px 14px var(--neu-luz),
+      8px 8px 18px var(--neu-sombra);
+  }
+  .neu-sm {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow:
+      -3px -3px 8px var(--neu-luz),
+      4px 4px 10px var(--neu-sombra);
+  }
+  /* Hundido: el hueco donde encaja algo, o el estado pulsado. */
+  .neu-in {
+    background: var(--surface);
+    border: 1px solid var(--line-subtle);
+    box-shadow:
+      inset -4px -4px 10px var(--neu-luz),
+      inset 5px 5px 12px var(--neu-sombra);
+  }
+
+  /* ── Controles ──────────────────────────────────────────────────
+     transition-all encadena repaints de propiedades que no querías; se
+     enumeran. El press responde ANTES de soltar el dedo — eso es lo que
+     hace que un control se sienta caro, no la duración. */
   .btn-primary,
   .btn-quiet,
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 font-medium
-      transition-all duration-150 select-none active:scale-[0.98]
-      focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand
-      disabled:opacity-40 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 font-medium
+      select-none disabled:opacity-40 disabled:pointer-events-none;
     min-height: 44px;
+    touch-action: manipulation;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    transition:
+      background-color var(--d-fast) var(--e-both),
+      border-color var(--d-fast) var(--e-both),
+      box-shadow var(--d-fast) var(--e-both),
+      color var(--d-fast) var(--e-both),
+      outline-offset var(--d-fast) var(--e-out),
+      transform var(--d-instant) var(--e-out);
   }
   .btn-primary {
-    @apply bg-brand text-brand-ink hover:bg-brand-hover;
+    @apply bg-brand text-brand-ink;
+    box-shadow:
+      -5px -5px 12px var(--neu-luz),
+      6px 6px 16px var(--neu-sombra);
   }
   .btn-quiet {
-    @apply border border-line text-ink hover:border-muted;
+    @apply border text-ink;
+    background: var(--surface);
+    border-color: var(--line);
+    box-shadow:
+      -4px -4px 10px var(--neu-luz),
+      5px 5px 12px var(--neu-sombra);
   }
   .btn-danger {
-    @apply text-danger hover:bg-danger/10 px-3;
+    @apply text-danger px-3;
   }
+  /* Al pulsar, la pieza se hunde en el fondo: el gesto que define el
+     neumorfismo. Sustituye al scale como señal de pulsación. */
+  .btn-primary:active:not(:disabled) {
+    box-shadow:
+      inset -4px -4px 10px oklch(1 0 0 / 0.18),
+      inset 5px 5px 12px oklch(0 0 0 / 0.3);
+    transform: scale(0.99);
+  }
+  .btn-quiet:active:not(:disabled) {
+    box-shadow:
+      inset -4px -4px 10px var(--neu-luz),
+      inset 5px 5px 12px var(--neu-sombra);
+    transform: scale(0.99);
+  }
+  .btn-danger:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  /* El hover solo donde hay puntero de verdad: en móvil se queda pegado
+     tras el tap. */
+  @media (hover: hover) and (pointer: fine) {
+    .btn-primary:hover:not(:disabled) {
+      background-color: var(--brand-hover);
+    }
+    .btn-quiet:hover:not(:disabled) {
+      background-color: var(--surface-2);
+      border-color: var(--line-strong);
+    }
+    .btn-danger:hover:not(:disabled) {
+      background-color: color-mix(in oklab, var(--danger) 14%, transparent);
+    }
+  }
+
   .field {
-    @apply w-full rounded-lg border border-line bg-surface px-3 text-ink
-      placeholder:text-muted transition-colors duration-150
-      focus:border-brand focus:outline-none;
+    @apply w-full rounded-xl px-3 text-ink placeholder:text-muted focus:outline-none;
+    background: var(--surface);
+    border: 1px solid var(--line);
     min-height: 44px;
+    /* El input es un hueco, no un relieve: es donde se mete algo. */
+    box-shadow:
+      inset -3px -3px 8px var(--neu-luz),
+      inset 4px 4px 10px var(--neu-sombra);
+    transition:
+      border-color var(--d-fast) var(--e-both),
+      box-shadow var(--d-fast) var(--e-both);
+  }
+  .field:focus {
+    border-color: var(--brand);
   }
   .label {
     @apply block text-sm font-medium text-muted mb-1.5;
   }
+
   .chip {
-    @apply inline-flex items-center justify-center rounded-lg border border-line bg-surface
-      px-3 text-sm text-ink transition-all duration-150 cursor-pointer
-      hover:border-muted active:scale-[0.97]
-      focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
+    @apply inline-flex items-center justify-center rounded-xl px-3 text-sm text-ink cursor-pointer;
+    background: var(--surface);
+    border: 1px solid var(--line);
     min-height: 44px;
+    touch-action: manipulation;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow:
+      -4px -4px 9px var(--neu-luz),
+      5px 5px 11px var(--neu-sombra);
+    transition:
+      background-color var(--d-fast) var(--e-both),
+      border-color var(--d-fast) var(--e-both),
+      box-shadow var(--d-fast) var(--e-both),
+      color var(--d-fast) var(--e-both),
+      outline-offset var(--d-fast) var(--e-out),
+      transform var(--d-instant) var(--e-out);
   }
+  .chip:active {
+    box-shadow:
+      inset -3px -3px 8px var(--neu-luz),
+      inset 4px 4px 10px var(--neu-sombra);
+    transform: scale(0.98);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .chip:hover {
+      background-color: var(--surface-2);
+      border-color: var(--line-strong);
+    }
+  }
+  /* Seleccionado: relleno de color. El relieve por sí solo no llega al
+     3:1 que exige WCAG para componentes de UI. */
   .chip-on {
-    @apply border-brand bg-brand text-brand-ink font-semibold hover:border-brand;
+    @apply bg-brand text-brand-ink font-semibold;
+    border-color: var(--brand);
+    box-shadow:
+      -4px -4px 9px var(--neu-luz),
+      5px 5px 14px oklch(0 0 0 / 0.45);
   }
-  .panel {
-    @apply rounded-xl border border-line bg-surface;
+  @media (hover: hover) and (pointer: fine) {
+    .chip-on:hover {
+      background-color: var(--brand);
+      border-color: var(--brand);
+    }
+  }
+
+  /* El anillo de foco APARECE instantáneo (un usuario de teclado que no ve
+     dónde está durante 150ms tiene un problema de accesibilidad); solo se
+     anima su separación. outline y no box-shadow: respeta el radio y no
+     participa en el layout. */
+  :is(.btn-primary, .btn-quiet, .btn-danger, .chip, .field):focus-visible {
+    outline-color: var(--brand);
+    outline-offset: 3px;
+  }
+
+  /* ── Superficies ────────────────────────────────────────────────── */
+  .panel,
+  .tarjeta {
+    @apply rounded-2xl;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow:
+      -5px -5px 12px var(--neu-luz),
+      6px 6px 15px var(--neu-sombra);
+  }
+  .tarjeta {
+    transition:
+      background-color var(--d-fast) var(--e-both),
+      border-color var(--d-fast) var(--e-both),
+      box-shadow var(--d-fast) var(--e-both),
+      transform var(--d-fast) var(--e-out);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .tarjeta-int:hover {
+      background-color: var(--surface-2);
+      transform: translateY(-1px);
+      box-shadow:
+        -6px -6px 14px var(--neu-luz),
+        8px 8px 18px var(--neu-sombra);
+    }
+  }
+  /* Lo ya atendido se apaga: la agenda se consume a lo largo del día. */
+  .pasada {
+    opacity: 0.45;
+  }
+
+  /* Plato para logos con fondo propio (lettering negro sobre blanco). */
+  .plato-logo {
+    @apply inline-flex items-center justify-center rounded-2xl bg-white p-2;
+    box-shadow:
+      -5px -5px 14px var(--neu-luz),
+      8px 8px 20px var(--neu-sombra);
+  }
+
+  /* Aviso de que una tira horizontal continúa: sin él, el último elemento
+     visible parece el último que hay. */
+  .fade-x {
+    mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+  }
+  @media (min-width: 40rem) {
+    .fade-x-solo-movil {
+      mask-image: none;
+      -webkit-mask-image: none;
+    }
+  }
+
+  /* Solapamiento: las secciones dejan de ser bloques apilados y pasan a
+     ser una superficie continua. Cero coste, soporte universal. */
+  .solapa {
+    position: relative;
+    margin-top: -2.5rem;
+    border-radius: 2rem 2rem 0 0;
+  }
+
+  /* Eyebrow editorial: versalitas espaciadas con regla. */
+  .rotulo {
+    @apply flex items-center gap-3 text-xs font-semibold uppercase text-muted;
+    letter-spacing: 0.18em;
+  }
+  .rotulo::after {
+    content: "";
+    @apply h-px flex-1 bg-line;
+  }
+
+  /* Display fluido — excepción deliberada al "sin clamp" del sistema:
+     solo en escaparate, donde la escala extrema ES el diseño. */
+  .display-xl {
+    font-size: clamp(2.75rem, 11vw, 6.5rem);
+    line-height: 0.94;
+    letter-spacing: -0.035em;
+  }
+  .display-l {
+    font-size: clamp(2rem, 6.5vw, 3.5rem);
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+  }
+}
+
+/* ── Scroll: conexión entre secciones ────────────────────────────────
+   CSS plano a propósito: la shorthand `animation` resetea
+   `animation-timeline`, y con utilidades Tailwind el orden no está
+   garantizado. Todo es mejora progresiva: el estado final es el estado
+   por defecto (iOS < 26 no soporta view() y debe ver la página entera), y
+   `no-preference` como condición de activación es el patrón C39 del W3C —
+   si algo falla, el fallo seguro es "sin animación". */
+
+/* Apilado pegajoso: sticky funciona en el 100% de los navegadores. */
+.pila > * {
+  position: sticky;
+  top: 5rem;
+}
+.pila > :nth-child(2) {
+  top: 6.25rem;
+}
+.pila > :nth-child(3) {
+  top: 7.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    /* Aparición ligada al scroll: corta (NN/g: >500ms se salta el texto) y
+       de una sola vez (both la deja clavada al pasar). */
+    .revelar {
+      animation: revelar linear both;
+      animation-timeline: view();
+      animation-range: entry 10% entry 45%;
+    }
+    /* Ken Burns ligado al scroll. Solo scale → coste casi nulo. Nunca
+       sobre el elemento LCP. */
+    .zoom-lento {
+      animation: zoom-lento linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+    }
+    /* El hero se hunde al pasar por encima la sección siguiente. */
+    .hero-cede {
+      animation: hero-cede linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 70vh;
+    }
+  }
+}
+@keyframes revelar {
+  from {
+    opacity: 0;
+    translate: 0 1.25rem;
+  }
+}
+@keyframes zoom-lento {
+  from {
+    scale: 1.12;
+  }
+  to {
+    scale: 1;
+  }
+}
+@keyframes hero-cede {
+  to {
+    scale: 0.94;
+    opacity: 0.4;
   }
 }
 
