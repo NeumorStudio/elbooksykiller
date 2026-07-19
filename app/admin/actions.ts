@@ -253,7 +253,23 @@ export async function cancelBooking(formData: FormData) {
  * protección contra doble reserva la sigue dando la exclusion constraint
  * `no_overlap` de la base de datos, que es la garantía de verdad.
  */
-export async function addBooking(formData: FormData) {
+/**
+ * Lo que el alta manual devuelve al panel cuando sale bien.
+ *
+ * `fin` es la hora a la que queda libre el profesional, y es lo que permite
+ * encadenar la cita siguiente sin volver a elegir nada.
+ */
+export type AltaOk = {
+  nombre: string;
+  hora: string;
+  fin: string | null;
+  fecha: string;
+  employee_id: string;
+};
+
+export async function addBooking(
+  formData: FormData
+): Promise<{ error?: string; ok?: AltaOk }> {
   const { supabase, user } = await db();
 
   const { data: salon } = await supabase
@@ -310,6 +326,33 @@ export async function addBooking(formData: FormData) {
     };
   }
   revalidatePath("/admin");
+
+  // Modo encadenar: el padre y el hijo entran juntos, o la clienta se hace
+  // color y corte. Devolver la hora a la que queda libre el profesional
+  // evita volver a elegir día, hora y profesional con la gente delante.
+  //
+  // La hora de fin se saca del instante `fin` ya calculado y no de sumar
+  // minutos a la de inicio: en un domingo de cambio de hora esa suma se
+  // desvía sesenta minutos. Y se compara el día, porque un servicio que
+  // termina pasada la medianoche no se encadena en la misma fecha.
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: salon.timezone,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date(fin));
+  const parte = (t: string) => partes.find((p) => p.type === t)!.value;
+  const finDia = `${parte("year")}-${parte("month")}-${parte("day")}`;
+  const finHora = `${parte("hour")}:${parte("minute")}`;
+
+  return {
+    ok: {
+      nombre,
+      hora,
+      fin: finDia === fecha ? finHora : null,
+      fecha,
+      employee_id: employeeId,
+    },
+  };
 }
 
 export async function connectStripe() {

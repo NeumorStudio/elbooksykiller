@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { cancelBooking, setBookingStatus, addBooking } from "./actions";
+import { cancelBooking, setBookingStatus, addBooking, type AltaOk } from "./actions";
 import ConfirmSubmit from "./confirm-submit";
 import ActionForm from "./action-form";
 import SubmitButton from "./submit-button";
@@ -68,6 +68,12 @@ export default function Agenda({
   });
   // Hueco elegido al tocar el calendario: precarga el alta manual.
   const [hueco, setHueco] = useState<{ hora: string; empleado: string } | null>(null);
+  // Última cita creada, para poder encadenar la siguiente a continuación.
+  const [ultima, setUltima] = useState<AltaOk | null>(null);
+  // Cambiar de ronda remonta el formulario y lo deja limpio: después de
+  // guardar, el nombre anterior en el campo invita a crear la misma cita dos
+  // veces, que es justo el error que no se puede cometer con gente delante.
+  const [ronda, setRonda] = useState(0);
   const formRef = useRef<HTMLDivElement>(null);
 
   const porDia = useMemo(() => {
@@ -127,14 +133,34 @@ export default function Agenda({
     return libres.filter((h) => h.fin - h.ini >= 15);
   };
 
+  const irAlForm = () =>
+    formRef.current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "center",
+    });
+
   const elegirHueco = (hora: string, empleado: string) => {
     setHueco({ hora, empleado });
-    requestAnimationFrame(() =>
-      formRef.current?.scrollIntoView({
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-        block: "center",
-      })
-    );
+    requestAnimationFrame(irAlForm);
+  };
+
+  /**
+   * Encadena la cita siguiente a la que se acaba de guardar: mismo día y
+   * mismo profesional, a la hora en que queda libre.
+   *
+   * Deja el foco en el nombre porque es el único dato que falta — lo demás
+   * ya viene puesto. `preventScroll` evita que el foco y el scroll suave se
+   * peleen por llevar la vista a sitios distintos.
+   */
+  const encadenar = () => {
+    if (!ultima?.fin) return;
+    setSel(ultima.fecha);
+    setHueco({ hora: ultima.fin, empleado: ultima.employee_id });
+    setUltima(null);
+    requestAnimationFrame(() => {
+      document.getElementById("b-nombre")?.focus({ preventScroll: true });
+      irAlForm();
+    });
   };
 
   const mover = (delta: number) => {
@@ -335,7 +361,7 @@ export default function Agenda({
       {/* ── 4. Alta manual, precargada desde el hueco ─────────────── */}
       {servicios.length > 0 && profesionales.length > 0 && (
         <div ref={formRef}>
-          <details className="tarjeta p-5" open={!!hueco}>
+          <details className="tarjeta p-5" open={!!hueco || !!ultima}>
             <summary className="cursor-pointer select-none font-semibold marker:text-brand">
               Añadir cita a mano
               <span className="block text-sm font-normal text-muted mt-1">
@@ -344,7 +370,39 @@ export default function Agenda({
                   : "Para quien llama por teléfono o entra sin reserva. También puedes tocar un hueco libre arriba."}
               </span>
             </summary>
-            <ActionForm action={addBooking} className="mt-4 flex flex-col gap-3">
+
+            {/* Encadenar: quien viene acompañado se agenda seguido, sin
+                volver a elegir día, hora ni profesional. */}
+            {ultima && (
+              <div role="status" className="mt-4 rounded-xl border border-brand bg-brand-soft p-3">
+                <p className="text-sm">
+                  Guardada la cita de <b>{ultima.nombre}</b> a las {ultima.hora}
+                  {ultima.fin ? `, termina a las ${ultima.fin}` : ""}.
+                </p>
+                {ultima.fin && (
+                  <button type="button" onClick={encadenar} className="btn-primary mt-3 w-full">
+                    + Otra cita seguida, a las {ultima.fin}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setUltima(null)}
+                  className="mt-1 min-h-11 w-full text-sm text-ink"
+                >
+                  Listo
+                </button>
+              </div>
+            )}
+
+            <ActionForm
+              key={ronda}
+              action={addBooking}
+              onSuccess={(ok) => {
+                setUltima(ok);
+                setRonda((r) => r + 1);
+              }}
+              className="mt-4 flex flex-col gap-3"
+            >
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="b-fecha" className="label">Día</label>
