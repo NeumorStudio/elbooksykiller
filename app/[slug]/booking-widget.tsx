@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { bookAppointment } from "./actions";
+import { telHref } from "@/lib/tel";
 
 type Service = {
   id: string;
@@ -22,9 +23,19 @@ type Employee = { id: string; name: string };
 const fmtPrice = (cents: number) =>
   (cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 
-function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+function Step({
+  n,
+  title,
+  id,
+  children,
+}: {
+  n: number;
+  title: string;
+  id?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section aria-label={`Paso ${n}: ${title}`}>
+    <section id={id} className="scroll-mt-4" aria-label={`Paso ${n}: ${title}`}>
       <h2 className="flex items-baseline gap-3 mb-4">
         <span className="font-display text-2xl text-brand tabular-nums" aria-hidden>
           {n}
@@ -75,6 +86,18 @@ export default function BookingWidget({
       if (raw) setRestored(JSON.parse(raw));
     } catch {}
   }, [slug]);
+
+  // El error se renderiza al final del documento; si el paso 4 se acaba de
+  // desmontar (hueco ocupado), en móvil quedaba fuera de la vista.
+  useEffect(() => {
+    if (!error) return;
+    document.getElementById("bk-error")?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "center",
+    });
+  }, [error]);
 
   // Cada paso nuevo se monta bajo el fold: acercarlo a la vista
   const scrollTo = (id: string) => {
@@ -135,14 +158,23 @@ export default function BookingWidget({
   async function book() {
     setSaving(true);
     setError("");
-    const result = await bookAppointment({
-      employeeId: employee!.id,
-      serviceId: service!.id,
-      startIso: slot,
-      name,
-      phone,
-      email: email.trim(),
-    });
+    let result: Awaited<ReturnType<typeof bookAppointment>>;
+    try {
+      result = await bookAppointment({
+        employeeId: employee!.id,
+        serviceId: service!.id,
+        startIso: slot,
+        name,
+        phone,
+        email: email.trim(),
+      });
+    } catch {
+      // Sin esto, un corte de red dejaba el botón en "Reservando…" para
+      // siempre: la promesa rechazaba y setSaving(false) nunca corría.
+      setError("No hay conexión. Comprueba tu red e inténtalo de nuevo.");
+      setSaving(false);
+      return;
+    }
     setSaving(false);
     if ("error" in result) {
       if (result.error === "slot_unavailable") {
@@ -234,7 +266,7 @@ export default function BookingWidget({
           {salonPhone && (
             <>
               {" "}Si no puedes venir, avísanos al{" "}
-              <a href={`tel:${salonPhone}`} className="underline underline-offset-4">
+              <a href={telHref(salonPhone)} className="underline underline-offset-4">
                 {salonPhone}
               </a>
               .
@@ -272,7 +304,7 @@ export default function BookingWidget({
   const afternoon = (slots ?? []).filter((s) => hourOf(s) >= 14);
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-8 sm:gap-10">
       {reminder}
       <Step n={1} title="Elige servicio">
         <div className="flex flex-col gap-2" role="radiogroup" aria-label="Servicio">
@@ -287,20 +319,33 @@ export default function BookingWidget({
                   setService(s);
                   scrollTo("paso-2");
                 }}
-                className={`flex items-center justify-between gap-4 rounded-xl border p-4 text-left transition-colors duration-150
+                className={`servicio-fila group flex items-baseline gap-4 rounded-xl border p-4 text-left
                   focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand
-                  ${on ? "border-brand bg-brand/10" : "border-line bg-surface hover:border-muted"}`}
+                  ${on ? "border-brand bg-brand/10" : "border-line bg-surface"}`}
               >
-                <span>
-                  <span className={`block font-medium ${on ? "text-brand" : ""}`}>{s.name}</span>
-                  <span className="block text-sm text-muted">
+                {/* Carta de restaurante, no lista de botones: el nombre en
+                    display, el precio alineado a la derecha con la línea de
+                    puntos uniéndolos, y la duración en tercer nivel. */}
+                <span className="min-w-0">
+                  <span
+                    className={`block font-display text-lg leading-tight ${on ? "text-brand" : ""}`}
+                  >
+                    {s.name}
+                  </span>
+                  <span className="mt-1 block text-sm text-muted">
                     {s.duration_min} min
                     {s.payment_type === "deposit" && amountDue(s) > 0 &&
-                      ` · señal de ${fmtPrice(amountDue(s))} al reservar`}
+                      ` · señal de ${fmtPrice(amountDue(s))}`}
                     {s.payment_type === "full" && ` · se paga al reservar`}
                   </span>
                 </span>
-                <span className={`font-semibold tabular-nums ${on ? "text-brand" : ""}`}>
+                <span
+                  aria-hidden
+                  className="h-px flex-1 self-center border-b border-dotted border-line"
+                />
+                <span
+                  className={`shrink-0 font-display text-lg tabular-nums ${on ? "text-brand" : ""}`}
+                >
                   {fmtPrice(s.price_cents)}
                 </span>
               </button>
@@ -310,35 +355,54 @@ export default function BookingWidget({
       </Step>
 
       {service && (
-        <>
-        <div id="paso-2" className="scroll-mt-4" />
-        <Step n={2} title="¿Con quién?">
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Profesional">
-            {employees.map((e) => (
-              <button
-                key={e.id}
-                role="radio"
-                aria-checked={employee?.id === e.id}
-                onClick={() => {
-                  setEmployee(e);
-                  scrollTo("paso-3");
-                }}
-                className={`chip px-5 ${employee?.id === e.id ? "chip-on" : ""}`}
-              >
-                {e.name}
-              </button>
-            ))}
+        <Step n={2} id="paso-2" title="¿Con quién?">
+          {/* En una barbería el profesional ES el producto: el cliente
+              vuelve a por una persona. Renderizarlo como un chip igual que
+              un día o una hora es lo que aplana el flujo. */}
+          <div
+            className="grid grid-cols-2 sm:grid-cols-3 gap-2"
+            role="radiogroup"
+            aria-label="Profesional"
+          >
+            {employees.map((e) => {
+              const on = employee?.id === e.id;
+              return (
+                <button
+                  key={e.id}
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => {
+                    setEmployee(e);
+                    scrollTo("paso-3");
+                  }}
+                  className={`tarjeta tarjeta-int flex flex-col items-center gap-2 p-4
+                    focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand
+                    ${on ? "border-brand bg-brand/10" : ""}`}
+                  style={{ touchAction: "manipulation" }}
+                >
+                  <span
+                    aria-hidden
+                    className={`flex h-12 w-12 items-center justify-center rounded-full font-display text-xl
+                      ${on ? "bg-brand text-brand-ink" : "bg-surface-2 text-brand"}`}
+                  >
+                    {e.name.trim().charAt(0).toUpperCase()}
+                  </span>
+                  <span className={`text-sm font-medium ${on ? "text-brand" : ""}`}>
+                    {e.name}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </Step>
-        </>
       )}
 
       {service && employee && (
-        <>
-        <div id="paso-3" className="scroll-mt-4" />
-        <Step n={3} title="Día y hora">
+        <Step n={3} id="paso-3" title="Día y hora">
+          {/* Los 14 días desbordan siempre, así que el degradado va sin
+              condición de tamaño. */}
           <div
-            className="flex gap-2 overflow-x-auto pb-2 -mx-5 px-5"
+            className="flex gap-2 overflow-x-auto pb-2 -mx-5 px-5 fade-x"
             role="radiogroup"
             aria-label="Día"
           >
@@ -350,21 +414,26 @@ export default function BookingWidget({
                   role="radio"
                   aria-checked={on}
                   onClick={() => setDay(d.iso)}
-                  className={`chip shrink-0 flex-col gap-0 px-4 py-2 h-auto min-w-16 ${on ? "chip-on" : ""}`}
+                  className={`chip shrink-0 flex-col gap-0 px-4 py-2.5 h-auto min-w-[4.25rem] ${on ? "chip-on" : ""}`}
                 >
-                  <span className="text-xs capitalize">{d.weekday}</span>
-                  <span className="text-lg font-semibold leading-tight">{d.dayNum}</span>
-                  <span className="text-xs capitalize">{d.month}</span>
+                  <span className="text-xs capitalize opacity-80">{d.weekday}</span>
+                  <span className="font-display text-xl leading-tight">{d.dayNum}</span>
+                  <span className="text-xs capitalize opacity-80">{d.month}</span>
                 </button>
               );
             })}
           </div>
 
+          {/* El skeleton tiene la geometría EXACTA del contenido real: si
+              el layout salta al resolverse, has empeorado la percepción. */}
           {day && slots === null && !error && (
-            <div className="mt-4 flex flex-wrap gap-2" aria-hidden>
-              {Array.from({ length: 8 }, (_, i) => (
-                <span key={i} className="h-11 w-16 rounded-lg bg-surface-2 animate-pulse" />
-              ))}
+            <div className="mt-5 flex flex-col gap-4" aria-hidden>
+              <span className="block h-4 w-20 rounded bg-surface-2 animate-pulse" />
+              <div className="grid grid-cols-4 gap-2">
+                {Array.from({ length: 8 }, (_, i) => (
+                  <span key={i} className="h-14 rounded-lg bg-surface-2 animate-pulse" />
+                ))}
+              </div>
             </div>
           )}
 
@@ -376,7 +445,7 @@ export default function BookingWidget({
           )}
 
           {slots && slots.length > 0 && (
-            <div className="mt-4 flex flex-col gap-4">
+            <div className="mt-5 flex flex-col gap-5">
               {[
                 { label: "Mañana", list: morning },
                 { label: "Tarde", list: afternoon },
@@ -384,8 +453,13 @@ export default function BookingWidget({
                 .filter((g) => g.list.length > 0)
                 .map((g) => (
                   <div key={g.label}>
-                    <p className="text-sm text-muted mb-2">{g.label}</p>
-                    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={g.label}>
+                    <p className="rotulo mb-3">
+                      {g.label}
+                      <span className="font-normal normal-case tracking-normal text-faint">
+                        {g.list.length} {g.list.length === 1 ? "hueco" : "huecos"}
+                      </span>
+                    </p>
+                    <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label={g.label}>
                       {g.list.map((s) => (
                         <button
                           key={s}
@@ -396,7 +470,8 @@ export default function BookingWidget({
                             setError("");
                             scrollTo("paso-4");
                           }}
-                          className={`chip tabular-nums min-w-16 ${slot === s ? "chip-on" : ""}`}
+                          className={`chip h-14 tabular-nums text-base font-display
+                            ${slot === s ? "chip-on" : ""}`}
                         >
                           {fmtTime(s)}
                         </button>
@@ -407,13 +482,10 @@ export default function BookingWidget({
             </div>
           )}
         </Step>
-        </>
       )}
 
       {slot && (
-        <>
-        <div id="paso-4" className="scroll-mt-4" />
-        <Step n={4} title="Tus datos">
+        <Step n={4} id="paso-4" title="Tus datos">
           <form
             className="flex flex-col gap-4"
             onSubmit={(e) => {
@@ -482,11 +554,10 @@ export default function BookingWidget({
             </button>
           </form>
         </Step>
-        </>
       )}
 
       {error && (
-        <p className="text-danger" role="alert">
+        <p id="bk-error" className="text-danger" role="alert">
           {error}
         </p>
       )}
