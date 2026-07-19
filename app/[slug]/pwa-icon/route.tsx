@@ -1,7 +1,14 @@
 import { ImageResponse } from "next/og";
 import { createClient } from "@supabase/supabase-js";
+import sharp from "sharp";
 
-// Icono PWA por salón: inicial en oro sobre el fondo noche de la marca.
+// El icono se genera con next/og (Satori), que NO decodifica WebP — y los
+// logos se guardan en WebP. Por eso el logo salía en blanco (solo el fondo).
+// Aquí bajamos el logo y lo convertimos a PNG con sharp antes de incrustarlo,
+// así el icono de "añadir a inicio" muestra la marca de verdad.
+export const runtime = "nodejs";
+
+// Icono PWA por salón: el logo sobre el fondo noche de la marca.
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ slug: string }> }
@@ -21,7 +28,30 @@ export async function GET(
     .maybeSingle();
   const letter = (salon?.name ?? "•").trim().charAt(0).toUpperCase();
 
-  if (salon?.logo_url && !salon.logo_url.includes(".svg")) {
+  // Logo → PNG (sharp acepta webp/png/jpeg/svg). Si algo falla, cae a la
+  // inicial en oro; el icono nunca debe romper la instalación de la PWA.
+  let logoPng: string | null = null;
+  if (salon?.logo_url) {
+    try {
+      const res = await fetch(salon.logo_url, { cache: "no-store" });
+      if (res.ok) {
+        const input = Buffer.from(await res.arrayBuffer());
+        const box = Math.round(size * 0.72);
+        const png = await sharp(input)
+          .resize(box, box, {
+            fit: "contain",
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+          })
+          .png()
+          .toBuffer();
+        logoPng = `data:image/png;base64,${png.toString("base64")}`;
+      }
+    } catch {
+      logoPng = null;
+    }
+  }
+
+  if (logoPng) {
     return new ImageResponse(
       (
         <div
@@ -36,7 +66,7 @@ export async function GET(
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={salon.logo_url}
+            src={logoPng}
             alt=""
             width={size * 0.72}
             height={size * 0.72}
