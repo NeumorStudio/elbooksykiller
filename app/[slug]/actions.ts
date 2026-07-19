@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
 import { notifyBookingConfirmed } from "@/lib/notifications";
 
@@ -17,6 +17,44 @@ function anonClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { auth: { persistSession: false } }
   );
+}
+
+/**
+ * Ata la reserva a la cuenta de quien la hizo, si tenía sesión abierta.
+ *
+ * El trigger de la BD ya crea la ficha de cliente por teléfono en cada
+ * reserva; lo que faltaba era el puente con la cuenta, porque el login va
+ * por email y el email es opcional al reservar. Reservar estando dentro es
+ * la prueba de propiedad: nadie puede reclamar una ficha ajena escribiendo
+ * un teléfono. Reservar sin cuenta sigue funcionando igual — esto solo
+ * añade coherencia a quien sí entró.
+ *
+ * Nunca debe romper una reserva: si algo falla, la cita ya está hecha.
+ */
+async function atarACuenta(bookingId: string) {
+  try {
+    const supabase = await supabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const admin = supabaseAdmin();
+    const { data: reserva } = await admin
+      .from("bookings")
+      .select("customer_id")
+      .eq("id", bookingId)
+      .maybeSingle();
+    const customerId = (reserva as { customer_id: string | null } | null)?.customer_id;
+    if (!customerId) return; // sin teléfono normalizable no hay ficha
+
+    // Solo si está libre: nunca se le roba la ficha a otra cuenta.
+    await admin
+      .from("customers")
+      .update({ auth_user_id: user.id })
+      .eq("id", customerId)
+      .is("auth_user_id", null);
+  } catch {
+    /* el enlace es un extra, la reserva manda */
+  }
 }
 
 export async function bookAppointment(input: {
@@ -93,6 +131,9 @@ export async function bookAppointment(input: {
     }
     bookingId = data as string;
   }
+
+  // Vale para las dos vías (con y sin pago): la cita ya existe en ambas.
+  await atarACuenta(bookingId);
 
   if (!needsPayment) {
     await notifyBookingConfirmed(bookingId);

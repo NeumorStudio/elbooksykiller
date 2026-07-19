@@ -120,6 +120,29 @@ export default async function SalonPage({
       ).data ?? [])
     : [];
 
+  // Si quien mira tiene sesión, su ficha de este salón rellena el formulario.
+  // Más allá de ahorrarle escribir, consigue que reserve con el MISMO
+  // teléfono con el que ya está fichado: una sola ficha y una sola tarjeta
+  // de fidelidad, en vez de un duplicado por cada forma de escribirlo.
+  let cliente: { name: string; phone: string; email: string } | null = null;
+  if (f.clientes) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: ficha } = await supabase
+        .from("customers")
+        .select("name, phone, email")
+        .eq("salon_id", salon.id)
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+      const c = ficha as { name: string | null; phone: string | null; email: string | null } | null;
+      cliente = {
+        name: c?.name ?? "",
+        phone: c?.phone ?? "",
+        email: c?.email ?? user.email ?? "",
+      };
+    }
+  }
+
   const { data: tramos } = await supabase
     .from("working_hours")
     .select("weekday, start_min, end_min, employees!inner(salon_id, active)")
@@ -335,6 +358,7 @@ export default async function SalonPage({
           employees={employees}
           productos={productos}
           conCuenta={f.clientes}
+          cliente={cliente}
         />
       )}
 

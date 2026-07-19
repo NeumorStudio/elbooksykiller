@@ -64,6 +64,7 @@ export default function BookingWidget({
   employees,
   productos = [],
   conCuenta = false,
+  cliente = null,
 }: {
   slug: string;
   timezone: string;
@@ -73,15 +74,18 @@ export default function BookingWidget({
   employees: Employee[];
   productos?: Producto[];
   conCuenta?: boolean;
+  // Ficha de quien tiene sesión abierta: rellena el formulario para que
+  // reserve con el mismo teléfono con el que ya está fichado.
+  cliente?: { name: string; phone: string; email: string } | null;
 }) {
   const [service, setService] = useState<Service | null>(null);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [day, setDay] = useState("");
   const [slots, setSlots] = useState<string[] | null>(null);
   const [slot, setSlot] = useState("");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState(cliente?.name ?? "");
+  const [phone, setPhone] = useState(cliente?.phone ?? "");
+  const [email, setEmail] = useState(cliente?.email ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
