@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cancelBooking, setBookingStatus, addBooking, type AltaOk } from "./actions";
 import ConfirmSubmit from "./confirm-submit";
 import ActionForm from "./action-form";
@@ -17,13 +17,18 @@ export type Cita = {
   employee_id: string;
   customer_name: string;
   customer_phone: string;
+  customer_email: string | null;
   payment_status: string;
   servicio: string;
   profesional: string;
+  precioCents: number;
   // Distintivo de fidelidad: el barbero ve que el siguiente va gratis
   // ANTES de cortar. null = sin programa o cliente sin sellos.
   sellos?: { tiene: number; requiere: number; premio: string } | null;
 };
+
+const fmtPrecio = (cents: number) =>
+  (cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 
 export type Profesional = {
   id: string;
@@ -73,6 +78,15 @@ export default function Agenda({
   const [hueco, setHueco] = useState<{ hora: string; empleado: string } | null>(null);
   // Última cita creada, para poder encadenar la siguiente a continuación.
   const [ultima, setUltima] = useState<AltaOk | null>(null);
+  // Cita abierta en el panel de detalle (al tocar una cita del calendario).
+  const [detalle, setDetalle] = useState<Cita | null>(null);
+
+  // Cerrar el detalle en cuanto la cita deja de estar confirmada: al
+  // cancelar/atender/marcar no-vino, la reserva sale de `citas` y el panel
+  // se quedaría mostrando datos de algo que ya no existe.
+  useEffect(() => {
+    if (detalle && !citas.some((c) => c.id === detalle.id)) setDetalle(null);
+  }, [citas, detalle]);
   // Cambiar de ronda remonta el formulario y lo deja limpio: después de
   // guardar, el nombre anterior en el campo invita a crear la misma cita dos
   // veces, que es justo el error que no se puede cometer con gente delante.
@@ -188,7 +202,12 @@ export default function Agenda({
         ) : (
           <ul className="tarjeta divide-y divide-line-subtle overflow-hidden">
             {citasDeHoy.map((b) => (
-              <FilaCita key={b.id} b={b} destacada={b.id === proxima?.id} />
+              <FilaCita
+                key={b.id}
+                b={b}
+                destacada={b.id === proxima?.id}
+                onOpen={() => setDetalle(b)}
+              />
             ))}
           </ul>
         )}
@@ -314,23 +333,26 @@ export default function Agenda({
                         </button>
                       ))}
 
-                      {/* Citas ocupadas */}
+                      {/* Citas ocupadas: pulsables → detalle del cliente */}
                       {suyas.map((c) => (
-                        <div
+                        <button
                           key={c.id}
-                          className={`absolute inset-x-1 overflow-hidden rounded-lg bg-brand px-2 py-1
-                            text-brand-ink ${c.pasada ? "opacity-50" : ""}`}
+                          onClick={() => setDetalle(c)}
+                          className={`absolute inset-x-1 overflow-hidden rounded-lg bg-brand px-2 py-1 text-left
+                            text-brand-ink transition-shadow hover:ring-2 hover:ring-brand-ink/30
+                            ${c.pasada ? "opacity-50" : ""}`}
                           style={{
                             top: (c.iniMin - rango.ini) * PX_MIN,
                             height: (c.finMin - c.iniMin) * PX_MIN - 2,
                           }}
+                          title={`${c.hora} · ${c.customer_name}`}
                         >
                           <p className="text-xs font-semibold tabular-nums leading-tight">{c.hora}</p>
                           <p className="text-xs font-medium truncate leading-tight">{c.customer_name}</p>
                           {c.finMin - c.iniMin >= 40 && (
                             <p className="text-[11px] truncate leading-tight opacity-80">{c.servicio}</p>
                           )}
-                        </div>
+                        </button>
                       ))}
 
                       {/* Línea de "ahora": la referencia temporal que más
@@ -352,13 +374,9 @@ export default function Agenda({
           </div>
         )}
 
-        {/* Detalle en lista del día elegido: la rejilla es para ver
-            ocupación, la lista para actuar sobre una cita concreta. */}
-        {delDia.length > 0 && (
-          <ul className="tarjeta divide-y divide-line-subtle overflow-hidden mt-3">
-            {delDia.map((b) => <FilaCita key={b.id} b={b} />)}
-          </ul>
-        )}
+        <p className="mt-2 text-xs text-faint text-center">
+          Toca una cita para ver los datos del cliente, o un hueco para añadir.
+        </p>
       </div>
 
       {/* ── 4. Alta manual, precargada desde el hueco ─────────────── */}
@@ -454,77 +472,192 @@ export default function Agenda({
           </details>
         </div>
       )}
+
+      {detalle && <DetalleCita c={detalle} onClose={() => setDetalle(null)} />}
     </section>
   );
 }
 
-function FilaCita({ b, destacada = false }: { b: Cita; destacada?: boolean }) {
+/** Fila de cita clickable: un vistazo, y al tocar abre el detalle. */
+function FilaCita({
+  b,
+  destacada = false,
+  onOpen,
+}: {
+  b: Cita;
+  destacada?: boolean;
+  onOpen: () => void;
+}) {
   return (
-    <li
-      className={`flex items-center gap-4 p-4 ${b.pasada ? "opacity-60" : ""} ${
-        destacada ? "bg-brand-soft" : ""
-      }`}
+    <li className={b.pasada ? "opacity-60" : ""}>
+      <button
+        onClick={onOpen}
+        className={`flex w-full items-center gap-4 p-4 text-left transition-colors hover:bg-surface-2
+          ${destacada ? "bg-brand-soft" : ""}`}
+      >
+        <span className={`font-display tabular-nums text-xl w-14 shrink-0 ${destacada ? "text-brand" : ""}`}>
+          {b.hora}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium truncate">
+            {b.customer_name}
+            {b.sellos && (
+              <span
+                className={`ml-2 inline-block rounded-full px-2 py-0.5 text-xs tabular-nums align-middle ${
+                  b.sellos.tiene >= b.sellos.requiere
+                    ? "bg-brand text-brand-ink font-semibold"
+                    : "neu-in text-muted"
+                }`}
+              >
+                {b.sellos.tiene >= b.sellos.requiere
+                  ? `★ ${b.sellos.premio}`
+                  : `${b.sellos.tiene}/${b.sellos.requiere}`}
+              </span>
+            )}
+          </p>
+          <p className="truncate">{b.servicio}</p>
+          <p className="text-sm text-muted truncate">
+            {b.customer_phone}
+            {b.profesional && ` · con ${b.profesional}`}
+          </p>
+        </div>
+        <span aria-hidden className="shrink-0 text-muted">›</span>
+      </button>
+    </li>
+  );
+}
+
+/**
+ * Panel de detalle de una cita: los datos del cliente y las acciones.
+ *
+ * Sustituye a los botones sueltos en cada fila — con gente delante, es más
+ * claro abrir una ficha y actuar ahí que buscar el botón correcto en una
+ * lista. Modal centrado, cerrable por fondo, Escape o la ✕.
+ */
+function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const dato = (etiqueta: string, valor: React.ReactNode) => (
+    <div className="flex items-baseline justify-between gap-4 py-2 border-b border-line-subtle last:border-0">
+      <dt className="text-sm text-muted shrink-0">{etiqueta}</dt>
+      <dd className="font-medium text-right min-w-0 break-words">{valor}</dd>
+    </div>
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-5"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Cita de ${c.customer_name}`}
     >
-      <span className={`font-display tabular-nums text-xl w-14 shrink-0 ${destacada ? "text-brand" : ""}`}>
-        {b.hora}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="font-medium truncate">
-          {b.customer_name}
-          {b.sellos && (
-            <span
-              className={`ml-2 inline-block rounded-full px-2 py-0.5 text-xs tabular-nums align-middle ${
-                b.sellos.tiene >= b.sellos.requiere
-                  ? "bg-brand text-brand-ink font-semibold"
-                  : "neu-in text-muted"
-              }`}
-              title={
-                b.sellos.tiene >= b.sellos.requiere
-                  ? `${b.sellos.premio} conseguido — canjear en Clientes`
-                  : `Tarjeta: ${b.sellos.tiene} de ${b.sellos.requiere}`
-              }
-            >
-              {b.sellos.tiene >= b.sellos.requiere
-                ? `★ ${b.sellos.premio}`
-                : `${b.sellos.tiene}/${b.sellos.requiere}`}
-            </span>
-          )}
-        </p>
-        <p className="truncate">{b.servicio}</p>
-        <p className="text-sm text-muted truncate">
-          <a href={telHref(b.customer_phone)} className="hover:underline">{b.customer_phone}</a>
-          {b.profesional && ` · con ${b.profesional}`}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {b.pasada && (
-          <>
-            <form action={setBookingStatus}>
-              <input type="hidden" name="id" value={b.id} />
-              <input type="hidden" name="status" value="completed" />
-              <button className="btn-quiet border-0 px-2 text-sm text-muted hover:text-ok"
-                title="Marcar como atendida">✓</button>
-            </form>
-            <form action={setBookingStatus}>
-              <input type="hidden" name="id" value={b.id} />
-              <input type="hidden" name="status" value="no_show" />
-              <ConfirmSubmit className="btn-quiet border-0 px-2 text-sm text-muted hover:text-danger"
-                message={`¿${b.customer_name} no se presentó?`}>✕</ConfirmSubmit>
-            </form>
-          </>
-        )}
-        <form action={cancelBooking}>
-          <input type="hidden" name="id" value={b.id} />
-          <ConfirmSubmit
-            className="btn-quiet border-0 text-sm text-muted hover:text-danger hover:bg-danger/10 px-3"
-            message={`¿Cancelar la cita de ${b.customer_name}? Si dejó su email, se le avisará automáticamente.${
-              b.payment_status === "paid" ? " Se le devolverá el pago." : ""
+      <div
+        className="tarjeta w-full max-w-md max-h-[90vh] overflow-y-auto rounded-b-none sm:rounded-2xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="rotulo after:hidden">
+              {c.pasada ? "Cita pasada" : "Cita"}
+            </p>
+            <h2 className="font-display text-2xl truncate">{c.customer_name}</h2>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="btn-quiet h-9 w-9 shrink-0 px-0 text-lg"
+          >
+            ✕
+          </button>
+        </div>
+
+        {c.sellos && (
+          <p
+            className={`mt-3 inline-block rounded-full px-3 py-1 text-sm ${
+              c.sellos.tiene >= c.sellos.requiere
+                ? "bg-brand text-brand-ink font-semibold"
+                : "neu-in text-muted"
             }`}
           >
-            Cancelar
-          </ConfirmSubmit>
-        </form>
+            {c.sellos.tiene >= c.sellos.requiere
+              ? `★ ${c.sellos.premio} conseguido`
+              : `Tarjeta: ${c.sellos.tiene} de ${c.sellos.requiere}`}
+          </p>
+        )}
+
+        <dl className="mt-4">
+          {dato("Cuándo", `${c.hora} · ${c.servicio}`)}
+          {dato("Con", c.profesional || "—")}
+          {dato("Precio", fmtPrecio(c.precioCents))}
+          {dato(
+            "Teléfono",
+            c.customer_phone && c.customer_phone !== "—" ? (
+              <a href={telHref(c.customer_phone)} className="text-brand hover:underline">
+                {c.customer_phone}
+              </a>
+            ) : (
+              <span className="text-muted">Sin teléfono</span>
+            )
+          )}
+          {dato(
+            "Email",
+            c.customer_email ? (
+              <a href={`mailto:${c.customer_email}`} className="text-brand hover:underline break-all">
+                {c.customer_email}
+              </a>
+            ) : (
+              <span className="text-muted">Sin email</span>
+            )
+          )}
+          {dato(
+            "Pago",
+            c.payment_status === "paid" ? (
+              <span className="text-ok">Pagado online</span>
+            ) : (
+              <span className="text-muted">En el salón</span>
+            )
+          )}
+        </dl>
+
+        {/* Acciones: cerrar el ciclo solo cuando la hora ya pasó. */}
+        <div className="mt-5 flex flex-col gap-2">
+          {c.pasada && (
+            <div className="flex gap-2">
+              <form action={setBookingStatus} className="flex-1">
+                <input type="hidden" name="id" value={c.id} />
+                <input type="hidden" name="status" value="completed" />
+                <button className="btn-quiet w-full text-ok">✓ Atendida</button>
+              </form>
+              <form action={setBookingStatus} className="flex-1">
+                <input type="hidden" name="id" value={c.id} />
+                <input type="hidden" name="status" value="no_show" />
+                <ConfirmSubmit
+                  className="btn-quiet w-full text-danger"
+                  message={`¿${c.customer_name} no se presentó?`}
+                >
+                  ✕ No vino
+                </ConfirmSubmit>
+              </form>
+            </div>
+          )}
+          <form action={cancelBooking}>
+            <input type="hidden" name="id" value={c.id} />
+            <ConfirmSubmit
+              className="btn-quiet w-full text-danger hover:bg-danger/10"
+              message={`¿Cancelar la cita de ${c.customer_name}? Si dejó su email, se le avisará automáticamente.${
+                c.payment_status === "paid" ? " Se le devolverá el pago." : ""
+              }`}
+            >
+              Cancelar cita
+            </ConfirmSubmit>
+          </form>
+        </div>
       </div>
-    </li>
+    </div>
   );
 }

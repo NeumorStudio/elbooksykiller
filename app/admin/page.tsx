@@ -6,7 +6,6 @@ import { features } from "@/lib/features";
 import Agenda, { type Cita, type Profesional, type Servicio } from "./agenda";
 import ActionForm from "./action-form";
 import SubmitButton from "./submit-button";
-import { telHref } from "@/lib/tel";
 
 type Row = {
   id: string;
@@ -16,6 +15,7 @@ type Row = {
   customer_id?: string | null;
   customer_name: string;
   customer_phone: string;
+  customer_email: string | null;
   payment_status: string;
   services: { name: string; price_cents: number } | null;
   employees: { name: string } | null;
@@ -99,7 +99,7 @@ export default async function AdminHome() {
       supabase
         .from("bookings")
         .select(
-          "id, starts_at, ends_at, employee_id, customer_name, customer_phone, payment_status" +
+          "id, starts_at, ends_at, employee_id, customer_name, customer_phone, customer_email, payment_status" +
             (f.clientes ? ", customer_id" : "") +
             ", services(name, price_cents), employees(name)"
         )
@@ -147,19 +147,6 @@ export default async function AdminHome() {
     0
   );
 
-  const dayLabel = (iso: string) =>
-    new Date(iso).toLocaleDateString("es-ES", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      timeZone: salon.timezone,
-    });
-  const timeLabel = (iso: string) =>
-    new Date(iso).toLocaleTimeString("es-ES", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: salon.timezone,
-    });
 
   // Día y hora se resuelven aquí, en la zona del salón: si se dejara al
   // navegador, un dueño de vacaciones en otro huso vería su agenda
@@ -218,9 +205,11 @@ export default async function AdminHome() {
       employee_id: b.employee_id,
       customer_name: b.customer_name,
       customer_phone: b.customer_phone,
+      customer_email: b.customer_email,
       payment_status: b.payment_status,
       servicio: b.services?.name ?? "",
       profesional: b.employees?.name ?? "",
+      precioCents: b.services?.price_cents ?? 0,
       sellos:
         programa && b.customer_id != null && sellosDe.has(b.customer_id)
           ? {
@@ -245,9 +234,6 @@ export default async function AdminHome() {
     }[]
   ).map((e) => ({ id: e.id, name: e.name, tramos: e.working_hours ?? [] }));
 
-  // La primera cita que aún no ha pasado: lo que el dueño mira 40 veces al día.
-  const siguiente = upcoming.find((b) => new Date(b.starts_at) >= now);
-
   // Caja del día: es su nómina, no un informe. Nunca detrás de un menú.
   const inicioHoy = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const finHoy = new Date(inicioHoy.getTime() + 86400000);
@@ -263,15 +249,6 @@ export default async function AdminHome() {
     .reduce((s, b) => s + (b.services?.price_cents ?? 0), 0);
   const eur = (c: number) =>
     (c / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
-  // "12:30" si es hoy; "Mañana, 12:30" o "lunes, 12:30" si no.
-  const hoyLabel = dayLabel(now.toISOString());
-  const mananaLabel = dayLabel(new Date(now.getTime() + 86400000).toISOString());
-  const cuandoSiguiente = (iso: string) => {
-    const d = dayLabel(iso);
-    if (d === hoyLabel) return timeLabel(iso);
-    if (d === mananaLabel) return `Mañana, ${timeLabel(iso)}`;
-    return `${d.split(",")[0]}, ${timeLabel(iso)}`;
-  };
 
   const hasServices = (serviceCount ?? 0) > 0;
   const hasTeam = profesionales.some((e) => e.tramos.length > 0);
@@ -377,35 +354,6 @@ export default async function AdminHome() {
             {deHoy.filter((b) => new Date(b.starts_at) < now).length} pasadas
           </span>
         </div>
-      )}
-
-      {/* Lo primero que necesita quien mira tres segundos entre dos cortes:
-          quién viene ahora, no un libro mayor. */}
-      {siguiente && (
-        <section
-          aria-label="Siguiente cliente"
-          className="tarjeta bg-surface-2 border-brand/30 p-5 sm:p-6 flex items-center gap-4"
-        >
-          <div className="min-w-0 flex-1">
-            <p className="rotulo">Siguiente cliente</p>
-            {/* El salto de escala es lo que hace que se lea de un vistazo a
-                un metro de distancia; el color no basta. */}
-            <p className="mt-3 font-display text-4xl leading-none text-brand tabular-nums">
-              {cuandoSiguiente(siguiente.starts_at)}
-            </p>
-            <p className="mt-2 text-lg font-medium truncate">{siguiente.customer_name}</p>
-            <p className="text-sm text-muted truncate">
-              {siguiente.services?.name}
-              {siguiente.employees?.name && ` · con ${siguiente.employees.name}`}
-            </p>
-          </div>
-          <a
-            href={telHref(siguiente.customer_phone)}
-            className="btn-quiet shrink-0 text-sm"
-          >
-            Llamar
-          </a>
-        </section>
       )}
 
       {upcoming.length === 0 && (
