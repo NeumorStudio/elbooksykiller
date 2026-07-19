@@ -7,7 +7,8 @@ export async function GET() {
   const res = await ownerBookingUrl();
   if (!res) return new NextResponse(null, { status: 404 });
 
-  const png = await QRCode.toBuffer(res.url, {
+  // El QR va al local: sin escaparate, directo a reservar.
+  const png = await QRCode.toBuffer(res.urlLocal, {
     type: "png",
     width: 1024,
     margin: 2,

@@ -8,7 +8,7 @@ export default function AdminError({
   reset: () => void;
 }) {
   return (
-    <main className="day min-h-screen bg-bg text-ink flex items-center justify-center p-6">
+    <main className="taller min-h-screen bg-bg text-ink flex items-center justify-center p-6">
       <div className="panel p-8 text-center max-w-md">
         <p className="font-display text-2xl font-semibold">Algo ha fallado</p>
         <p className="text-muted mt-2 text-pretty">

@@ -3,22 +3,42 @@ import { headers } from "next/headers";
 import { supabaseServer } from "@/lib/supabase/server";
 import { domainStatus } from "@/lib/vercel";
 import QRCode from "qrcode";
-import { setCustomDomain, removeCustomDomain, uploadLogo, removeLogo } from "../actions";
+import {
+  setCustomDomain,
+  removeCustomDomain,
+  uploadLogo,
+  removeLogo,
+  uploadFotos,
+  removeFoto,
+} from "../actions";
 import SubmitButton from "../submit-button";
 import ActionForm from "../action-form";
 import ConfirmSubmit from "../confirm-submit";
+import { supabaseAdmin } from "@/lib/supabase/server";
 
 export default async function WebsitePage() {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: salon } = await supabase
     .from("salons")
-    .select("slug, custom_domain, logo_url")
+    .select("id, slug, custom_domain, logo_url")
     .eq("owner_id", user!.id)
     .limit(1)
     .maybeSingle();
 
   if (!salon) return <p className="text-muted">Primero crea tu peluquería en la Agenda.</p>;
+
+  const admin = supabaseAdmin();
+  const carpeta = `galeria/${salon.id}`;
+  const { data: ficheros } = await admin.storage
+    .from("logos")
+    .list(carpeta, { limit: 60, sortBy: { column: "name", order: "asc" } });
+  const fotos = (ficheros ?? [])
+    .filter((f) => f.id)
+    .map((f) => ({
+      nombre: f.name,
+      url: admin.storage.from("logos").getPublicUrl(`${carpeta}/${f.name}`).data.publicUrl,
+    }));
 
   const h = await headers();
   const platformUrl = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}/${salon.slug}`;
@@ -116,6 +136,66 @@ export default async function WebsitePage() {
             />
           </div>
           <SubmitButton className="btn-primary" pendingText="Subiendo…">Guardar logo</SubmitButton>
+        </ActionForm>
+      </div>
+
+      <div className="panel p-6 flex flex-col gap-4">
+        <div>
+          <h2 className="font-semibold">Fotos de tus trabajos</h2>
+          <p className="text-sm text-muted mt-1 text-pretty">
+            Es lo primero que ve quien no te conoce, y lo que más convence.
+            Salen en tu web justo debajo del nombre. Si las tienes en
+            Instagram, descárgalas y súbelas aquí. PNG, JPG o WebP, máx. 3 MB
+            cada una.
+          </p>
+        </div>
+
+        {fotos.length > 0 && (
+          <ul className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            {fotos.map((f) => (
+              <li key={f.nombre} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={f.url}
+                  alt=""
+                  loading="lazy"
+                  className="aspect-[3/4] w-full rounded-lg border border-line object-cover"
+                />
+                <form action={removeFoto} className="absolute top-1 right-1">
+                  <input type="hidden" name="nombre" value={f.nombre} />
+                  <ConfirmSubmit
+                    className="btn-quiet h-8 min-h-8 w-8 rounded-full border-0 bg-bg/85 px-0 text-sm text-ink"
+                    message="¿Quitar esta foto de tu web?"
+                  >
+                    ×
+                  </ConfirmSubmit>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <ActionForm action={uploadFotos} className="flex flex-wrap gap-2 items-end">
+          <div className="flex-1 min-w-56">
+            <label htmlFor="fotos" className="label">
+              {fotos.length ? "Añadir más fotos" : "Subir fotos"}
+            </label>
+            <input
+              id="fotos"
+              name="fotos"
+              type="file"
+              required
+              multiple
+              accept="image/png,image/jpeg,image/webp"
+              className="field pt-2"
+            />
+            <p className="text-xs text-muted mt-1.5">
+              Puedes seleccionar varias a la vez (máx. 12 por tanda).
+            </p>
+          </div>
+          <SubmitButton className="btn-primary" pendingText="Subiendo…">
+            Guardar fotos
+          </SubmitButton>
         </ActionForm>
       </div>
 

@@ -1,15 +1,19 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
-import { createSalon, cancelBooking, dismissOnboarding } from "./actions";
+import { createSalon, dismissOnboarding } from "./actions";
+import Agenda, { type Cita, type Profesional, type Servicio } from "./agenda";
 import ActionForm from "./action-form";
-import ConfirmSubmit from "./confirm-submit";
 import SubmitButton from "./submit-button";
+import { telHref } from "@/lib/tel";
 
 type Row = {
   id: string;
   starts_at: string;
+  ends_at: string;
+  employee_id: string;
   customer_name: string;
   customer_phone: string;
+  payment_status: string;
   services: { name: string; price_cents: number } | null;
   employees: { name: string } | null;
 };
@@ -60,23 +64,40 @@ export default async function AdminHome() {
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-  const [{ data: upcomingRaw }, { data: monthBookings }, { count: serviceCount }, { data: staffed }] =
-    await Promise.all([
+  const [
+    { data: upcomingRaw },
+    { data: monthBookings },
+    { count: serviceCount },
+    { data: staffed },
+    { data: serviciosRaw },
+  ] = await Promise.all([
       supabase
         .from("bookings")
-        .select("id, starts_at, customer_name, customer_phone, services(name, price_cents), employees(name)")
+        .select(
+          "id, starts_at, ends_at, employee_id, customer_name, customer_phone, payment_status, services(name, price_cents), employees(name)"
+        )
         .eq("salon_id", salon.id)
-        .gte("starts_at", now.toISOString())
-        .neq("status", "cancelled")
+        // Desde el arranque del mes en curso y hasta 90 días: la rejilla
+        // necesita la ocupación de los días para poder negociar una fecha
+        // lejana ("en tres semanas, un sábado"), no solo lo que viene ya.
+        .gte("starts_at", monthStart)
+        .lt("starts_at", new Date(now.getTime() + 90 * 86400000).toISOString())
+        .eq("status", "confirmed")
         .order("starts_at")
-        .limit(80),
+        .limit(400),
       supabase
         .from("bookings")
         .select("services(price_cents)")
         .eq("salon_id", salon.id)
         .gte("starts_at", monthStart)
-        .neq("status", "cancelled"),
+        // Sin el tope, "este mes" sumaba las reservas de todos los meses
+        // futuros. pending_payment fuera, igual que en Estadísticas: así
+        // los dos números del panel por fin cuadran.
+        .lt("starts_at", monthEnd)
+        .neq("status", "cancelled")
+        .neq("status", "pending_payment"),
       supabase
         .from("services")
         .select("id", { count: "exact", head: true })
@@ -84,9 +105,15 @@ export default async function AdminHome() {
         .eq("active", true),
       supabase
         .from("employees")
-        .select("id, working_hours(id)")
+        .select("id, name, working_hours(weekday, start_min, end_min)")
         .eq("salon_id", salon.id)
         .eq("active", true),
+      supabase
+        .from("services")
+        .select("id, name, duration_min")
+        .eq("salon_id", salon.id)
+        .eq("active", true)
+        .order("name"),
     ]);
 
   const upcoming = (upcomingRaw ?? []) as unknown as Row[];
@@ -109,16 +136,84 @@ export default async function AdminHome() {
       timeZone: salon.timezone,
     });
 
-  const byDay = new Map<string, Row[]>();
-  for (const b of upcoming) {
-    const key = dayLabel(b.starts_at);
-    byDay.set(key, [...(byDay.get(key) ?? []), b]);
-  }
+  // Día y hora se resuelven aquí, en la zona del salón: si se dejara al
+  // navegador, un dueño de vacaciones en otro huso vería su agenda
+  // desplazada.
+  const enZona = (iso: string) => {
+    const p = new Intl.DateTimeFormat("en-CA", {
+      timeZone: salon.timezone,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(new Date(iso));
+    const g = (t: string) => p.find((x) => x.type === t)!.value;
+    return { dia: `${g("year")}-${g("month")}-${g("day")}`, hora: `${g("hour")}:${g("minute")}` };
+  };
+
+  const enMin = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
+
+  const citas: Cita[] = upcoming.map((b) => {
+    const ini = enZona(b.starts_at);
+    const fin = enZona(b.ends_at);
+    return {
+      id: b.id,
+      dia: ini.dia,
+      hora: ini.hora,
+      iniMin: enMin(ini.hora),
+      // Una cita que cruza medianoche terminaría "antes" que su inicio;
+      // se recorta al final del día para que el bloque no se invierta.
+      finMin: fin.dia === ini.dia ? enMin(fin.hora) : 24 * 60,
+      pasada: new Date(b.starts_at) < now,
+      employee_id: b.employee_id,
+      customer_name: b.customer_name,
+      customer_phone: b.customer_phone,
+      payment_status: b.payment_status,
+      servicio: b.services?.name ?? "",
+      profesional: b.employees?.name ?? "",
+    };
+  });
+  const zonaAhora = enZona(now.toISOString());
+  const hoyEnZona = zonaAhora.dia;
+  const ahoraMin = enMin(zonaAhora.hora);
+
+  const servicios = (serviciosRaw ?? []) as Servicio[];
+  const profesionales: Profesional[] = (
+    (staffed ?? []) as unknown as {
+      id: string;
+      name: string;
+      working_hours: { weekday: number; start_min: number; end_min: number }[];
+    }[]
+  ).map((e) => ({ id: e.id, name: e.name, tramos: e.working_hours ?? [] }));
+
+  // La primera cita que aún no ha pasado: lo que el dueño mira 40 veces al día.
+  const siguiente = upcoming.find((b) => new Date(b.starts_at) >= now);
+
+  // Caja del día: es su nómina, no un informe. Nunca detrás de un menú.
+  const inicioHoy = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const finHoy = new Date(inicioHoy.getTime() + 86400000);
+  const deHoy = upcoming.filter((b) => {
+    const d = new Date(b.starts_at);
+    return d >= inicioHoy && d < finHoy;
+  });
+  const cobradoHoy = deHoy
+    .filter((b) => new Date(b.starts_at) < now)
+    .reduce((s, b) => s + (b.services?.price_cents ?? 0), 0);
+  const porVenirHoy = deHoy
+    .filter((b) => new Date(b.starts_at) >= now)
+    .reduce((s, b) => s + (b.services?.price_cents ?? 0), 0);
+  const eur = (c: number) =>
+    (c / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
+  // "12:30" si es hoy; "Mañana, 12:30" o "lunes, 12:30" si no.
+  const hoyLabel = dayLabel(now.toISOString());
+  const mananaLabel = dayLabel(new Date(now.getTime() + 86400000).toISOString());
+  const cuandoSiguiente = (iso: string) => {
+    const d = dayLabel(iso);
+    if (d === hoyLabel) return timeLabel(iso);
+    if (d === mananaLabel) return `Mañana, ${timeLabel(iso)}`;
+    return `${d.split(",")[0]}, ${timeLabel(iso)}`;
+  };
 
   const hasServices = (serviceCount ?? 0) > 0;
-  const hasTeam = (staffed ?? []).some(
-    (e) => (e.working_hours as { id: string }[]).length > 0
-  );
+  const hasTeam = profesionales.some((e) => e.tramos.length > 0);
   const check = (done: boolean) => (
     <span
       aria-hidden
@@ -132,17 +227,19 @@ export default async function AdminHome() {
   return (
     <main className="flex flex-col gap-8">
       {!salon.onboarded && (
-        <section className="panel p-6 flex flex-col gap-4" aria-label="Primeros pasos">
-          <div>
-            <h2 className="font-display text-2xl font-semibold">
+        // Plegada cuando ya hay citas: la guía ocupaba la primera pantalla
+        // del móvil entera antes de dejar ver la agenda.
+        <details className="panel p-6" open={upcoming.length === 0}>
+          <summary className="cursor-pointer select-none marker:text-brand">
+            <span className="font-display text-2xl font-semibold">
               Bienvenido — tu web ya existe 👋
-            </h2>
-            <p className="text-muted mt-1 text-pretty">
+            </span>
+            <span className="block text-muted mt-1 text-pretty text-base font-normal">
               Con estos pasos empiezas a recibir reservas. Esta guía desaparece
               cuando tú quieras.
-            </p>
-          </div>
-          <ol className="flex flex-col gap-3">
+            </span>
+          </summary>
+          <ol className="flex flex-col gap-3 mt-4">
             <li className="flex gap-3">
               {check(hasServices)}
               <p className="text-sm text-pretty">
@@ -183,16 +280,16 @@ export default async function AdminHome() {
               </p>
             </li>
           </ol>
-          <p className="text-sm text-muted text-pretty">
+          <p className="text-sm text-muted text-pretty mt-4">
             💡 Truco: el botón 🎤 de abajo lo configura todo por voz — di
             «añade el servicio corte caballero a 15 euros, 30 minutos» y confirma.
             Las citas aparecerán aquí en la Agenda, y en Estadísticas verás cómo va
             el negocio.
           </p>
-          <form action={dismissOnboarding}>
+          <form action={dismissOnboarding} className="mt-4">
             <button className="btn-quiet text-sm">Entendido, no volver a mostrar</button>
           </form>
-        </section>
+        </details>
       )}
 
       <div className="flex items-baseline justify-between flex-wrap gap-2">
@@ -200,15 +297,70 @@ export default async function AdminHome() {
         <p className="text-sm text-muted">
           Este mes: <b className="text-ink">{monthBookings?.length ?? 0} citas</b>
           {" · "}
-          <b className="text-ink">
-            {(revenue / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
-          </b>{" "}
-          estimados
+          <b className="text-ink">{eur(revenue)}</b> estimados
         </p>
       </div>
 
+      {/* La caja del día. Para quien trabaja a comisión o alquila sillón,
+          este número es literalmente su nómina — esconderlo detrás de un
+          menú "Informes" se siente como esconderle su propio dinero. */}
+      {deHoy.length > 0 && (
+        <div className="neu-in flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-2xl px-5 py-4">
+          <span className="rotulo after:hidden">Hoy</span>
+          <span className="font-display text-3xl tabular-nums text-brand">{eur(cobradoHoy)}</span>
+          {porVenirHoy > 0 && (
+            <span className="text-muted">+ {eur(porVenirHoy)} por venir</span>
+          )}
+          <span className="w-full text-sm text-muted">
+            {deHoy.length} {deHoy.length === 1 ? "cita" : "citas"} ·{" "}
+            {deHoy.filter((b) => new Date(b.starts_at) < now).length} pasadas
+          </span>
+        </div>
+      )}
+
+      {/* Lo primero que necesita quien mira tres segundos entre dos cortes:
+          quién viene ahora, no un libro mayor. */}
+      {siguiente && (
+        <section
+          aria-label="Siguiente cliente"
+          className="tarjeta bg-surface-2 border-brand/30 p-5 sm:p-6 flex items-center gap-4"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="rotulo">Siguiente cliente</p>
+            {/* El salto de escala es lo que hace que se lea de un vistazo a
+                un metro de distancia; el color no basta. */}
+            <p className="mt-3 font-display text-4xl leading-none text-brand tabular-nums">
+              {cuandoSiguiente(siguiente.starts_at)}
+            </p>
+            <p className="mt-2 text-lg font-medium truncate">{siguiente.customer_name}</p>
+            <p className="text-sm text-muted truncate">
+              {siguiente.services?.name}
+              {siguiente.employees?.name && ` · con ${siguiente.employees.name}`}
+            </p>
+          </div>
+          <a
+            href={telHref(siguiente.customer_phone)}
+            className="btn-quiet shrink-0 text-sm"
+          >
+            Llamar
+          </a>
+        </section>
+      )}
+
       {upcoming.length === 0 && (
         <div className="panel p-10 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/agenda-vacia.webp"
+            alt=""
+            width={640}
+            height={640}
+            loading="lazy"
+            className="mx-auto mb-4 h-28 w-28 object-contain"
+            // darken: el crema del PNG se funde con el panel y queda solo
+            // el trazo ocre.
+            style={{ mixBlendMode: "darken" }}
+          />
           <p className="text-lg font-medium">No hay citas pendientes</p>
           <p className="text-muted mt-2 max-w-md mx-auto text-pretty">
             {serviceCount === 0
@@ -230,42 +382,14 @@ export default async function AdminHome() {
         </div>
       )}
 
-      {[...byDay.entries()].map(([label, rows]) => (
-        <section key={label}>
-          <h2 className="text-sm font-semibold text-muted uppercase tracking-wide mb-3 first-letter:uppercase">
-            {label}
-          </h2>
-          <ul className="panel divide-y divide-line">
-            {rows.map((b) => (
-              <li key={b.id} className="flex items-center gap-4 p-4">
-                <span className="font-semibold tabular-nums text-lg w-14 shrink-0">
-                  {timeLabel(b.starts_at)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">
-                    {b.customer_name}
-                    <span className="text-muted font-normal"> · {b.services?.name}</span>
-                  </p>
-                  <p className="text-sm text-muted truncate">
-                    <a href={`tel:${b.customer_phone}`} className="hover:underline">
-                      {b.customer_phone}
-                    </a>
-                    {" · "}con {b.employees?.name}
-                  </p>
-                </div>
-                <form action={cancelBooking}>
-                  <input type="hidden" name="id" value={b.id} />
-                  <ConfirmSubmit
-                    message={`¿Cancelar la cita de ${b.customer_name}? Si dejó su email, se le avisará automáticamente.`}
-                  >
-                    Cancelar
-                  </ConfirmSubmit>
-                </form>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      <Agenda
+        citas={citas}
+        profesionales={profesionales}
+        servicios={servicios}
+        hoy={hoyEnZona}
+        ahoraMin={ahoraMin}
+      />
+
     </main>
   );
 }

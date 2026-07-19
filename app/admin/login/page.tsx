@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 const ERRORS: Record<string, string> = {
@@ -9,9 +9,15 @@ const ERRORS: Record<string, string> = {
   "User already registered": "Ese email ya tiene cuenta. Prueba a entrar.",
 };
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  // El CTA "Empieza gratis" de la landing llega con ?signup=1: sin esto,
+  // el usuario nuevo caía en "Entra en tu panel" y tenía que encontrar el
+  // enlace pequeño de registro.
+  const searchParams = useSearchParams();
+  const [mode, setMode] = useState<"login" | "signup">(
+    searchParams.get("signup") ? "signup" : "login"
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -92,5 +98,14 @@ export default function LoginPage() {
         </button>
       </div>
     </main>
+  );
+}
+
+// useSearchParams exige un límite de Suspense en el prerender.
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

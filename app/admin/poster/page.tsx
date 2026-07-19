@@ -7,7 +7,9 @@ export default async function PosterPage() {
   const res = await ownerBookingUrl();
   if (!res) return <p className="text-muted p-8">Primero crea tu peluquería en la Agenda.</p>;
 
-  const svg = await QRCode.toString(res.url, {
+  // Igual que el PNG descargable: el cartel vive en el local, así que su
+  // QR salta el escaparate y va directo a reservar.
+  const svg = await QRCode.toString(res.urlLocal, {
     type: "svg",
     margin: 1,
     errorCorrectionLevel: "M",

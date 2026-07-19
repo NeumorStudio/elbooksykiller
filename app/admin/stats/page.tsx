@@ -97,6 +97,10 @@ export default async function StatsPage({
     });
   }
   const maxWeek = Math.max(1, ...weeks.map((w) => w.count));
+  // Sin las semanas vacías del arranque: un salón nuevo veía siete filas
+  // de ceros y una sola barra — mala primera impresión del propio negocio.
+  const primeraConDatos = weeks.findIndex((w) => w.count > 0);
+  const semanasVisibles = primeraConDatos === -1 ? [] : weeks.slice(primeraConDatos);
 
   const monthName = monthStart.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
 
@@ -152,20 +156,27 @@ export default async function StatsPage({
 
       <section>
         <h2 className="font-semibold mb-3">Últimas 8 semanas</h2>
-        <ul className="panel divide-y divide-line">
-          {weeks.map((w) => (
-            <li key={w.label} className="flex items-center gap-3 px-4 py-2 text-sm">
-              <span className="w-20 text-muted">Sem. {w.label}</span>
-              <span
-                className="h-2.5 rounded-full bg-brand"
-                style={{ width: `${(w.count / maxWeek) * 55}%`, minWidth: w.count ? "0.625rem" : "0" }}
-                aria-hidden
-              />
-              <span className="tabular-nums font-medium ml-auto">{w.count} citas</span>
-              <span className="tabular-nums text-muted w-20 text-right">{eur(w.cents)}</span>
-            </li>
-          ))}
-        </ul>
+        {semanasVisibles.length > 0 ? (
+          <ul className="panel divide-y divide-line">
+            {semanasVisibles.map((w) => (
+              <li key={w.label} className="flex items-center gap-3 px-4 py-2 text-sm">
+                <span className="w-20 text-muted">Sem. {w.label}</span>
+                <span
+                  className="h-2.5 rounded-full bg-brand"
+                  style={{ width: `${(w.count / maxWeek) * 55}%`, minWidth: w.count ? "0.625rem" : "0" }}
+                  aria-hidden
+                />
+                <span className="tabular-nums font-medium ml-auto">{w.count} citas</span>
+                <span className="tabular-nums text-muted w-20 text-right">{eur(w.cents)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="panel p-4 text-sm text-muted">
+            Aún sin actividad estas semanas — en cuanto entren reservas, aquí
+            verás la evolución.
+          </p>
+        )}
       </section>
 
       {byService.length > 0 && (

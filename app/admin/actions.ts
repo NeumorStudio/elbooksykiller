@@ -147,6 +147,23 @@ export async function deleteHours(formData: FormData) {
   revalidatePath("/admin/employees");
 }
 
+/**
+ * Marca el estado de una cita ya pasada o en curso.
+ *
+ * La BD admitía 'completed' y 'no_show' desde el día uno, pero no había
+ * forma de llegar a ellos desde la interfaz — así que el KPI "No
+ * presentados" de Estadísticas mostraba siempre 0. Sin esto no hay
+ * baseline con el que medir si los recordatorios sirven de algo.
+ */
+export async function setBookingStatus(formData: FormData) {
+  const { supabase } = await db();
+  const id = String(formData.get("id"));
+  const status = String(formData.get("status"));
+  if (!["confirmed", "completed", "no_show"].includes(status)) return;
+  await supabase.from("bookings").update({ status }).eq("id", id);
+  revalidatePath("/admin");
+}
+
 export async function cancelBooking(formData: FormData) {
   const { supabase } = await db();
   const id = String(formData.get("id"));
@@ -154,7 +171,9 @@ export async function cancelBooking(formData: FormData) {
   // Leer antes de cancelar (RLS: solo el dueño llega aquí con datos)
   const { data: b } = await supabase
     .from("bookings")
-    .select("customer_name, customer_email, starts_at, services(name), salons(name, phone, timezone)")
+    .select(
+      "customer_name, customer_email, starts_at, payment_status, stripe_session_id, services(name), salons(name, phone, timezone, stripe_account_id)"
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -162,6 +181,39 @@ export async function cancelBooking(formData: FormData) {
     .from("bookings")
     .update({ status: "cancelled" })
     .eq("id", id);
+
+  // Si el cliente había pagado, devolverle el dinero. Antes se cancelaba la
+  // cita y el cobro se quedaba hecho, sin aviso ni en la interfaz ni al
+  // cliente: dinero real de una persona real que no volvía.
+  if (!error && b?.payment_status === "paid" && b.stripe_session_id) {
+    const salon = b.salons as unknown as { stripe_account_id: string | null };
+    try {
+      const { stripe } = await import("@/lib/stripe");
+      const cuenta = salon.stripe_account_id
+        ? { stripeAccount: salon.stripe_account_id }
+        : undefined;
+      // retrieve() separa params de opciones: {} es el hueco de los params.
+      const sesion = await stripe.checkout.sessions.retrieve(b.stripe_session_id, {}, cuenta);
+      if (sesion.payment_intent) {
+        await stripe.refunds.create(
+          {
+            payment_intent: String(sesion.payment_intent),
+            reason: "requested_by_customer",
+          },
+          // Clave de idempotencia: si el dueño pulsa dos veces, un solo
+          // reembolso.
+          { ...cuenta, idempotencyKey: `refund-${id}` }
+        );
+        // No se marca payment_status: su CHECK solo admite none|pending|paid.
+        // El registro del reembolso vive en Stripe; para reflejarlo aquí hace
+        // falta una migración que añada 'refunded' al constraint.
+      }
+    } catch (e) {
+      // No romper la cancelación por un fallo de reembolso: la cita queda
+      // cancelada y el dueño ve el aviso para devolverlo a mano.
+      console.error(`[refund] no se pudo reembolsar la reserva ${id}:`, e);
+    }
+  }
 
   if (!error && b?.customer_email) {
     const salon = b.salons as unknown as { name: string; phone: string | null; timezone: string };
@@ -185,6 +237,77 @@ export async function cancelBooking(formData: FormData) {
       }),
       idempotencyKey: `booking-cancel/${id}`,
     });
+  }
+  revalidatePath("/admin");
+}
+
+/**
+ * Alta manual de cita desde el panel: el cliente que llama o entra por la
+ * puerta. Era el mayor hueco funcional — la única escritura sobre
+ * `bookings` desde el panel era cancelar, así que el dueño tenía que abrir
+ * su propia web pública y reservar como si fuera un cliente.
+ *
+ * Va por INSERT directo con la sesión del dueño, no por la RPC
+ * `create_booking`: esa valida horarios y ausencias, y el dueño necesita
+ * poder meter al de las 20:55 que entra cuando ya está cerrando. La
+ * protección contra doble reserva la sigue dando la exclusion constraint
+ * `no_overlap` de la base de datos, que es la garantía de verdad.
+ */
+export async function addBooking(formData: FormData) {
+  const { supabase, user } = await db();
+
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("id, timezone")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!salon) return { error: "Primero crea tu peluquería." };
+
+  const employeeId = String(formData.get("employee_id") ?? "");
+  const serviceId = String(formData.get("service_id") ?? "");
+  const fecha = String(formData.get("fecha") ?? "");
+  const hora = String(formData.get("hora") ?? "");
+  const nombre = String(formData.get("customer_name") ?? "").trim();
+  const telefono = String(formData.get("customer_phone") ?? "").trim();
+
+  if (!employeeId || !serviceId) return { error: "Elige servicio y profesional." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^\d{2}:\d{2}$/.test(hora))
+    return { error: "Revisa la fecha y la hora." };
+  if (nombre.length < 2) return { error: "Pon el nombre del cliente." };
+
+  const { data: servicio } = await supabase
+    .from("services")
+    .select("duration_min")
+    .eq("id", serviceId)
+    .eq("salon_id", salon.id)
+    .maybeSingle();
+  if (!servicio) return { error: "Ese servicio no existe." };
+
+  // La hora la escribe el dueño en horario local del salón; hay que
+  // convertirla al instante absoluto que guarda la columna timestamptz.
+  const { zonedTimeUtc } = await import("@/lib/tz");
+  const inicio = zonedTimeUtc(fecha, hora, salon.timezone);
+  const fin = new Date(new Date(inicio).getTime() + servicio.duration_min * 60000).toISOString();
+
+  const { error } = await supabase.from("bookings").insert({
+    salon_id: salon.id,
+    employee_id: employeeId,
+    service_id: serviceId,
+    customer_name: nombre,
+    // El cliente de mostrador puede no dar teléfono; la columna es NOT NULL.
+    customer_phone: telefono || "—",
+    starts_at: inicio,
+    ends_at: fin,
+    status: "confirmed",
+  });
+
+  if (error) {
+    return {
+      error: error.message.includes("no_overlap")
+        ? "Ese profesional ya tiene una cita a esa hora."
+        : "No se pudo crear la cita. Revisa los datos.",
+    };
   }
   revalidatePath("/admin");
 }
@@ -342,6 +465,74 @@ export async function uploadLogo(formData: FormData) {
     .update({ logo_url: `${pub.publicUrl}?v=${Math.trunc(Math.random() * 1e9)}` })
     .eq("id", salon.id);
   revalidatePath("/admin/website");
+}
+
+/*
+  Galería de trabajos. Deliberadamente SIN columna nueva: las fotos viven
+  en el bucket `logos` bajo `galeria/<salon_id>/`, y la web las lista de
+  ahí. Así no hace falta migración ni tocar el esquema que mantiene el
+  compañero — el orden lo da el nombre del fichero.
+*/
+// Sin export: en un fichero "use server" todo export debe ser async.
+const galeriaDe = (salonId: string) => `galeria/${salonId}`;
+
+export async function uploadFotos(formData: FormData) {
+  const { supabase, user } = await db();
+  const files = formData.getAll("fotos").filter((f): f is File => f instanceof File && f.size > 0);
+  if (!files.length) return { error: "Elige al menos una foto." };
+  if (files.length > 12) return { error: "Máximo 12 fotos de una vez." };
+
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("id")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!salon) return { error: "Primero crea tu peluquería." };
+
+  const { supabaseAdmin } = await import("@/lib/supabase/server");
+  const admin = supabaseAdmin();
+  const { data: yaHay } = await admin.storage.from("logos").list(galeriaDe(salon.id));
+  let n = yaHay?.length ?? 0;
+
+  for (const file of files) {
+    if (!LOGO_TYPES[file.type]) return { error: `"${file.name}": usa PNG, JPG o WebP.` };
+    if (file.size > 3 * 1024 * 1024) return { error: `"${file.name}" pasa de 3 MB.` };
+    // Prefijo numérico con relleno: el orden alfabético del listado es el
+    // orden en que se ven en la web.
+    const ext = LOGO_TYPES[file.type];
+    const nombre = `${String(n).padStart(3, "0")}-${Date.now()}.${ext}`;
+    const { error } = await admin.storage
+      .from("logos")
+      .upload(`${galeriaDe(salon.id)}/${nombre}`, file, { contentType: file.type });
+    if (error) return { error: "No se pudo subir alguna foto. Inténtalo de nuevo." };
+    n++;
+  }
+
+  revalidatePath("/admin/website");
+  revalidatePath("/", "layout");
+}
+
+export async function removeFoto(formData: FormData) {
+  const { supabase, user } = await db();
+  const nombre = String(formData.get("nombre") ?? "");
+  if (!nombre) return;
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("id")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!salon) return;
+  const { supabaseAdmin } = await import("@/lib/supabase/server");
+  // Solo el nombre de fichero: evita que un path manipulado salga de la
+  // carpeta del salón.
+  const seguro = nombre.split("/").pop()!;
+  await supabaseAdmin()
+    .storage.from("logos")
+    .remove([`${galeriaDe(salon.id)}/${seguro}`]);
+  revalidatePath("/admin/website");
+  revalidatePath("/", "layout");
 }
 
 export async function removeLogo() {

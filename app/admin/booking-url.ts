@@ -24,5 +24,9 @@ export async function ownerBookingUrl() {
     const h = await headers();
     url = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}/${salon.slug}`;
   }
-  return { url, salon };
+  // El QR del local y el enlace de redes sirven a personas distintas: quien
+  // escanea ya está sentado en la silla y solo quiere la próxima cita; quien
+  // llega de Instagram aún no conoce el sitio. `?desde=local` corta el
+  // escaparate y deja la reserva arriba del todo.
+  return { url, urlLocal: `${url}?desde=local`, salon };
 }

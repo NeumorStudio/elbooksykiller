@@ -13,7 +13,7 @@ export default async function AdminLayout({
   const { data: { user } } = await supabase.auth.getUser();
 
   // /admin/login no lleva nav, pero sí el tema claro
-  if (!user) return <div className="day min-h-screen bg-bg text-ink flex flex-col">{children}</div>;
+  if (!user) return <div className="taller min-h-screen bg-bg text-ink flex flex-col">{children}</div>;
 
   const { data: salon } = await supabase
     .from("salons")
@@ -23,9 +23,11 @@ export default async function AdminLayout({
     .maybeSingle();
 
   return (
-    <div className="day min-h-screen bg-bg text-ink flex flex-col">
+    <div className="taller min-h-screen bg-bg text-ink flex flex-col">
       <nav className="border-b border-line bg-bg sticky top-0 z-10 print:hidden">
-        <div className="mx-auto max-w-4xl px-5 h-14 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
+        {/* Mismo degradado que la tira de días: en móvil la nav se desbordaba
+            cortando "Estadísticas" sin señal de que se puede deslizar. */}
+        <div className="mx-auto max-w-4xl px-5 h-14 flex items-center gap-1 overflow-x-auto whitespace-nowrap fade-x fade-x-solo-movil">
           <span className="font-display text-lg font-semibold text-brand mr-4 truncate hidden sm:block">
             {salon?.name ?? "Mi salón"}
           </span>
