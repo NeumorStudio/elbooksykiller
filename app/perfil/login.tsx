@@ -31,6 +31,12 @@ export default function PerfilLogin() {
           Te hemos enviado un enlace a <b>{email}</b>. Ábrelo desde este mismo
           móvil para entrar — sin contraseñas.
         </p>
+        {/* El navegador interno de Instagram rompe los magic links: es el
+            canal principal de entrada y el fallo no se explica solo. */}
+        <p className="text-xs text-faint mt-3 text-pretty">
+          Si has llegado desde Instagram, abre el enlace en Chrome o Safari:
+          el navegador de la app no lo acepta.
+        </p>
       </div>
     );
   }
@@ -49,9 +55,13 @@ export default function PerfilLogin() {
           placeholder="tucorreo@ejemplo.com"
           className="field"
         />
+        {/* Antes decía solo "usa el mismo email con el que reservaste", pero
+            signInWithOtp crea cuenta si no existe: quien se equivocaba de
+            email acababa con una cuenta vacía sin entender por qué. */}
         <p className="text-xs text-muted mt-1.5 text-pretty">
-          Usa el mismo email con el que reservaste. Te llega un enlace, sin
-          contraseñas.
+          Usa el <b>mismo email con el que reservaste</b> y encontrarás tus
+          citas y tu tarjeta. Si es tu primera vez, te creamos la cuenta con
+          ese mismo enlace. Sin contraseñas.
         </p>
       </div>
       {estado === "error" && (
@@ -60,7 +70,7 @@ export default function PerfilLogin() {
         </p>
       )}
       <button disabled={estado === "enviando"} className="btn-primary">
-        {estado === "enviando" ? "Enviando…" : "Entrar con mi email"}
+        {estado === "enviando" ? "Enviando…" : "Entrar o crear mi cuenta"}
       </button>
     </form>
   );
