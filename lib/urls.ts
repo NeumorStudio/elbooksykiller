@@ -12,5 +12,12 @@ export function baseUrl(): string {
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL)
     return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+
+  // Cuidado: en local esto acaba dentro de emails REALES si .env.local apunta
+  // a la base de producción, y el cliente recibe un enlace muerto. Que se vea.
+  console.warn(
+    "[urls] baseUrl() cae a localhost: define PLATFORM_URL. " +
+      "Los enlaces de emails enviados desde aquí no funcionarán fuera de esta máquina."
+  );
   return "http://localhost:3000";
 }
