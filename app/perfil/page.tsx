@@ -63,6 +63,30 @@ export default async function PerfilPage() {
     .select("id, name, salon_id, salons(name, slug)")
     .eq("auth_user_id", user.id);
 
+  // Las citas próximas: sin esto, quien entra buscando su reserva encuentra
+  // una pantalla de sellos y se va. Es el motivo real para tener cuenta.
+  // Con service role porque las fichas ya se han comprobado de este usuario.
+  const idsFichas = (fichas ?? []).map((c) => (c as { id: string }).id);
+  type Cita = {
+    starts_at: string;
+    status: string;
+    public_token: string;
+    services: { name: string } | null;
+    salons: { name: string; timezone: string } | null;
+  };
+  let citas: Cita[] = [];
+  if (idsFichas.length) {
+    const { data } = await admin
+      .from("bookings")
+      .select("starts_at, status, public_token, services(name), salons(name, timezone)")
+      .in("customer_id", idsFichas)
+      .in("status", ["confirmed", "pending_payment"])
+      .gte("starts_at", new Date().toISOString())
+      .order("starts_at", { ascending: true })
+      .limit(5);
+    citas = (data ?? []) as unknown as Cita[];
+  }
+
   const tarjetas: {
     salon: string;
     slug: string;
@@ -100,11 +124,42 @@ export default async function PerfilPage() {
       {cabecera}
       <p className="text-center text-sm text-muted">{user.email}</p>
 
+      {citas.length > 0 && (
+        <section aria-label="Tus próximas citas" className="flex flex-col gap-3">
+          <h2 className="rotulo">Tus próximas citas</h2>
+          {citas.map((c) => (
+            <Link
+              key={c.public_token}
+              href={`/cita/${c.public_token}`}
+              className="panel flex items-baseline justify-between gap-4 p-4 transition-colors hover:border-brand"
+            >
+              <span>
+                <span className="block font-semibold">{c.services?.name ?? "Cita"}</span>
+                <span className="block text-sm text-muted">{c.salons?.name}</span>
+              </span>
+              <span className="text-right text-sm tabular-nums text-muted">
+                {new Date(c.starts_at).toLocaleString("es-ES", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone: c.salons?.timezone ?? "Europe/Madrid",
+                })}
+              </span>
+            </Link>
+          ))}
+        </section>
+      )}
+
       {tarjetas.length === 0 ? (
-        <p className="panel p-6 text-center text-muted text-pretty">
-          Aún no tienes ninguna tarjeta de fidelidad activa. Cuando tu
-          peluquería tenga una y vayas acumulando visitas, aparecerá aquí.
-        </p>
+        // Sin tarjetas pero con citas, este aviso sobra: ya hay contenido.
+        citas.length === 0 ? (
+          <p className="panel p-6 text-center text-muted text-pretty">
+            Aquí verás tus próximas citas y tu tarjeta de fidelidad. Reserva en
+            tu peluquería y aparecerán solas.
+          </p>
+        ) : null
       ) : (
         <div className="flex flex-col gap-4">
           {tarjetas.map((t) => (

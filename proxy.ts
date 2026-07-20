@@ -36,7 +36,7 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Rutas /admin: refresco de sesión + guard en ambos sentidos
+  // Refresco de sesión para /admin y /perfil; guard solo para /admin.
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -56,7 +56,15 @@ export default async function proxy(request: NextRequest) {
     }
   );
 
+  // getUser() renueva el access token y reescribe las cookies vía setAll.
+  // Los Server Components no pueden hacerlo (lib/supabase/server.ts:19-21),
+  // así que sin pasar por aquí la sesión de /perfil caducaba sola.
   const { data: { user } } = await supabase.auth.getUser();
+
+  // /perfil solo necesita ese refresco: tiene su propio login por magic link
+  // y verla sin sesión es legítimo. El guard de abajo es solo para dueños.
+  if (!pathname.startsWith("/admin")) return response;
+
   const isLogin = pathname === "/admin/login";
 
   if (!user && !isLogin) {
@@ -69,4 +77,4 @@ export default async function proxy(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ["/admin/:path*", "/"] };
+export const config = { matcher: ["/admin/:path*", "/perfil/:path*", "/"] };

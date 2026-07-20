@@ -15,7 +15,18 @@ cabecera `Authorization: Bearer <CRON_SECRET>`.
 | `/api/cron/resenas` | 1 h (`45 * * * *`) | Pide valoración 2-3 h tras el servicio |
 | `/api/cron/newsletter` | 15 min (`*/15 * * * *`) | Envía las campañas encoladas por tandas |
 
+> **Consecuencia práctica, por si no es obvia:** sin disparador, una campaña de
+> newsletter se queda en «Enviando…» para siempre. Y como `autocompletar` es
+> quien marca las citas como `completed`, los segmentos *racha*, *enfriándose*
+> y *nuevos* devuelven cero destinatarios: dependen de ese estado.
+
 ## Cómo activarlos
+
+**Opción 0 — servidor propio (gratis, la recomendada):** ya existe
+`scripts/cron-droplet.sh`, listo para instalar en un servidor encendido 24/7.
+Lee el `CRON_SECRET` de `/etc/elbooksykiller.env` y llama a los cuatro
+endpoints con los mismos horarios que tenía `vercel.json`. Instrucciones de
+instalación en la cabecera del propio script.
 
 **Opción A — Vercel Pro (~20 $/mes):** volver a crear `vercel.json` con el
 bloque `crons` de la tabla. Pro admite granularidad de minutos.

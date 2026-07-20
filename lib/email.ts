@@ -12,13 +12,33 @@ type SendArgs = {
   idempotencyKey: string;
 };
 
-export async function sendEmail({ to, subject, html, idempotencyKey }: SendArgs) {
-  if (!resend) return;
+export type SendResult = { ok: boolean; error?: string };
+
+/**
+ * Nunca lanza — un fallo de email no debe romper una reserva —, pero sí
+ * devuelve el resultado. El cron de newsletter lo necesita: antes marcaba
+ * cada envío como 'sent' pasara lo que pasara, así que una campaña con el
+ * dominio sin verificar en Resend figuraba como "Enviada" con cero entregas.
+ */
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  idempotencyKey,
+}: SendArgs): Promise<SendResult> {
+  if (!resend) {
+    console.warn(`[email] sin RESEND_API_KEY: no se envía "${subject}" a ${to}`);
+    return { ok: false, error: "RESEND_API_KEY ausente" };
+  }
   const { error } = await resend.emails.send(
     { from: FROM, to: [to], subject, html },
     { idempotencyKey }
   );
-  if (error) console.error(`[email] fallo enviando "${subject}" a ${to}:`, error.message);
+  if (error) {
+    console.error(`[email] fallo enviando "${subject}" a ${to}:`, error.message);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
 }
 
 /**

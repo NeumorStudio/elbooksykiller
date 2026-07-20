@@ -123,7 +123,10 @@ export async function bookAppointment(input: {
     const r = data as { booking_id: string; public_token: string; omitidos: string[] | null };
     bookingId = r.booking_id;
     omitidos = r.omitidos ?? [];
-    citaUrl = `${(await import("@/lib/urls")).baseUrl()}/cita/${r.public_token}`;
+    // Relativa a propósito: este enlace se pinta en la propia página, así que
+    // el origen ya es el correcto. Con baseUrl() heredaba el fallback a
+    // localhost cuando PLATFORM_URL no está definida y el botón moría.
+    citaUrl = `/cita/${r.public_token}`;
   } else {
     const { data, error } = await anon.rpc("create_booking", base_args);
     if (error) {

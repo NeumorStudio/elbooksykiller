@@ -5,6 +5,7 @@ import {
   customerConfirmationHtml,
   ownerNotificationHtml,
   type BookingEmailData,
+  type SendResult,
 } from "@/lib/email";
 
 const fmtWhen = (iso: string, tz: string) =>
@@ -67,7 +68,9 @@ export async function notifyBookingConfirmed(bookingId: string) {
         : undefined,
     };
 
-    const sends: Promise<void>[] = [];
+    // Aquí el resultado no cambia nada: la reserva ya existe y el email es
+    // best-effort. sendEmail ya deja el fallo en el log.
+    const sends: Promise<SendResult>[] = [];
     if (b.customer_email) {
       sends.push(
         sendEmail({

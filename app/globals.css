@@ -386,6 +386,21 @@ body {
   }
 }
 
+/* ── Modo reserva ────────────────────────────────────────────────────
+   El CTA "Reserva tu cita" ya es un ancla a #reservar, así que :target
+   marca el modo sin una sola línea de JS: al pulsarlo, el escaparate
+   (vídeo, placa de dirección, galería, horario) se retira y la página
+   queda reducida a la tarea. Sin pulsarlo, todo se ve como siempre.
+
+   Envuelto en @supports porque sin :has() la regla se ignora entera y
+   la página sigue completa — el fallo seguro es "como estaba". El botón
+   atrás cierra el modo solo, por el historial de hash. */
+@supports selector(:has(*)) {
+  body:has(#reservar:target) .solo-escaparate {
+    display: none;
+  }
+}
+
 /* ── Scroll: conexión entre secciones ────────────────────────────────
    CSS plano a propósito: la shorthand `animation` resetea
    `animation-timeline`, y con utilidades Tailwind el orden no está

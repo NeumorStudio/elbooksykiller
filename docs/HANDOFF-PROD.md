@@ -8,11 +8,19 @@ fidelidad, productos, newsletter, reseñas** y el **recordatorio de cita a 1 h**
 
 - **Código:** ya en `main` (commit `84d465f`) y **desplegado por Vercel**. No hay
   que tocar código.
-- **Base de datos de producción:** `ulhlsyrrpjqhfixupglb` (la que usa el sitio en
-  vivo). **Aún NO tiene las migraciones 0006–0010**, así que las funciones se
-  muestran como «muy pronto» — desplegado pero apagado, sin romper nada.
-- Todo lo de abajo se hace **sobre `ulhlsyrrpjqhfixupglb`** (no confundir con
-  `vgwhornipwxicyfknafm`, que es un proyecto de pruebas donde ya se ensayó esto).
+- **Base de datos de producción:** `vgwhornipwxicyfknafm`. Confirmado por el
+  propietario el 2026-07-20. **Las migraciones 0006–0010 ya están aplicadas**:
+  el panel de newsletter muestra el formulario, y eso solo ocurre si existe la
+  tabla `newsletter_campaigns`.
+
+  > Corregido el 2026-07-20. Este documento decía antes que producción era
+  > `ulhlsyrrpjqhfixupglb` y que `vgwhornipwxicyfknafm` era de pruebas. Era al
+  > revés, y llevó a diagnosticar mal un fallo del botón de cancelar.
+
+- **Ojo:** `.env.local` apunta a producción. Cada `npm run dev` escribe en datos
+  reales y envía emails reales a clientes reales — con enlaces a `localhost`
+  si `PLATFORM_URL` no está definida. Conviene un proyecto Supabase aparte
+  para desarrollo.
 
 ---
 
