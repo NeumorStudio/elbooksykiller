@@ -89,7 +89,10 @@ export async function enviarNewsletter(formData: FormData) {
     })
     .select("id")
     .single();
-  if (error || !campana) return { error: "No se pudo crear la campaña." };
+  if (error || !campana) {
+    console.error("enviarNewsletter/campaña:", error?.message);
+    return { error: "No se pudo crear la campaña." };
+  }
 
   const { error: cola } = await supabase.from("newsletter_sends").insert(
     audiencia.map((c) => ({
@@ -99,6 +102,8 @@ export async function enviarNewsletter(formData: FormData) {
     }))
   );
   if (cola) {
+    // Sin esto, un fallo de RLS (42501) es indistinguible de un fallo de red.
+    console.error("enviarNewsletter/cola:", cola.message);
     // Sin cola no hay envío: la campaña no debe quedar "enviando" para siempre.
     await supabase
       .from("newsletter_campaigns")

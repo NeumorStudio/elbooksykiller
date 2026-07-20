@@ -37,6 +37,7 @@ export async function GET(req: Request) {
   if (!campanas?.length) return NextResponse.json({ pendientes: 0 });
 
   let enviados = 0;
+  let fallidos = 0;
 
   for (const camp of campanas) {
     const salonName =
@@ -63,7 +64,7 @@ export async function GET(req: Request) {
       const bajaToken = (s as unknown as { customers: { baja_token: string } | null })
         .customers?.baja_token;
 
-      await sendEmail({
+      const envio = await sendEmail({
         to: s.email,
         subject: camp.subject,
         html: newsletterHtml({
@@ -74,14 +75,20 @@ export async function GET(req: Request) {
         idempotencyKey: `newsletter/${camp.id}/${s.customer_id}`,
       });
 
+      // El estado refleja lo que pasó de verdad: 'failed' era un estado
+      // declarado en el esquema (0009:34) que nadie escribía nunca.
       await admin
         .from("newsletter_sends")
-        .update({ status: "sent", sent_at: new Date().toISOString() })
+        .update({
+          status: envio.ok ? "sent" : "failed",
+          sent_at: new Date().toISOString(),
+        })
         .eq("id", s.id)
         .eq("status", "queued");
-      enviados++;
+      if (envio.ok) enviados++;
+      else fallidos++;
     }
   }
 
-  return NextResponse.json({ campanas: campanas.length, enviados });
+  return NextResponse.json({ campanas: campanas.length, enviados, fallidos });
 }
