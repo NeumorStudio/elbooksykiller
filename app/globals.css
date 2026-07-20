@@ -405,6 +405,14 @@ body {
    Envuelto en @supports porque sin :has() la regla se ignora entera y
    la página sigue completa — el fallo seguro es "como estaba". El botón
    atrás cierra el modo solo, por el historial de hash. */
+/* La vía principal: atributo puesto por modo-reserva.tsx. Vive en <html>,
+   fuera de React, así que sobrevive a re-renders y a server actions que
+   pierden el fragmento de la URL. */
+html[data-reserva] .solo-escaparate {
+  display: none;
+}
+
+/* Refuerzo sin JS. Se mantiene por si el componente no llega a montar. */
 @supports selector(:has(*)) {
   body:has(#reservar:target) .solo-escaparate {
     display: none;

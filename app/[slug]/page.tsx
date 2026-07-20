@@ -4,6 +4,7 @@ import Link from "next/link";
 import BookingWidget from "./booking-widget";
 import InstallPrompt from "./install-prompt";
 import BarraInferior from "./barra-inferior";
+import ModoReserva from "./modo-reserva";
 import VideoFondo from "../video-fondo";
 import Carrusel from "./carrusel";
 import { confirmPaidSession } from "./actions";
@@ -440,6 +441,7 @@ export default async function SalonPage({
     {/* Solo se pinta en standalone. Nunca coincide con InstallPrompt, que se
         oculta precisamente cuando la app ya está instalada. */}
     <BarraInferior slug={salon.slug} />
+    <ModoReserva />
     </>
   );
 }

@@ -137,14 +137,13 @@ export default function BookingWidget({
   }, [error]);
 
   // Cada paso nuevo se monta bajo el fold: acercarlo a la vista
+  // Salto instantáneo, no "smooth". La animación dura entre 300 y 600 ms y
+  // durante ese tiempo la interfaz parece congelada: el botón ya respondió
+  // —el estado cambia al momento— pero se percibe como lag. En un flujo de
+  // cuatro pasos se acumula en cada toque.
   const scrollTo = (id: string) => {
     requestAnimationFrame(() => {
-      document.getElementById(id)?.scrollIntoView({
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "auto"
-          : "smooth",
-        block: "start",
-      });
+      document.getElementById(id)?.scrollIntoView({ behavior: "auto", block: "start" });
     });
   };
 
