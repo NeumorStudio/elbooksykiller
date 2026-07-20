@@ -15,7 +15,7 @@ export default function InstallPrompt({
   salonName: string;
   logoUrl?: string | null;
 }) {
-  const [mode, setMode] = useState<"hidden" | "android" | "ios">("hidden");
+  const [mode, setMode] = useState<"hidden" | "android" | "ios" | "ios-otro">("hidden");
   const deferred = useRef<BipEvent | null>(null);
 
   useEffect(() => {
@@ -48,10 +48,19 @@ export default function InstallPrompt({
     };
     window.addEventListener("beforeinstallprompt", onBip);
 
-    const isIos =
-      /iPhone|iPad|iPod/.test(navigator.userAgent) &&
-      !/CriOS|FxiOS/.test(navigator.userAgent);
-    const t = isIos ? setTimeout(() => setMode("ios"), 2500) : undefined;
+    const ua = navigator.userAgent;
+    // iPadOS 13+ se identifica como Macintosh: sin maxTouchPoints, ningún
+    // iPad moderno veía nunca estas instrucciones.
+    const esIos =
+      /iPhone|iPad|iPod/.test(ua) ||
+      (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    // Solo Safari puede añadir a pantalla de inicio en iOS. En Chrome,
+    // Firefox o Edge no hay opción: en vez de callar, se explica.
+    const esSafari = !/CriOS|FxiOS|EdgiOS|OPiOS|mercury/i.test(ua);
+
+    const t = esIos
+      ? setTimeout(() => setMode(esSafari ? "ios" : "ios-otro"), 2500)
+      : undefined;
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onBip);
@@ -99,14 +108,21 @@ export default function InstallPrompt({
       )}
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-sm">{salonName}, como una app</p>
-        {mode === "android" ? (
+        {mode === "android" && (
           <p className="text-sm text-muted mt-0.5 text-pretty">
             Instálala y reserva en dos toques la próxima vez.
           </p>
-        ) : (
+        )}
+        {mode === "ios" && (
           <p className="text-sm text-muted mt-0.5 text-pretty">
             Toca <b>Compartir</b> <span aria-hidden>⎋</span> y luego{" "}
             <b>«Añadir a pantalla de inicio»</b>.
+          </p>
+        )}
+        {mode === "ios-otro" && (
+          <p className="text-sm text-muted mt-0.5 text-pretty">
+            Ábrela en <b>Safari</b> para añadirla a tu pantalla de inicio: en
+            este navegador iOS no lo permite.
           </p>
         )}
         {mode === "android" && (

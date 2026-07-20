@@ -33,11 +33,16 @@ function Step({
   n,
   title,
   id,
+  onBack,
   children,
 }: {
   n: number;
   title: string;
   id?: string;
+  /** Vuelve al paso anterior deshaciendo esta elección. Los pasos no se
+   *  colapsan —se puede subir y cambiar— pero el auto-scroll deja el
+   *  anterior fuera de pantalla y parece que no hay marcha atrás. */
+  onBack?: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -47,6 +52,17 @@ function Step({
           {n}
         </span>
         <span className="text-lg font-semibold">{title}</span>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="ml-auto shrink-0 rounded-lg px-2 py-2 text-sm text-muted
+              underline underline-offset-4 hover:text-brand
+              focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
+            ← Atrás
+          </button>
+        )}
       </h2>
       {children}
     </section>
@@ -355,7 +371,7 @@ export default function BookingWidget({
   return (
     <div className="flex flex-col gap-8 sm:gap-10">
       {reminder}
-      <Step n={1} title="Elige servicio">
+      <Step n={1} id="paso-1" title="Elige servicio">
         <div className="flex flex-col gap-2" role="radiogroup" aria-label="Servicio">
           {services.map((s) => {
             const on = service?.id === s.id;
@@ -404,7 +420,21 @@ export default function BookingWidget({
       </Step>
 
       {service && (
-        <Step n={2} id="paso-2" title="¿Con quién?">
+        <Step
+          n={2}
+          id="paso-2"
+          title="¿Con quién?"
+          onBack={() => {
+            // Cambiar de servicio invalida hora y disponibilidad: se limpia
+            // todo lo de abajo para no reservar con datos de otro servicio.
+            setService(null);
+            setEmployee(null);
+            setDay("");
+            setSlots(null);
+            setSlot("");
+            scrollTo("paso-1");
+          }}
+        >
           {/* En una barbería el profesional ES el producto: el cliente
               vuelve a por una persona. Renderizarlo como un chip igual que
               un día o una hora es lo que aplana el flujo. */}
@@ -447,7 +477,18 @@ export default function BookingWidget({
       )}
 
       {service && employee && (
-        <Step n={3} id="paso-3" title="Día y hora">
+        <Step
+          n={3}
+          id="paso-3"
+          title="Día y hora"
+          onBack={() => {
+            setEmployee(null);
+            setDay("");
+            setSlots(null);
+            setSlot("");
+            scrollTo("paso-2");
+          }}
+        >
           {/* Los 14 días desbordan siempre, así que el degradado va sin
               condición de tamaño. */}
           <div
@@ -534,7 +575,16 @@ export default function BookingWidget({
       )}
 
       {slot && (
-        <Step n={4} id="paso-4" title="Tus datos">
+        <Step
+          n={4}
+          id="paso-4"
+          title="Tus datos"
+          onBack={() => {
+            // Solo la hora: el día y la disponibilidad siguen valiendo.
+            setSlot("");
+            scrollTo("paso-3");
+          }}
+        >
           <form
             className="flex flex-col gap-4"
             onSubmit={(e) => {

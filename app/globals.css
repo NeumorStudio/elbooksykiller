@@ -386,6 +386,16 @@ body {
   }
 }
 
+/* ── Barra inferior de la app instalada ──────────────────────────────
+   La barra es fixed, así que el final de la página quedaría debajo. El
+   hueco se reserva en CSS y no desde el componente para que no haya que
+   coordinar dos fuentes de verdad sobre si estamos en standalone. */
+@media (display-mode: standalone) {
+  body {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
+  }
+}
+
 /* ── Modo reserva ────────────────────────────────────────────────────
    El CTA "Reserva tu cita" ya es un ancla a #reservar, así que :target
    marca el modo sin una sola línea de JS: al pulsarlo, el escaparate
