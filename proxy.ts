@@ -77,4 +77,8 @@ export default async function proxy(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ["/admin/:path*", "/perfil/:path*", "/"] };
+// /:slug/perfil además de /perfil: la PWA de cada salón sirve «Mi cuenta»
+// dentro de su scope, y esa ruta necesita el mismo refresco de sesión.
+export const config = {
+  matcher: ["/admin/:path*", "/perfil/:path*", "/:slug/perfil/:path*", "/"],
+};

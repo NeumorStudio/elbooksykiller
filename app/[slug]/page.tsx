@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import BookingWidget from "./booking-widget";
 import InstallPrompt from "./install-prompt";
+import BarraInferior from "./barra-inferior";
 import VideoFondo from "../video-fondo";
 import Carrusel from "./carrusel";
 import { confirmPaidSession } from "./actions";
@@ -416,7 +417,7 @@ export default async function SalonPage({
             web pública, y decía lo contrario de la verdad. */}
         {f.clientes && (
           <Link
-            href="/perfil"
+            href={`/${salon.slug}/perfil`}
             className="text-sm text-muted transition-colors hover:text-brand"
           >
             {haySesion ? (
@@ -436,6 +437,9 @@ export default async function SalonPage({
         un ancestro lo convertiría en su containing block — dejaría de
         estar fijo al viewport y se iría con el scroll. */}
     <InstallPrompt slug={salon.slug} salonName={salon.name} logoUrl={salon.logo_url} />
+    {/* Solo se pinta en standalone. Nunca coincide con InstallPrompt, que se
+        oculta precisamente cuando la app ya está instalada. */}
+    <BarraInferior slug={salon.slug} />
     </>
   );
 }
