@@ -125,9 +125,11 @@ export default async function SalonPage({
   // teléfono con el que ya está fichado: una sola ficha y una sola tarjeta
   // de fidelidad, en vez de un duplicado por cada forma de escribirlo.
   let cliente: { name: string; phone: string; email: string } | null = null;
+  let haySesion = false;
   if (f.clientes) {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
+      haySesion = true;
       const { data: ficha } = await supabase
         .from("customers")
         .select("name, phone, email")
@@ -195,11 +197,11 @@ export default async function SalonPage({
               mp4="/hero-loop.mp4"
               webm="/hero-loop.webm"
               poster="/hero-poster.webp"
-              className="absolute inset-0 h-full w-full object-cover"
+              className="solo-escaparate absolute inset-0 h-full w-full object-cover"
             />
             <div
               aria-hidden
-              className="absolute inset-0"
+              className="solo-escaparate absolute inset-0"
               style={{
                 background:
                   "linear-gradient(to top, var(--bg) 3%, oklch(0.155 0.012 75 / 0.88) 38%, oklch(0.155 0.012 75 / 0.62) 74%, oklch(0.155 0.012 75 / 0.45))",
@@ -242,7 +244,7 @@ export default async function SalonPage({
               al entrar, y en neumorfismo el hueco es lo que dice "dato".
               Desde el local no hace falta la dirección — ya está allí. */}
           {!enLocal && (salon.address || salon.phone) && (
-            <div className="neu-in mt-5 inline-flex flex-col gap-1 rounded-2xl px-5 py-4">
+            <div className="solo-escaparate neu-in mt-5 inline-flex flex-col gap-1 rounded-2xl px-5 py-4">
               {salon.address && (
                 <a
                   href={mapa ?? undefined}
@@ -278,7 +280,7 @@ export default async function SalonPage({
           {!enLocal && services.length > 0 && employees.length > 0 && (
             <a
               href="#reservar"
-              className="btn-primary mt-7 h-14 w-full max-w-xs px-10 text-lg"
+              className="solo-escaparate btn-primary mt-7 h-14 w-full max-w-xs px-10 text-lg"
             >
               Reserva tu cita
             </a>
@@ -297,7 +299,7 @@ export default async function SalonPage({
 
       {/* ── Los trabajos: la prueba, justo debajo del botón ─────────── */}
       {!enLocal && fotos.length > 0 && (
-        <section className="solapa bg-surface pt-12 pb-14" aria-label="Trabajos">
+        <section className="solo-escaparate solapa bg-surface pt-12 pb-14" aria-label="Trabajos">
           <div className="relative mx-auto w-full max-w-xl px-5 mb-6">
             <p className="rotulo mb-4">Nuestros trabajos</p>
             <h2 className="font-display text-2xl font-semibold">Así cortamos</h2>
@@ -367,8 +369,10 @@ export default async function SalonPage({
 
 
       {/* ── Escaparate: horario de la semana ──────────────────────── */}
-      {horarioSemanal.length > 0 && (
-        <section className="solapa pt-14 pb-16">
+      {/* Lleva !enLocal como el resto del escaparate: desde el QR del local
+          el horario sobra tanto como la dirección. Antes se colaba. */}
+      {!enLocal && horarioSemanal.length > 0 && (
+        <section className="solo-escaparate solapa pt-14 pb-16">
           <div className="relative mx-auto w-full max-w-xl px-5">
             <p className="rotulo mb-5">Horario</p>
             <h2 className="font-display text-2xl font-semibold mb-6">Cuándo estamos</h2>
@@ -407,13 +411,22 @@ export default async function SalonPage({
             Solo aparece con la función "clientes" encendida (migración 0006),
             para no ofrecer un login que aún no guarda nada. La cita en sí no
             necesita cuenta: vive en el enlace /cita/[token] del email. */}
+        {/* Con sesión abierta el texto cambia: seguir ofreciendo "entra a tu
+            cuenta" a quien ya entró era la única señal de sesión en toda la
+            web pública, y decía lo contrario de la verdad. */}
         {f.clientes && (
           <Link
             href="/perfil"
             className="text-sm text-muted transition-colors hover:text-brand"
           >
-            ¿Ya eres cliente?{" "}
-            <span className="text-brand underline underline-offset-4">Entra a tu cuenta</span>
+            {haySesion ? (
+              <span className="text-brand underline underline-offset-4">Mi cuenta</span>
+            ) : (
+              <>
+                ¿Ya eres cliente?{" "}
+                <span className="text-brand underline underline-offset-4">Entra a tu cuenta</span>
+              </>
+            )}
           </Link>
         )}
         <span>Reservas por ElBooksyKiller</span>
