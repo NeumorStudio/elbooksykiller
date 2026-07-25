@@ -256,6 +256,11 @@ export async function bookAppointment(input: {
 // Verificación al volver del pago (camino rápido; el webhook es el respaldo).
 // Corre en el servidor: consulta Stripe y confirma la reserva si está pagada.
 export async function confirmPaidSession(slug: string, sessionId: string) {
+  // El id viene de ?paid= en la URL, así que cualquiera puede inventarlo:
+  // sin este filtro, un bucle de peticiones agotaba el límite de la API de
+  // Stripe de ese salón y los pagos legítimos empezaban a fallar.
+  if (!/^cs_[A-Za-z0-9_]{10,80}$/.test(sessionId)) return null;
+
   const admin = supabaseAdmin();
   const { data: salon } = await admin
     .from("salons")

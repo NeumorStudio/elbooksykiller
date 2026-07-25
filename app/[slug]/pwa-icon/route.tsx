@@ -8,13 +8,35 @@ import sharp from "sharp";
 // así el icono de "añadir a inicio" muestra la marca de verdad.
 export const runtime = "nodejs";
 
+/**
+ * El logo solo se descarga si vive en nuestro Storage.
+ *
+ * `uploadLogo` valida lo que sube el dueño, pero RLS le deja escribir
+ * `logo_url` directamente por REST con su propio token: podía apuntarlo a
+ * cualquier URL y hacer que el servidor la pidiera (SSRF a la red interna)
+ * y metiera esos bytes en el decodificador de imágenes.
+ */
+function esDeNuestroStorage(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const nuestro = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!);
+    return u.protocol === "https:" && u.host === nuestro.host;
+  } catch {
+    return false;
+  }
+}
+
 // Icono PWA por salón: el logo sobre el fondo noche de la marca.
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const size = Math.min(1024, Math.max(64, Number(new URL(req.url).searchParams.get("size")) || 512));
+  // Solo los tamaños que pide el manifest. Con el rango 64–1024 libre había
+  // 961 claves de caché distintas, cada una con descarga + sharp + Satori:
+  // un bucle de curl agotaba la cuota de funciones.
+  const pedido = Number(new URL(req.url).searchParams.get("size"));
+  const size = [180, 192, 512].includes(pedido) ? pedido : 512;
 
   const anon = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,7 +53,7 @@ export async function GET(
   // Logo → PNG (sharp acepta webp/png/jpeg/svg). Si algo falla, cae a la
   // inicial en oro; el icono nunca debe romper la instalación de la PWA.
   let logoPng: string | null = null;
-  if (salon?.logo_url) {
+  if (salon?.logo_url && esDeNuestroStorage(salon.logo_url)) {
     try {
       const res = await fetch(salon.logo_url, { cache: "no-store" });
       if (res.ok) {

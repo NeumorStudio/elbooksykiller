@@ -148,7 +148,7 @@ export default async function WebsitePage() {
           <h2 className="font-semibold">Logo</h2>
           <p className="text-sm text-muted mt-1 text-pretty">
             Aparece en la cabecera de tu web y como icono cuando tus clientes
-            la instalan en el móvil. PNG, JPG, WebP o SVG, máx. 2 MB.
+            la instalan en el móvil. PNG, JPG o WebP, máx. 2 MB.
           </p>
         </div>
         {salon.logo_url && (
@@ -176,7 +176,7 @@ export default async function WebsitePage() {
               name="logo"
               type="file"
               required
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              accept="image/png,image/jpeg,image/webp"
               className="field pt-2"
             />
           </div>

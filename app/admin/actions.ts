@@ -505,14 +505,15 @@ const LOGO_TYPES: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
   "image/webp": "webp",
-  "image/svg+xml": "svg",
+  // SVG fuera: el bucket es público, así que un .svg con <script> quedaba
+  // como página ejecutable alojada bajo el dominio de nuestro proveedor.
 };
 
 export async function uploadLogo(formData: FormData) {
   const { supabase, user } = await db();
   const file = formData.get("logo");
   if (!(file instanceof File) || file.size === 0) return { error: "Elige una imagen." };
-  if (!LOGO_TYPES[file.type]) return { error: "Formato no válido: usa PNG, JPG, WebP o SVG." };
+  if (!LOGO_TYPES[file.type]) return { error: "Formato no válido: usa PNG, JPG o WebP." };
   if (file.size > 2 * 1024 * 1024) return { error: "Máximo 2 MB. Reduce la imagen e inténtalo." };
 
   const { data: salon } = await supabase
