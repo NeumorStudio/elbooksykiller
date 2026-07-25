@@ -436,7 +436,20 @@ export default async function SalonPage({
             )}
           </Link>
         )}
-        <span>Reservas por Salonio</span>
+        {/* La nota de privacidad es del salón, no de la plataforma: quien
+            reserva le da sus datos a la peluquería. El RGPD pide que esté a
+            mano en el momento de recogerlos, y este pie es la única parte
+            que se ve desde cualquier punto de la página. */}
+        <span className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+          <span>Reservas por Salonio</span>
+          <span aria-hidden className="opacity-40">·</span>
+          <Link
+            href={`/${salon.slug}/privacidad`}
+            className="underline underline-offset-4 transition-colors hover:text-brand"
+          >
+            Privacidad
+          </Link>
+        </span>
       </footer>
     </main>
     {/* Fuera de <main>: es position:fixed, y cualquier transform/filter en
