@@ -162,6 +162,15 @@ export default function BookingWidget({
     return out;
   }, [timezone]);
 
+  // Calendario mensual: solo los próximos 14 días admiten reserva, así que
+  // la ventana abarca como mucho dos meses.
+  const reservables = useMemo(() => new Set(days.map((d) => d.iso)), [days]);
+  const meses = useMemo(
+    () => [...new Set(days.map((d) => d.iso.slice(0, 7)))],
+    [days]
+  );
+  const [mesVisto, setMesVisto] = useState(0);
+
   const fmtTime = (iso: string) =>
     new Date(iso).toLocaleTimeString("es-ES", {
       hour: "2-digit",
@@ -485,33 +494,87 @@ export default function BookingWidget({
             setDay("");
             setSlots(null);
             setSlot("");
+            setMesVisto(0);
             scrollTo("paso-2");
           }}
         >
-          {/* Los 14 días desbordan siempre, así que el degradado va sin
-              condición de tamaño. */}
-          <div
-            className="flex gap-2 overflow-x-auto pb-2 -mx-5 px-5 fade-x"
-            role="radiogroup"
-            aria-label="Día"
-          >
-            {days.map((d) => {
-              const on = day === d.iso;
-              return (
-                <button
-                  key={d.iso}
-                  role="radio"
-                  aria-checked={on}
-                  onClick={() => setDay(d.iso)}
-                  className={`chip shrink-0 flex-col gap-0 px-4 py-2.5 h-auto min-w-[4.25rem] ${on ? "chip-on" : ""}`}
-                >
-                  <span className="text-xs capitalize opacity-80">{d.weekday}</span>
-                  <span className="font-display text-xl leading-tight">{d.dayNum}</span>
-                  <span className="text-xs capitalize opacity-80">{d.month}</span>
-                </button>
-              );
-            })}
-          </div>
+          {(() => {
+            const [y, m] = meses[mesVisto].split("-").map(Number);
+            const primero = new Date(y, m - 1, 1);
+            const hueco = (primero.getDay() + 6) % 7; // la semana empieza en lunes
+            const nDias = new Date(y, m, 0).getDate();
+            const hoy = days[0].iso;
+            const flecha = `chip h-11 w-11 px-0 text-base disabled:opacity-35
+              disabled:pointer-events-none`;
+            return (
+              <div className="max-w-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-display text-lg first-letter:uppercase">
+                    {primero.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}
+                  </p>
+                  {meses.length > 1 && (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        aria-label="Mes anterior"
+                        disabled={mesVisto === 0}
+                        onClick={() => setMesVisto((v) => v - 1)}
+                        className={flecha}
+                      >
+                        ←
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Mes siguiente"
+                        disabled={mesVisto === meses.length - 1}
+                        onClick={() => setMesVisto((v) => v + 1)}
+                        className={flecha}
+                      >
+                        →
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-7 gap-1 text-center" role="radiogroup" aria-label="Día">
+                  {["L", "M", "X", "J", "V", "S", "D"].map((l, i) => (
+                    <span key={i} className="text-xs text-faint pb-1" aria-hidden>
+                      {l}
+                    </span>
+                  ))}
+                  {Array.from({ length: hueco }, (_, i) => (
+                    <span key={`h${i}`} aria-hidden />
+                  ))}
+                  {Array.from({ length: nDias }, (_, i) => {
+                    const iso = `${meses[mesVisto]}-${String(i + 1).padStart(2, "0")}`;
+                    const libre = reservables.has(iso);
+                    const on = day === iso;
+                    return (
+                      <button
+                        key={iso}
+                        role="radio"
+                        aria-checked={on}
+                        disabled={!libre}
+                        onClick={() => setDay(iso)}
+                        className={`h-11 rounded-lg tabular-nums font-display text-base
+                          focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand
+                          ${
+                            on
+                              ? "bg-brand text-brand-ink font-semibold"
+                              : !libre
+                                ? "text-faint/50"
+                                : iso === hoy
+                                  ? "text-brand font-semibold cursor-pointer hover:bg-surface-2"
+                                  : "text-ink cursor-pointer hover:bg-surface-2"
+                          }`}
+                      >
+                        {i + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* El skeleton tiene la geometría EXACTA del contenido real: si
               el layout salta al resolverse, has empeorado la percepción. */}
