@@ -31,7 +31,10 @@ type Fila = {
 
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
+  // Sin secreto configurado se cierra: fallar en abierto dejaba el cron
+  // invocable por cualquiera (envíos masivos, citas marcadas solas).
+  if (!secret) return new NextResponse("cron sin configurar", { status: 503 });
+  if (req.headers.get("authorization") !== `Bearer ${secret}`) {
     return new NextResponse("no autorizado", { status: 401 });
   }
 

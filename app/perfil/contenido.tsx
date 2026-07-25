@@ -2,7 +2,8 @@ import Link from "next/link";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
 import PerfilLogin from "./login";
-import { vincularFichas, cerrarSesion } from "./actions";
+import { cerrarSesion } from "./actions";
+import { vincularFichas } from "@/lib/perfil";
 
 /**
  * Área del cliente: sus próximas citas y la tarjeta de fidelidad de cada
@@ -54,7 +55,7 @@ export default async function PerfilContenido() {
   }
 
   // Reclamar las fichas con este email que aún no tuvieran cuenta.
-  if (user.email) await vincularFichas(user.id, user.email);
+  await vincularFichas();
 
   const admin = supabaseAdmin();
   const { data: fichas } = await admin

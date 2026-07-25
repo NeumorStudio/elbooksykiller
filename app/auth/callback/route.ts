@@ -11,7 +11,13 @@ import { supabaseServer } from "@/lib/supabase/server";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const next = url.searchParams.get("next") ?? "/perfil";
+  // Solo rutas internas: new URL("https://evil.tld", origin) devuelve el
+  // dominio ajeno tal cual, así que sin este filtro el magic link servía de
+  // trampolín de phishing desde nuestro propio dominio. `//host` también
+  // es absoluta.
+  const pedido = url.searchParams.get("next");
+  const next =
+    pedido?.startsWith("/") && !pedido.startsWith("//") ? pedido : "/perfil";
 
   if (code) {
     const supabase = await supabaseServer();
