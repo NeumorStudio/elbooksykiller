@@ -4,13 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
+import { sesionAdmin } from "@/lib/sesion-admin";
 
-async function db() {
-  const supabase = await supabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/admin/login");
-  return { supabase, user };
-}
+// Comprueba sesión y que el salón no esté bloqueado por el superadmin.
+const db = sesionAdmin;
 
 export async function addProducto(formData: FormData) {
   const { productos } = await features();

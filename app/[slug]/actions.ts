@@ -32,11 +32,27 @@ function anonClient() {
  *
  * Nunca debe romper una reserva: si algo falla, la cita ya está hecha.
  */
-async function atarACuenta(bookingId: string) {
+async function atarACuenta(
+  bookingId: string,
+  // Cómo estaba la ficha de ese teléfono ANTES de esta reserva. null = no
+  // existía, así que la acaba de crear quien reserva.
+  fichaPrevia: { email: string | null } | null
+) {
   try {
     const supabase = await supabaseServer();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
+    // Escribir un teléfono en un formulario NO prueba que sea tuyo. Solo se
+    // vincula si la ficha es nueva (la ha creado esta misma reserva) o si su
+    // email ya coincidía con el email verificado de la sesión. Sin esto,
+    // reservar con el teléfono de otro le entregaba su ficha al atacante:
+    // sus próximas citas, sus tokens de cancelación y sus datos personales.
+    if (fichaPrevia) {
+      const suyo =
+        fichaPrevia.email?.trim().toLowerCase() === user.email?.trim().toLowerCase();
+      if (!fichaPrevia.email || !suyo) return;
+    }
 
     const admin = supabaseAdmin();
     const { data: reserva } = await admin
@@ -101,41 +117,44 @@ export async function bookAppointment(input: {
   // desplegado funciona con ambos esquemas.
   const { clientes, penalizaciones } = await (await import("@/lib/features")).features();
 
+  // Cómo está la ficha de ese teléfono ANTES de reservar: hace falta para
+  // dos cosas distintas —el castigo por faltas y decidir si la reserva
+  // puede atarse a la cuenta abierta (ver atarACuenta)— y después de la
+  // RPC ya no se puede saber, porque el trigger la habrá creado o tocado.
+  type FichaPrevia = { email: string | null; banned?: boolean; blocked_until?: string | null };
+  const tel = clientes ? normalizarTel(input.phone) : null;
+  let fichaPrevia: FichaPrevia | null = null;
+  if (tel) {
+    const { data } = await supabaseAdmin()
+      .from("customers")
+      .select("email" + (penalizaciones ? ", banned, blocked_until" : ""))
+      .eq("salon_id", salon.id)
+      .eq("phone", tel)
+      .maybeSingle();
+    fichaPrevia = (data as unknown as FichaPrevia) ?? null;
+  }
+
   // Escalera de faltas: cliente vetado o en bloqueo temporal no reserva
   // online. La redención pasa por el mostrador: llamar o venir en persona
   // (el alta manual del dueño no pasa por aquí a propósito).
   // ponytail: chequeo en la action, no en la RPC — el widget es la única
   // vía real; si algún día importa el curl directo, muévelo a create_booking.
-  if (penalizaciones) {
-    const tel = normalizarTel(input.phone);
-    if (tel) {
+  if (penalizaciones && fichaPrevia) {
+    const { data: prog } = await supabaseAdmin()
+      .from("penalty_programs")
+      .select("active")
+      .eq("salon_id", salon.id)
+      .maybeSingle();
+    if (prog?.active) {
       const llama = salon.phone ? ` Llama al ${salon.phone} y lo resolvemos.` : " Contacta con el salón y lo resolvemos.";
-      const [{ data: castigo }, { data: prog }] = await Promise.all([
-        supabaseAdmin()
-          .from("customers")
-          .select("banned, blocked_until")
-          .eq("salon_id", salon.id)
-          .eq("phone", tel)
-          .maybeSingle(),
-        supabaseAdmin()
-          .from("penalty_programs")
-          .select("active")
-          .eq("salon_id", salon.id)
-          .maybeSingle(),
-      ]);
-      const c = castigo as unknown as {
-        banned: boolean; blocked_until: string | null;
-      } | null;
-      if (prog?.active && c) {
-        if (c.banned) {
-          return { error: "blocked", message: `La reserva online no está disponible para este número por citas sin asistir.${llama}` };
-        }
-        if (c.blocked_until && new Date(c.blocked_until) > new Date()) {
-          const hasta = new Date(c.blocked_until).toLocaleDateString("es-ES", {
-            day: "numeric", month: "long", timeZone: salon.timezone,
-          });
-          return { error: "blocked", message: `No puedes reservar online hasta el ${hasta} por citas sin asistir.${llama}` };
-        }
+      if (fichaPrevia.banned) {
+        return { error: "blocked", message: `La reserva online no está disponible para este número por citas sin asistir.${llama}` };
+      }
+      if (fichaPrevia.blocked_until && new Date(fichaPrevia.blocked_until) > new Date()) {
+        const hasta = new Date(fichaPrevia.blocked_until).toLocaleDateString("es-ES", {
+          day: "numeric", month: "long", timeZone: salon.timezone,
+        });
+        return { error: "blocked", message: `No puedes reservar online hasta el ${hasta} por citas sin asistir.${llama}` };
       }
     }
   }
@@ -178,7 +197,7 @@ export async function bookAppointment(input: {
   }
 
   // Vale para las dos vías (con y sin pago): la cita ya existe en ambas.
-  await atarACuenta(bookingId);
+  await atarACuenta(bookingId, fichaPrevia);
 
   if (!needsPayment) {
     await notifyBookingConfirmed(bookingId);
