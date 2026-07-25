@@ -5,13 +5,10 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { features } from "@/lib/features";
 import { estadosPorCliente, type Estado } from "../rachas";
+import { sesionAdmin } from "@/lib/sesion-admin";
 
-async function db() {
-  const supabase = await supabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/admin/login");
-  return { supabase, user };
-}
+// Comprueba sesión y que el salón no esté bloqueado por el superadmin.
+const db = sesionAdmin;
 
 /**
  * Crea la campaña y encola los envíos; el cron los despacha por tandas.
