@@ -8,6 +8,7 @@ import ActionForm from "./action-form";
 import SubmitButton from "./submit-button";
 import Ayuda from "./ayuda";
 import { esSuperadmin } from "@/lib/superadmin";
+import { estadoSalon, moduloActivo } from "@/lib/modulos";
 
 type Row = {
   id: string;
@@ -254,6 +255,8 @@ export default async function AdminHome() {
   const eur = (c: number) =>
     (c / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 
+  // Si el superadmin apagó los cobros, ese paso de la guía sobra.
+  const conCobros = moduloActivo(await estadoSalon(salon.id), "cobros");
   const hasServices = (serviceCount ?? 0) > 0;
   const hasTeam = profesionales.some((e) => e.tramos.length > 0);
   const check = (done: boolean) => (
@@ -301,6 +304,7 @@ export default async function AdminHome() {
                 se bloquean vacaciones y ausencias.
               </p>
             </li>
+            {conCobros && (
             <li className="flex gap-3">
               {check(salon.charges_enabled)}
               <p className="text-sm text-pretty">
@@ -311,6 +315,7 @@ export default async function AdminHome() {
                 la cita al reservar; el dinero va directo a tu banco.
               </p>
             </li>
+            )}
             <li className="flex gap-3">
               {check(!!salon.custom_domain)}
               <p className="text-sm text-pretty">

@@ -5,6 +5,7 @@ import SubmitButton from "../submit-button";
 import ActionForm from "../action-form";
 import ConfirmSubmit from "../confirm-submit";
 import Ayuda from "../ayuda";
+import { estadoSalon, moduloActivo } from "@/lib/modulos";
 
 const PAY_LABEL: Record<string, string> = {
   none: "Se paga en el local",
@@ -23,6 +24,9 @@ export default async function ServicesPage() {
     .maybeSingle();
 
   if (!salon) return <p className="text-muted">Primero crea tu peluquería en la Agenda.</p>;
+  // Sin el módulo de cobros no tiene sentido invitar a activarlos: el
+  // enlace llevaría a un "no incluido en tu plan".
+  const conCobros = moduloActivo(await estadoSalon(salon.id), "cobros");
 
   const services = salon.services
     .filter((s) => s.active)
@@ -146,7 +150,7 @@ export default async function ServicesPage() {
         </div>
       </ActionForm>
 
-      {!salon.charges_enabled && (
+      {conCobros && !salon.charges_enabled && (
         <p className="text-sm text-muted">
           Para cobrar señales o citas al reservar,{" "}
           <Link href="/admin/payments" className="underline underline-offset-4">
