@@ -93,8 +93,10 @@ export async function bookAppointment(input: {
 > {
   const anon = anonClient();
 
-  // Datos públicos: qué se cobra y si el salón puede cobrar
-  const { data: svc } = await anon
+  // Qué se cobra y si el salón puede cobrar. Con service role: la cuenta de
+  // Stripe del salón ya no es legible con la clave pública (migración 0016),
+  // y esto corre en el servidor, no en el navegador.
+  const { data: svc } = await supabaseAdmin()
     .from("services")
     .select("name, price_cents, payment_type, deposit_cents, salons(id, slug, name, phone, timezone, stripe_account_id, charges_enabled)")
     .eq("id", input.serviceId)
