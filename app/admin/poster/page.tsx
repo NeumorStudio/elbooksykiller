@@ -9,6 +9,14 @@ export default async function PosterPage() {
 
   // Igual que el PNG descargable: el cartel vive en el local, así que su
   // QR salta el escaparate y va directo a reservar.
+  // La dirección escrita solo se imprime si es presentable. Una URL de
+  // vercel.app en un cartel del escaparate resta credibilidad y nadie la va
+  // a teclear; el QR ya hace el trabajo. Con dominio propio sí se enseña,
+  // que ahí sí invita a escribirla.
+  const escrita = res.url.replace(/^https?:\/\//, "");
+  const host = escrita.split("/")[0].split(":")[0];
+  const presentable = !/(^|\.)vercel\.(app|dev)$/.test(host) && host !== "localhost";
+
   const svg = await QRCode.toString(res.urlLocal, {
     type: "svg",
     margin: 1,
@@ -37,8 +45,12 @@ export default async function PosterPage() {
         />
         <p className="text-lg">
           Escanea con la cámara del móvil
-          <br />
-          <span className="text-[#8d857a] text-base break-all">{res.url.replace(/^https?:\/\//, "")}</span>
+          {presentable && (
+            <>
+              <br />
+              <span className="text-[#8d857a] text-base break-all">{escrita}</span>
+            </>
+          )}
         </p>
       </div>
       <PrintButton />
