@@ -109,6 +109,28 @@ export function ownerNotificationHtml(d: BookingEmailData) {
   );
 }
 
+export function faltaHtml(d: {
+  customerName: string;
+  salonName: string;
+  salonPhone: string | null;
+  nivel: "aviso" | "bloqueo" | "veto";
+  hasta?: string; // fecha formateada, solo para nivel "bloqueo"
+}) {
+  const llamar = d.salonPhone
+    ? ` Si hubo un problema de verdad, llámanos al <a href="${telAttr(d.salonPhone)}">${esc(d.salonPhone)}</a> y lo hablamos.`
+    : " Si hubo un problema de verdad, dínoslo en tu próxima visita y lo hablamos.";
+  const cuerpo =
+    d.nivel === "aviso"
+      ? `Tu última cita en <b>${esc(d.salonName)}</b> quedó sin asistir. Sabemos que puede pasar — pero ese hueco lo pierde otro cliente y el salón. Si se repite, la reserva online se bloqueará temporalmente.${llamar}`
+      : d.nivel === "bloqueo"
+        ? `Por citas sin asistir, tu reserva online en <b>${esc(d.salonName)}</b> queda pausada hasta el <b>${esc(d.hasta ?? "")}</b>. Cada cita a la que asistas después limpia una falta.${llamar}`
+        : `Por faltas repetidas, la reserva online en <b>${esc(d.salonName)}</b> ya no está disponible para ti.${llamar}`;
+  return wrap(
+    d.nivel === "aviso" ? "Te esperamos y no viniste" : "Reserva online pausada",
+    `<p style="font-size:14px;margin:0">Hola ${esc(d.customerName)}: ${cuerpo}</p>`
+  );
+}
+
 export function cancellationHtml(d: Omit<BookingEmailData, "customerPhone" | "price">) {
   return wrap(
     `Tu cita en ${esc(d.salonName)} se ha cancelado`,

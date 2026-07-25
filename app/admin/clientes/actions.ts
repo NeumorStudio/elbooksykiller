@@ -43,6 +43,62 @@ export async function guardarPrograma(formData: FormData) {
   revalidatePath("/admin/clientes");
 }
 
+/** Configura la escalera de penalizaciones por faltas. Upsert como el programa de sellos. */
+export async function guardarPenalizaciones(formData: FormData) {
+  const { penalizaciones } = await features();
+  if (!penalizaciones) return { error: "Todavía no está activada." };
+
+  const { supabase, user } = await db();
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("id")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!salon) return { error: "Primero crea tu peluquería." };
+
+  const blockAfter = Number(formData.get("block_after") ?? 2);
+  const blockDays = Number(formData.get("block_days") ?? 15);
+  const banAfter = Number(formData.get("ban_after") ?? 3);
+  if (!Number.isInteger(blockAfter) || blockAfter < 1 || blockAfter > 10)
+    return { error: "Las faltas para el bloqueo deben estar entre 1 y 10." };
+  if (!Number.isInteger(blockDays) || blockDays < 1 || blockDays > 365)
+    return { error: "Los días de bloqueo deben estar entre 1 y 365." };
+  if (!Number.isInteger(banAfter) || banAfter <= blockAfter || banAfter > 20)
+    return { error: "El veto debe llegar después del bloqueo (y como mucho a las 20 faltas)." };
+
+  const { error } = await supabase.from("penalty_programs").upsert({
+    salon_id: salon.id,
+    active: formData.get("active") === "on",
+    block_after: blockAfter,
+    block_days: blockDays,
+    ban_after: banAfter,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) return { error: "No se pudo guardar. Inténtalo de nuevo." };
+  revalidatePath("/admin/clientes");
+}
+
+/**
+ * Perdón total: faltas a cero y castigos fuera. Para cuando la excusa era
+ * real — RLS (owner_all_customers) limita el alcance a los clientes propios.
+ */
+export async function perdonarCliente(formData: FormData) {
+  const { penalizaciones } = await features();
+  if (!penalizaciones) return { error: "Todavía no está activada." };
+
+  const { supabase } = await db();
+  const customerId = String(formData.get("customer_id") ?? "");
+  if (!customerId) return { error: "Cliente inválido." };
+
+  const { error } = await supabase
+    .from("customers")
+    .update({ no_show_strikes: 0, blocked_until: null, banned: false })
+    .eq("id", customerId);
+  if (error) return { error: "No se pudo perdonar. Inténtalo de nuevo." };
+  revalidatePath("/admin/clientes");
+}
+
 /**
  * Canje del premio: va por la RPC canjear_premio con la SESIÓN del dueño —
  * la función comprueba auth.uid() y hace las tres escrituras en una

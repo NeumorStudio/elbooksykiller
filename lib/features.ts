@@ -17,6 +17,7 @@ export type Features = {
   productos: boolean;
   newsletter: boolean;
   resenas: boolean;
+  penalizaciones: boolean;
 };
 
 const APAGADO: Features = {
@@ -25,6 +26,7 @@ const APAGADO: Features = {
   productos: false,
   newsletter: false,
   resenas: false,
+  penalizaciones: false,
 };
 
 // cache() deduplica dentro de la misma petición; entre peticiones vuelve a

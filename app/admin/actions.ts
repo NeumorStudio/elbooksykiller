@@ -4,6 +4,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendEmail, cancellationHtml } from "@/lib/email";
+import { aplicarFalta, redimirFalta } from "@/lib/penalizaciones";
 
 async function db() {
   const supabase = await supabaseServer();
@@ -160,7 +161,17 @@ export async function setBookingStatus(formData: FormData) {
   const id = String(formData.get("id"));
   const status = String(formData.get("status"));
   if (!["confirmed", "completed", "no_show"].includes(status)) return;
-  await supabase.from("bookings").update({ status }).eq("id", id);
+  // .select() confirma que RLS dejó tocar la fila: la escalera de faltas va
+  // con service role y no debe dispararse con ids de citas ajenas.
+  const { data: tocada } = await supabase
+    .from("bookings")
+    .update({ status })
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+  // Escalera de faltas: "no vino" suma falta, "atendida" redime una.
+  if (tocada && status === "no_show") await aplicarFalta(id);
+  else if (tocada && status === "completed") await redimirFalta(id);
   revalidatePath("/admin");
 }
 

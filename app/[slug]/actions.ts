@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
 import { notifyBookingConfirmed } from "@/lib/notifications";
+import { normalizarTel } from "@/lib/tel";
 
 async function origin() {
   const h = await headers();
@@ -72,19 +73,21 @@ export async function bookAppointment(input: {
   | { ok: true; citaUrl?: string; omitidos?: string[] }
   | { checkoutUrl: string }
   | { error: "slot_unavailable" | "invalid" }
+  | { error: "blocked"; message: string }
 > {
   const anon = anonClient();
 
   // Datos públicos: qué se cobra y si el salón puede cobrar
   const { data: svc } = await anon
     .from("services")
-    .select("name, price_cents, payment_type, deposit_cents, salons(slug, name, stripe_account_id, charges_enabled)")
+    .select("name, price_cents, payment_type, deposit_cents, salons(id, slug, name, phone, timezone, stripe_account_id, charges_enabled)")
     .eq("id", input.serviceId)
     .maybeSingle();
   if (!svc) return { error: "invalid" };
 
   const salon = svc.salons as unknown as {
-    slug: string; name: string; stripe_account_id: string | null; charges_enabled: boolean;
+    id: string; slug: string; name: string; phone: string | null; timezone: string;
+    stripe_account_id: string | null; charges_enabled: boolean;
   };
   const amount =
     svc.payment_type === "full" ? svc.price_cents
@@ -96,7 +99,46 @@ export async function bookAppointment(input: {
   // migraciones aplicadas se usa la v2 (consentimiento + productos, devuelve
   // también el token de la cita); si no, la original — el mismo código
   // desplegado funciona con ambos esquemas.
-  const { clientes } = await (await import("@/lib/features")).features();
+  const { clientes, penalizaciones } = await (await import("@/lib/features")).features();
+
+  // Escalera de faltas: cliente vetado o en bloqueo temporal no reserva
+  // online. La redención pasa por el mostrador: llamar o venir en persona
+  // (el alta manual del dueño no pasa por aquí a propósito).
+  // ponytail: chequeo en la action, no en la RPC — el widget es la única
+  // vía real; si algún día importa el curl directo, muévelo a create_booking.
+  if (penalizaciones) {
+    const tel = normalizarTel(input.phone);
+    if (tel) {
+      const llama = salon.phone ? ` Llama al ${salon.phone} y lo resolvemos.` : " Contacta con el salón y lo resolvemos.";
+      const [{ data: castigo }, { data: prog }] = await Promise.all([
+        supabaseAdmin()
+          .from("customers")
+          .select("banned, blocked_until")
+          .eq("salon_id", salon.id)
+          .eq("phone", tel)
+          .maybeSingle(),
+        supabaseAdmin()
+          .from("penalty_programs")
+          .select("active")
+          .eq("salon_id", salon.id)
+          .maybeSingle(),
+      ]);
+      const c = castigo as unknown as {
+        banned: boolean; blocked_until: string | null;
+      } | null;
+      if (prog?.active && c) {
+        if (c.banned) {
+          return { error: "blocked", message: `La reserva online no está disponible para este número por citas sin asistir.${llama}` };
+        }
+        if (c.blocked_until && new Date(c.blocked_until) > new Date()) {
+          const hasta = new Date(c.blocked_until).toLocaleDateString("es-ES", {
+            day: "numeric", month: "long", timeZone: salon.timezone,
+          });
+          return { error: "blocked", message: `No puedes reservar online hasta el ${hasta} por citas sin asistir.${llama}` };
+        }
+      }
+    }
+  }
   const base_args = {
     p_employee: input.employeeId,
     p_service: input.serviceId,

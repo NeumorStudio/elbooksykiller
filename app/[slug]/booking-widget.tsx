@@ -229,6 +229,9 @@ export default function BookingWidget({
         setError("Ese hueco se acaba de ocupar. Elige otro.");
         setSlot("");
         setRefresh((r) => r + 1);
+      } else if (result.error === "blocked") {
+        // Penalización por faltas: el mensaje ya viene explicado del servidor.
+        setError(result.message);
       } else {
         setError("No se pudo crear la reserva. Revisa tus datos.");
       }

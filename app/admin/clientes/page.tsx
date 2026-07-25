@@ -1,7 +1,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
 import { estadosPorCliente, type Estado } from "../rachas";
-import { guardarPrograma, canjearPremio } from "./actions";
+import { guardarPrograma, canjearPremio, guardarPenalizaciones, perdonarCliente } from "./actions";
 import ActionForm from "../action-form";
 import SubmitButton from "../submit-button";
 import ConfirmSubmit from "../confirm-submit";
@@ -44,11 +44,13 @@ export default async function ClientesPage() {
     );
   }
 
-  const [{ data: clientesRaw }, { data: visitasRaw }, { data: programa }] =
+  const [{ data: clientesRaw }, { data: visitasRaw }, { data: programa }, { data: castigosRaw }] =
     await Promise.all([
       supabase
         .from("customers")
-        .select("id, name, phone, email, marketing_opt_in")
+        // Las columnas de faltas solo existen tras la migración 0014.
+        .select("id, name, phone, email, marketing_opt_in" +
+          (f.penalizaciones ? ", no_show_strikes, blocked_until, banned" : ""))
         .eq("salon_id", salon.id),
       supabase
         .from("bookings")
@@ -63,9 +65,22 @@ export default async function ClientesPage() {
             .eq("salon_id", salon.id)
             .maybeSingle()
         : Promise.resolve({ data: null }),
+      f.penalizaciones
+        ? supabase
+            .from("penalty_programs")
+            .select("active, block_after, block_days, ban_after")
+            .eq("salon_id", salon.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
 
-  const clientes = clientesRaw ?? [];
+  const castigos = castigosRaw as {
+    active: boolean; block_after: number; block_days: number; ban_after: number;
+  } | null;
+  const clientes = (clientesRaw ?? []) as unknown as {
+    id: string; name: string; phone: string; email: string | null; marketing_opt_in: boolean;
+    no_show_strikes?: number; blocked_until?: string | null; banned?: boolean;
+  }[];
   const estados = estadosPorCliente(
     (visitasRaw ?? []) as { customer_id: string; starts_at: string }[]
   );
@@ -133,6 +148,16 @@ export default async function ClientesPage() {
               botón «Canjear» — púlsalo cuando se lo des.
             </p>
             <p>
+              <b>Faltas y penalizaciones</b> protege tu agenda de quien
+              reserva y no viene. Cuando marcas una cita como «no vino», ese
+              cliente suma una falta: la primera le llega como aviso por
+              email, a las que tú decidas se le bloquea la reserva online
+              unos días, y si sigue faltando queda vetado. Se redime solo:
+              cada cita a la que sí asiste borra una falta. Y si te cuenta un
+              motivo de verdad, el botón «Perdonar» lo deja limpio al
+              momento.
+            </p>
+            <p>
               El sobre ✉ junto a un nombre significa que aceptó recibir tus
               novedades por email (para la Newsletter).
             </p>
@@ -194,6 +219,71 @@ export default async function ClientesPage() {
         </ActionForm>
       )}
 
+      {/* ── Penalizaciones por faltas ──────────────────────────────── */}
+      {f.penalizaciones && (
+        <ActionForm action={guardarPenalizaciones} className="panel p-6 flex flex-col gap-4">
+          <div>
+            <h2 className="font-semibold">Faltas y penalizaciones</h2>
+            <p className="text-sm text-muted mt-1 text-pretty">
+              Para quien reserva y no viene. La primera falta avisa por email;
+              después se bloquea la reserva online. Cada cita a la que sí
+              asiste limpia una falta, y tú puedes perdonar a quien tuvo un
+              problema de verdad.
+            </p>
+          </div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              name="active"
+              defaultChecked={castigos?.active ?? false}
+              className="h-5 w-5 accent-[var(--brand)]"
+            />
+            <span className="font-medium">Penalizaciones activas</span>
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label htmlFor="pn-block" className="label">Bloquear a las… faltas</label>
+              <input
+                id="pn-block"
+                name="block_after"
+                type="number"
+                min={1}
+                max={10}
+                defaultValue={castigos?.block_after ?? 2}
+                className="field"
+              />
+            </div>
+            <div>
+              <label htmlFor="pn-dias" className="label">Días de bloqueo</label>
+              <input
+                id="pn-dias"
+                name="block_days"
+                type="number"
+                min={1}
+                max={365}
+                defaultValue={castigos?.block_days ?? 15}
+                className="field"
+              />
+            </div>
+            <div>
+              <label htmlFor="pn-ban" className="label">Veto a las… faltas</label>
+              <input
+                id="pn-ban"
+                name="ban_after"
+                type="number"
+                min={2}
+                max={20}
+                defaultValue={castigos?.ban_after ?? 3}
+                className="field"
+              />
+            </div>
+          </div>
+          <SubmitButton className="btn-primary self-start" pendingText="Guardando…">
+            Guardar penalizaciones
+          </SubmitButton>
+        </ActionForm>
+      )}
+
       {/* ── Listado ────────────────────────────────────────────────── */}
       {listado.length === 0 ? (
         <p className="panel p-6 text-muted text-pretty">
@@ -207,6 +297,18 @@ export default async function ClientesPage() {
             const req = programa?.required_visits ?? 0;
             const premiado =
               !!programa?.active && req > 0 && c.sellosN >= req;
+            const faltas = c.no_show_strikes ?? 0;
+            const bloqueadoHasta =
+              c.blocked_until && new Date(c.blocked_until) > new Date()
+                ? new Date(c.blocked_until).toLocaleDateString("es-ES", { day: "numeric", month: "short" })
+                : null;
+            const sancion = c.banned
+              ? "Vetado"
+              : bloqueadoHasta
+                ? `Bloqueado hasta ${bloqueadoHasta}`
+                : faltas > 0
+                  ? `${faltas} ${faltas === 1 ? "falta" : "faltas"}`
+                  : null;
             return (
               <li key={c.id} className="flex items-center gap-4 p-4">
                 <div className="min-w-0 flex-1">
@@ -236,7 +338,23 @@ export default async function ClientesPage() {
                     )}
                   </p>
                 </div>
-                {et && (
+                {sancion && (
+                  <span className="shrink-0 text-sm font-medium text-danger">
+                    {sancion}
+                  </span>
+                )}
+                {sancion && (
+                  <ActionForm action={perdonarCliente}>
+                    <input type="hidden" name="customer_id" value={c.id} />
+                    <ConfirmSubmit
+                      className="btn-quiet shrink-0 text-sm"
+                      message={`¿Perdonar a ${c.name}? Sus faltas vuelven a cero y podrá reservar online de nuevo.`}
+                    >
+                      Perdonar
+                    </ConfirmSubmit>
+                  </ActionForm>
+                )}
+                {et && !sancion && (
                   <span className={`shrink-0 text-sm font-medium ${et.clase}`}>
                     {et.texto}
                   </span>
