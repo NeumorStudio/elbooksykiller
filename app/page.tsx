@@ -2,11 +2,29 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import VideoFondo from "./video-fondo";
 
-export const metadata: Metadata = {
-  title: "Salonio — tu peluquería, con su propia web de reservas",
-  description:
-    "Web de reservas propia para peluquerías y barberías. Sin comisiones por cita, sin marketplace delante de tu marca. Tus clientes reservan solos en un minuto.",
-};
+/**
+ * El escaparate de Salonio no se indexa mientras la plataforma no sea un
+ * negocio en marcha.
+ *
+ * Es una página de venta —precio, «Empieza gratis», alta abierta— y el plan
+ * Hobby de Vercel está limitado a uso personal no comercial: «advertising
+ * the sale of a product or service» es uno de sus ejemplos textuales. Las
+ * webs de los salones no cambian, siguen indexándose; lo que se quita del
+ * mapa es la tienda de la propia plataforma.
+ *
+ * Para encenderla el día que se cobre —y se pase a Pro—: PLATAFORMA_INDEXABLE=1.
+ */
+export function generateMetadata(): Metadata {
+  return {
+    title: "Salonio — tu peluquería, con su propia web de reservas",
+    description:
+      "Web de reservas propia para peluquerías y barberías. Sin comisiones por cita, sin marketplace delante de tu marca. Tus clientes reservan solos en un minuto.",
+    robots:
+      process.env.PLATAFORMA_INDEXABLE === "1"
+        ? undefined
+        : { index: false, follow: false },
+  };
+}
 
 const PASOS = [
   {
@@ -132,7 +150,13 @@ export default function Home() {
       <footer className="border-t border-line bg-bg">
         <div className="mx-auto max-w-5xl px-6 py-8 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
           <span className="font-display text-base text-brand">Salonio</span>
-          <span>Sin comisiones por cita · Sin permanencia</span>
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span>Sin comisiones por cita · Sin permanencia</span>
+            <span aria-hidden className="opacity-40">·</span>
+            <Link href="/legal" className="underline underline-offset-4 hover:text-brand">
+              Aviso legal y privacidad
+            </Link>
+          </span>
         </div>
       </footer>
     </main>

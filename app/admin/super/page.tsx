@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
 import { esSuperadmin } from "@/lib/superadmin";
-import { MODULOS, type Modulo } from "@/lib/modulos";
+import { MODULOS, POR_DEFECTO, type Modulo } from "@/lib/modulos";
 import { superBloquear, superGuardarModulos } from "./actions";
 import ActionForm from "../action-form";
 import SubmitButton from "../submit-button";
@@ -139,7 +139,7 @@ export default async function SuperPage() {
                   <input
                     type="checkbox"
                     name={`mod-${m}`}
-                    defaultChecked={s.modules?.[m] !== false}
+                    defaultChecked={s.modules?.[m] ?? POR_DEFECTO[m]}
                     className="sr-only"
                   />
                   {MODULOS[m].nombre}

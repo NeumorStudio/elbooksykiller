@@ -51,5 +51,23 @@ export const estadoSalon = cache(async (salonId: string): Promise<EstadoSalon> =
   }
 });
 
+/**
+ * Con qué arranca un salón al que nadie ha tocado los módulos.
+ *
+ * Todo encendido menos **Cobros**, que empieza apagado a propósito: Stripe
+ * Connect sigue en beta —hay cuentas a medio verificar en producción— y un
+ * salón que enciende pagos sin querer se mete en un lío de dinero real que
+ * no sabe deshacer. Que lo pida quien lo quiera.
+ */
+export const POR_DEFECTO: Record<Modulo, boolean> = {
+  clientes: true,
+  productos: true,
+  newsletter: true,
+  cobros: false,
+  estadisticas: true,
+};
+
+// `?? `, no `!== false`: un módulo sin anotar cae a su defecto, y el defecto
+// ya no es "encendido" para todos.
 export const moduloActivo = (estado: EstadoSalon, m: Modulo) =>
-  estado.modules?.[m] !== false;
+  estado.modules?.[m] ?? POR_DEFECTO[m];

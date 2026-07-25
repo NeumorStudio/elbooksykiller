@@ -61,6 +61,18 @@ export default async function AdminHome() {
           Dos datos y tienes tu web de reservas funcionando.
         </p>
         <ActionForm action={createSalon} className="panel p-6 flex flex-col gap-4">
+          {/* Mientras la plataforma esté cerrada, el código lo da Salonio a
+              mano. El campo solo aparece si de verdad hace falta; la
+              comprobación que manda vive en la action. */}
+          {!!process.env.ALTA_INVITACION && (
+            <div>
+              <label htmlFor="s-inv" className="label">Código de invitación</label>
+              <input id="s-inv" name="invitacion" required className="field" />
+              <p className="text-xs text-muted mt-1.5">
+                Te lo hemos dado nosotros al darte de alta.
+              </p>
+            </div>
+          )}
           <div>
             <label htmlFor="s-name" className="label">Nombre del salón</label>
             <input id="s-name" name="name" required placeholder="Barbería Paco" className="field" />

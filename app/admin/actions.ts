@@ -10,8 +10,23 @@ import { sesionAdmin } from "@/lib/sesion-admin";
 // Comprueba sesión y que el salón no esté bloqueado por el superadmin.
 const db = sesionAdmin;
 
+/**
+ * Alta de un salón, opcionalmente por invitación.
+ *
+ * Registrarse es libre (lo hace Supabase Auth desde el navegador), pero
+ * crear un salón es lo que pone contenido público en la plataforma y datos
+ * de terceros en la base. Con `ALTA_INVITACION` definida hace falta el
+ * código; sin ella, todo sigue como antes.
+ *
+ * Se comprueba aquí y no en el formulario porque el formulario es cliente:
+ * un `fetch` a la server action se salta cualquier validación del navegador.
+ */
 export async function createSalon(formData: FormData) {
   const { supabase, user } = await db();
+  const invitacion = (process.env.ALTA_INVITACION ?? "").trim();
+  if (invitacion && String(formData.get("invitacion") ?? "").trim() !== invitacion) {
+    return { error: "Ese código de invitación no es válido." };
+  }
   const name = String(formData.get("name") ?? "").trim();
   const slug = String(formData.get("slug") ?? "")
     .trim()
