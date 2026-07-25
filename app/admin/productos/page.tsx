@@ -4,6 +4,7 @@ import { addProducto, updateProducto, deleteProducto } from "./actions";
 import ActionForm from "../action-form";
 import SubmitButton from "../submit-button";
 import ConfirmSubmit from "../confirm-submit";
+import Ayuda from "../ayuda";
 
 const eur = (cents: number) =>
   (cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
@@ -64,7 +65,30 @@ export default async function ProductosPage() {
   return (
     <main className="flex flex-col gap-8 max-w-2xl">
       <div>
-        <h1 className="font-display text-3xl font-semibold">Productos</h1>
+        <span className="flex items-center gap-2.5">
+          <h1 className="font-display text-3xl font-semibold">Productos</h1>
+          <Ayuda titulo="Productos">
+            <p>
+              Lo que vendes en el mostrador —ceras, champús, aceites— puede
+              venderse también desde tu web: al terminar de reservar, al
+              cliente se le pregunta «¿Te llevas algo?».
+            </p>
+            <p>
+              <b>Apartar no es pagar:</b> el cliente lo deja apuntado y lo
+              paga en el local el día de su cita. Tú lo ves en la ficha de la
+              cita para tenerlo preparado.
+            </p>
+            <p>
+              <b>El stock es opcional.</b> Si pones cuántas unidades tienes,
+              la web deja de ofrecer el producto cuando se aparta el último.
+              Si lo dejas vacío, se ofrece siempre.
+            </p>
+            <p>
+              «3 apartados · quedan 5» significa: 3 unidades comprometidas en
+              citas que aún no han llegado, y 5 disponibles para apartar.
+            </p>
+          </Ayuda>
+        </span>
         <p className="text-muted mt-1 text-pretty">
           Aparecen en tu web al reservar: «¿Te llevas algo?». El cliente lo
           aparta y lo tiene preparado el día de su cita.

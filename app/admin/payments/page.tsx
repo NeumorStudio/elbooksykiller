@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
 import { connectStripe } from "../actions";
+import Ayuda from "../ayuda";
 
 export default async function PaymentsPage() {
   const supabase = await supabaseServer();
@@ -35,7 +36,31 @@ export default async function PaymentsPage() {
   return (
     <main className="flex flex-col gap-6 max-w-2xl">
       <div>
-        <h1 className="font-display text-3xl font-semibold">Cobros</h1>
+        <span className="flex items-center gap-2.5">
+          <h1 className="font-display text-3xl font-semibold">Cobros</h1>
+          <Ayuda titulo="Cobros">
+            <p>
+              Con los cobros activados, tus clientes pueden pagar con tarjeta
+              al reservar: una señal o la cita entera, tú eliges en cada
+              servicio.
+            </p>
+            <p>
+              <b>¿Para qué sirve?</b> Sobre todo contra los plantones: quien
+              deja una señal, viene. Y si no viene, la señal es tuya.
+            </p>
+            <p>
+              <b>Stripe</b> es la empresa que mueve el dinero (la usan miles
+              de negocios). El alta es gratis: te pedirá tus datos y tu
+              cuenta bancaria, directamente en su web — nosotros ni los vemos
+              ni tocamos tu dinero. Lo cobrado te llega al banco cada pocos
+              días.
+            </p>
+            <p>
+              Una vez activado, ve a <b>Servicios</b> y elige en cada uno qué
+              se cobra al reservar: nada, señal o importe completo.
+            </p>
+          </Ayuda>
+        </span>
         <p className="text-muted mt-1">
           Cobra la cita o una señal al reservar. El dinero va directo a tu cuenta
           bancaria a través de Stripe — nosotros no lo tocamos.

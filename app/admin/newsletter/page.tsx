@@ -3,6 +3,7 @@ import { features } from "@/lib/features";
 import { enviarNewsletter } from "./actions";
 import ActionForm from "../action-form";
 import SubmitButton from "../submit-button";
+import Ayuda from "../ayuda";
 
 /**
  * Newsletter del salón: promos, días flojos, novedades.
@@ -66,7 +67,32 @@ export default async function NewsletterPage() {
   return (
     <main className="flex flex-col gap-8 max-w-2xl">
       <div>
-        <h1 className="font-display text-3xl font-semibold">Newsletter</h1>
+        <span className="flex items-center gap-2.5">
+          <h1 className="font-display text-3xl font-semibold">Newsletter</h1>
+          <Ayuda titulo="Newsletter">
+            <p>
+              Un email a tus clientes: promos, huecos en días flojos,
+              novedades. Solo lo reciben quienes marcaron la casilla de
+              «quiero recibir novedades» al reservar — la lista crece sola.
+            </p>
+            <p>
+              <b>Escribe como hablas.</b> Pon un asunto corto y el mensaje en
+              texto normal, separando párrafos con una línea en blanco. El
+              enlace para darse de baja se añade solo al final (es
+              obligatorio por ley).
+            </p>
+            <p>
+              <b>«Enviar a»</b> elige quién lo recibe. Para llenar un día
+              flojo, el grupo «enfriándose» funciona mejor que enviar a
+              todos: son clientes que venían a menudo y han dejado de venir —
+              un empujoncito y vuelven.
+            </p>
+            <p>
+              El envío no es inmediato: se hace por tandas en unos minutos.
+              Abajo queda el historial con cuántos lo recibieron.
+            </p>
+          </Ayuda>
+        </span>
         <p className="text-muted mt-1">
           {audiencia ?? 0}{" "}
           {(audiencia ?? 0) === 1 ? "cliente ha aceptado" : "clientes han aceptado"}{" "}

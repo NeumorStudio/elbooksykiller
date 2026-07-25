@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
+import Ayuda from "../ayuda";
 
 type Row = {
   starts_at: string;
@@ -108,7 +109,27 @@ export default async function StatsPage({
     <main className="flex flex-col gap-8 max-w-2xl">
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display text-3xl font-semibold">Estadísticas</h1>
+          <span className="flex items-center gap-2.5">
+            <h1 className="font-display text-3xl font-semibold">Estadísticas</h1>
+            <Ayuda titulo="Estadísticas">
+              <p>
+                Cómo va el negocio, mes a mes. Con las flechas ← → cambias de
+                mes, o eliges uno concreto y pulsas «Ver».
+              </p>
+              <p>Los cuatro números de arriba, del mes que estás viendo:</p>
+              <ul className="flex flex-col gap-1.5 pl-1">
+                <li><b>Citas</b> — las que se hicieron (o están confirmadas si el mes no ha acabado).</li>
+                <li><b>Ingresos est.</b> — la suma de los precios de esas citas. «Estimados» porque es lo que valen los servicios, no lo que pasó por caja.</li>
+                <li><b>Cancelaciones</b> y <b>no presentados</b> — citas anuladas y gente que no vino. Si suben, las señales al reservar (en Cobros) ayudan.</li>
+              </ul>
+              <p>
+                <b>Últimas 8 semanas</b> muestra la marcha reciente: cada
+                barra es una semana. <b>Por servicio</b> y{" "}
+                <b>por profesional</b> te dicen qué se pide más y quién
+                factura más.
+              </p>
+            </Ayuda>
+          </span>
           <p className="text-muted mt-1 first-letter:uppercase">{monthName}</p>
         </div>
         <div className="flex items-center gap-1">

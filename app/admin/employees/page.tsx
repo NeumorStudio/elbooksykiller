@@ -5,6 +5,7 @@ import {
 import SubmitButton from "../submit-button";
 import ActionForm from "../action-form";
 import ConfirmSubmit from "../confirm-submit";
+import Ayuda from "../ayuda";
 
 type WH = { id: string; weekday: number; start_min: number; end_min: number };
 type TO = { id: string; starts_at: string; ends_at: string; reason: string | null };
@@ -30,7 +31,36 @@ export default async function EmployeesPage() {
   return (
     <main className="flex flex-col gap-8 max-w-2xl">
       <div>
-        <h1 className="font-display text-3xl font-semibold">Equipo y horarios</h1>
+        <span className="flex items-center gap-2.5">
+          <h1 className="font-display text-3xl font-semibold">Equipo y horarios</h1>
+          <Ayuda titulo="Equipo y horarios">
+            <p>
+              Añade a cada persona que atiende en tu salón — aunque trabajes
+              solo, añádete a ti. Tus clientes eligen con quién reservar.
+            </p>
+            <p>
+              <b>El horario es clave:</b> los huecos que se ofrecen en tu web
+              salen de aquí. Alguien sin horario no aparece en la web. Usa
+              «Añadir tramo de horario»: marca los días, pon de qué hora a qué
+              hora, y guarda.
+            </p>
+            <p>
+              ¿Paras a mediodía? Crea <b>dos tramos</b> para los mismos días:
+              uno de mañana (ej. 10:00–14:00) y otro de tarde (17:00–20:00).
+              Así nadie reserva en tu descanso.
+            </p>
+            <p>
+              <b>«Bloquear vacaciones o ausencias»</b> quita esos días de la
+              web: viajes, médico, festivos… Al volver, puedes quitar el
+              bloqueo con la ✕.
+            </p>
+            <p>
+              <b>«Dar de baja»</b> es para cuando alguien deja el salón: sus
+              citas pasadas se conservan, pero ya no se le pueden reservar
+              nuevas.
+            </p>
+          </Ayuda>
+        </span>
         <p className="text-muted mt-1">
           Quién trabaja y cuándo. Los huecos de reserva salen de aquí.
         </p>

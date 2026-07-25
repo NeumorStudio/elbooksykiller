@@ -17,6 +17,7 @@ import ActionForm from "../action-form";
 import ConfirmSubmit from "../confirm-submit";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
+import Ayuda from "../ayuda";
 
 export default async function WebsitePage() {
   const supabase = await supabaseServer();
@@ -71,7 +72,39 @@ export default async function WebsitePage() {
   return (
     <main className="flex flex-col gap-6 max-w-2xl">
       <div>
-        <h1 className="font-display text-3xl font-semibold">Mi web</h1>
+        <span className="flex items-center gap-2.5">
+          <h1 className="font-display text-3xl font-semibold">Mi web</h1>
+          <Ayuda titulo="Mi web">
+            <p>
+              Tu web de reservas ya existe y funciona — aquí la vistes y la
+              repartes.
+            </p>
+            <p>
+              <b>Comparte tu dirección</b> donde ya hablas con tus clientes:
+              estado de WhatsApp, bio de Instagram, Google Maps. Es el enlace
+              de arriba.
+            </p>
+            <p>
+              <b>El código QR</b> es para el local: imprime el cartel y ponlo
+              en el mostrador o el escaparate. Quien lo escanea con la cámara
+              cae directo en tu web para reservar.
+            </p>
+            <p>
+              <b>Logo y fotos</b> son tu escaparate digital. Las fotos de tus
+              trabajos son lo que más convence a quien no te conoce — sube
+              tus mejores cortes.
+            </p>
+            <p>
+              <b>Reseñas de Google:</b> si pegas el enlace de tu ficha,
+              después de cada visita se invita al cliente a dejarte reseña.
+            </p>
+            <p>
+              <b>Dominio propio</b> es opcional: si compraste
+              «tupeluqueria.com», tu web puede vivir ahí. Sin dominio, tu
+              dirección de la plataforma funciona igual de bien.
+            </p>
+          </Ayuda>
+        </span>
         <p className="text-muted mt-1">La dirección donde tus clientes reservan.</p>
       </div>
 

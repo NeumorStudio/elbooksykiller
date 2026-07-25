@@ -4,6 +4,7 @@ import { addService, deleteService, updateServicePayment } from "../actions";
 import SubmitButton from "../submit-button";
 import ActionForm from "../action-form";
 import ConfirmSubmit from "../confirm-submit";
+import Ayuda from "../ayuda";
 
 const PAY_LABEL: Record<string, string> = {
   none: "Se paga en el local",
@@ -30,7 +31,31 @@ export default async function ServicesPage() {
   return (
     <main className="flex flex-col gap-8 max-w-2xl">
       <div>
-        <h1 className="font-display text-3xl font-semibold">Servicios</h1>
+        <span className="flex items-center gap-2.5">
+          <h1 className="font-display text-3xl font-semibold">Servicios</h1>
+          <Ayuda titulo="Servicios">
+            <p>
+              Un servicio es cada cosa que se puede reservar en tu web: «Corte
+              caballero», «Tinte», «Corte y barba»… Sin servicios, nadie puede
+              reservar.
+            </p>
+            <p>
+              <b>Para añadir uno</b>, rellena nombre, precio y minutos abajo.
+              Los minutos importan: son lo que ocupa en la agenda y de ahí
+              salen los huecos que se ofrecen a tus clientes. Si un corte te
+              lleva media hora, pon 30.
+            </p>
+            <p>
+              <b>«Quitar»</b> lo esconde de la web para nuevas reservas; las
+              citas ya hechas no se tocan.
+            </p>
+            <p>
+              Si tienes los cobros activados, en cada servicio puedes elegir
+              si se paga al reservar: nada, una señal o el importe completo.
+              La señal reduce mucho los plantones.
+            </p>
+          </Ayuda>
+        </span>
         <p className="text-muted mt-1">Lo que tus clientes pueden reservar, con precio y duración.</p>
       </div>
 

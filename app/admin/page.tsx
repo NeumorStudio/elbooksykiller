@@ -6,6 +6,7 @@ import { features } from "@/lib/features";
 import Agenda, { type Cita, type Profesional, type Servicio } from "./agenda";
 import ActionForm from "./action-form";
 import SubmitButton from "./submit-button";
+import Ayuda from "./ayuda";
 
 type Row = {
   id: string;
@@ -331,7 +332,33 @@ export default async function AdminHome() {
       )}
 
       <div className="flex items-baseline justify-between flex-wrap gap-2">
-        <h1 className="font-display text-3xl font-semibold">Agenda</h1>
+        <span className="flex items-center gap-2.5">
+          <h1 className="font-display text-3xl font-semibold">Agenda</h1>
+          <Ayuda titulo="Agenda">
+            <p>
+              Aquí están todas tus citas. Cada reserva que hace un cliente en
+              tu web aparece sola, al momento — no tienes que apuntar nada.
+            </p>
+            <p>
+              <b>Para ver un día</b>, tócalo en el calendario. Debajo salen sus
+              citas por horas.
+            </p>
+            <p>
+              <b>Para apuntar una cita a mano</b> (alguien que llama por
+              teléfono o entra por la puerta), toca un hueco libre del día y
+              rellena el nombre. También puedes usar el botón 🎤 de abajo y
+              decirlo con la voz.
+            </p>
+            <p>
+              <b>Al tocar una cita</b> se abre su ficha: ahí puedes llamar al
+              cliente, cancelarla o marcar que no vino.
+            </p>
+            <p>
+              La cifra de «Hoy» es lo que llevas hecho hoy en euros; «por
+              venir» es lo que queda pendiente del día.
+            </p>
+          </Ayuda>
+        </span>
         <p className="text-sm text-muted">
           Este mes: <b className="text-ink">{monthBookings?.length ?? 0} citas</b>
           {" · "}

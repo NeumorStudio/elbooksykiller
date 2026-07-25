@@ -6,6 +6,7 @@ import ActionForm from "../action-form";
 import SubmitButton from "../submit-button";
 import ConfirmSubmit from "../confirm-submit";
 import { telHref } from "@/lib/tel";
+import Ayuda from "../ayuda";
 
 /**
  * Los clientes del salón: quién viene, con qué ritmo, y su tarjeta.
@@ -106,7 +107,33 @@ export default async function ClientesPage() {
   return (
     <main className="flex flex-col gap-8 max-w-2xl">
       <div>
-        <h1 className="font-display text-3xl font-semibold">Clientes</h1>
+        <span className="flex items-center gap-2.5">
+          <h1 className="font-display text-3xl font-semibold">Clientes</h1>
+          <Ayuda titulo="Clientes">
+            <p>
+              Tu lista de clientes se hace sola: cada persona que reserva se
+              apunta aquí con su teléfono. No hay que dar de alta a nadie.
+            </p>
+            <p>Cada cliente lleva una etiqueta según su ritmo de visitas:</p>
+            <ul className="flex flex-col gap-1.5 pl-1">
+              <li><b className="text-ok">En racha</b> — viene con regularidad. Tu cliente fiel.</li>
+              <li><b className="text-brand">Enfriándose</b> — venía a menudo y lleva más de la cuenta sin aparecer. Es a quien conviene escribir antes de perderlo.</li>
+              <li><b>Nuevo</b> — una o dos visitas de momento.</li>
+              <li><b className="text-danger">Perdido</b> — hace mucho que no viene.</li>
+            </ul>
+            <p>
+              <b>La tarjeta de fidelidad</b> funciona como la de cartón de
+              toda la vida, pero sin cartón: eliges cuántas visitas hacen
+              falta y cuál es el premio. El sello se apunta solo cuando la
+              cita se completa. Cuando alguien llega al premio, te sale el
+              botón «Canjear» — púlsalo cuando se lo des.
+            </p>
+            <p>
+              El sobre ✉ junto a un nombre significa que aceptó recibir tus
+              novedades por email (para la Newsletter).
+            </p>
+          </Ayuda>
+        </span>
         <p className="text-muted mt-1">
           {clientes.length} en total · {resumen.racha} en racha ·{" "}
           <span className={resumen.enfriandose ? "text-brand font-medium" : ""}>
