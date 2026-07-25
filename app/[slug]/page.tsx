@@ -436,7 +436,7 @@ export default async function SalonPage({
             )}
           </Link>
         )}
-        <span>Reservas por ElBooksyKiller</span>
+        <span>Reservas por Salonio</span>
       </footer>
     </main>
     {/* Fuera de <main>: es position:fixed, y cualquier transform/filter en

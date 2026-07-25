@@ -3,7 +3,7 @@ import Link from "next/link";
 import VideoFondo from "./video-fondo";
 
 export const metadata: Metadata = {
-  title: "ElBooksyKiller — tu peluquería, con su propia web de reservas",
+  title: "Salonio — tu peluquería, con su propia web de reservas",
   description:
     "Web de reservas propia para peluquerías y barberías. Sin comisiones por cita, sin marketplace delante de tu marca. Tus clientes reservan solos en un minuto.",
 };
@@ -131,7 +131,7 @@ export default function Home() {
 
       <footer className="border-t border-line bg-bg">
         <div className="mx-auto max-w-5xl px-6 py-8 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
-          <span className="font-display text-base text-brand">ElBooksyKiller</span>
+          <span className="font-display text-base text-brand">Salonio</span>
           <span>Sin comisiones por cita · Sin permanencia</span>
         </div>
       </footer>

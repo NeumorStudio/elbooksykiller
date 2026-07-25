@@ -14,7 +14,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "ElBooksyKiller",
+  title: "Salonio",
   description: "Reservas online para tu peluquería",
 };
 

@@ -44,7 +44,7 @@ function LoginForm() {
     <main className="flex-1 flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
         <h1 className="font-display text-3xl font-semibold text-center text-brand">
-          ElBooksyKiller
+          Salonio
         </h1>
         <p className="text-center text-muted mt-2 mb-8">
           {mode === "login"

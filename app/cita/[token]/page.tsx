@@ -311,7 +311,7 @@ export default async function CitaPage({
         <Link href={`/${salon.slug}`} className="btn-primary px-8">
           Reservar otra cita
         </Link>
-        <p className="mt-6 text-xs text-muted">Reservas por ElBooksyKiller</p>
+        <p className="mt-6 text-xs text-muted">Reservas por Salonio</p>
       </footer>
     </main>
   );

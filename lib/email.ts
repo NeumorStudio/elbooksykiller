@@ -3,7 +3,7 @@ import { Resend } from "resend";
 // Sin RESEND_API_KEY los envíos se saltan en silencio: el email nunca
 // debe romper una reserva.
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const FROM = process.env.EMAIL_FROM ?? "ElBooksyKiller <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "Salonio <onboarding@resend.dev>";
 
 type SendArgs = {
   to: string;
@@ -63,7 +63,7 @@ const wrap = (title: string, body: string) => `
     <h1 style="margin:0 0 16px;font-size:20px;color:#8a6410">${title}</h1>
     ${body}
   </div>
-  <p style="text-align:center;font-size:12px;color:#8d857a;margin-top:12px">Reservas por ElBooksyKiller</p>
+  <p style="text-align:center;font-size:12px;color:#8d857a;margin-top:12px">Reservas por Salonio</p>
 </div>`;
 
 const row = (label: string, value: string) =>
