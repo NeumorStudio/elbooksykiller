@@ -56,9 +56,9 @@ export default async function AdminLayout({
   return (
     <div className="taller min-h-screen bg-bg text-ink flex flex-col">
       <nav className="border-b border-line bg-bg sticky top-0 z-10 print:hidden">
-        {/* Mismo degradado que la tira de días: en móvil la nav se desbordaba
-            cortando "Estadísticas" sin señal de que se puede deslizar. */}
-        <div className="mx-auto max-w-4xl px-5 h-14 flex items-center gap-1 overflow-x-auto whitespace-nowrap fade-x fade-x-solo-movil">
+        {/* Sin scroll horizontal: con lo diario visible y el resto bajo
+            «Más», la barra cabe entera hasta en 360px. */}
+        <div className="mx-auto max-w-4xl px-4 sm:px-5 h-14 flex items-center gap-1 whitespace-nowrap">
           <span className="font-display text-lg font-semibold text-brand mr-4 truncate hidden sm:block">
             {esSuper ? "Superadmin" : (salon?.name ?? "Mi salón")}
           </span>
@@ -75,7 +75,7 @@ export default async function AdminLayout({
           )}
           <div className="ml-auto flex items-center gap-1">
             <form action={logout}>
-              <button className="px-3 py-2 rounded-lg text-sm text-muted hover:bg-surface">
+              <button className="px-2 sm:px-3 py-2 rounded-lg text-sm text-muted hover:bg-surface">
                 Salir
               </button>
             </form>
