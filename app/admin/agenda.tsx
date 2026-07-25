@@ -190,6 +190,10 @@ export default function Agenda({
 
   return (
     <section aria-label="Agenda" className="flex flex-col gap-6">
+      {/* En tablet apaisada y escritorio, "hoy" y el mes caben uno al lado
+          del otro: se ve quién viene ahora y dónde queda sitio sin hacer
+          scroll. Por debajo de lg siguen apilados. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
       {/* ── 1. Hoy, siempre lo primero ─────────────────────────────
           El barbero abre el panel 40 veces al día para una sola
           pregunta: quién viene ahora. */}
@@ -254,6 +258,7 @@ export default function Agenda({
           })}
         </div>
       </div>
+      </div>
 
       {/* ── 3. El día elegido, en rejilla horaria ──────────────────
           Ocupado en oro, libre pulsable. Tocar un hueco precarga el
@@ -276,7 +281,7 @@ export default function Agenda({
           </p>
         ) : (
           <div className="tarjeta overflow-x-auto">
-            <div className="flex min-w-max">
+            <div className="flex min-w-max w-full">
               {/* Regla de horas */}
               <div className="sticky left-0 z-10 w-12 shrink-0 bg-surface">
                 <div className="h-9" />
@@ -298,7 +303,7 @@ export default function Agenda({
                 const suyas = delDia.filter((c) => c.employee_id === p.id);
                 const libres = libresDe(p);
                 return (
-                  <div key={p.id} className="w-40 shrink-0 border-l border-line-subtle">
+                  <div key={p.id} className="w-40 shrink-0 grow basis-40 border-l border-line-subtle">
                     <p className="h-9 flex items-center justify-center text-sm font-medium truncate px-2">
                       {p.name}
                     </p>

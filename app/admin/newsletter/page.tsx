@@ -30,7 +30,7 @@ export default async function NewsletterPage() {
 
   if (!f.newsletter) {
     return (
-      <main className="max-w-2xl">
+      <main className="max-w-2xl mx-auto">
         <h1 className="font-display text-3xl font-semibold">Newsletter</h1>
         <p className="panel mt-6 p-6 text-muted text-pretty">
           Muy pronto. Podrás avisar a tus clientes de promos y días flojos por
@@ -69,7 +69,7 @@ export default async function NewsletterPage() {
   };
 
   return (
-    <main className="flex flex-col gap-8 max-w-2xl">
+    <main className="flex flex-col gap-8 max-w-2xl mx-auto">
       <div>
         <span className="flex items-center gap-2.5">
           <h1 className="font-display text-3xl font-semibold">Newsletter</h1>

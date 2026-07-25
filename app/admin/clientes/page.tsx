@@ -33,7 +33,7 @@ export default async function ClientesPage() {
 
   if (!f.clientes) {
     return (
-      <main className="max-w-2xl">
+      <main className="max-w-2xl mx-auto">
         <h1 className="font-display text-3xl font-semibold">Clientes</h1>
         <p className="panel mt-6 p-6 text-muted text-pretty">
           Muy pronto. Aquí verás quién viene y con qué frecuencia, y podrás
@@ -124,7 +124,7 @@ export default async function ClientesPage() {
   for (const c of listado) if (c.ficha) resumen[c.ficha.estado]++;
 
   return (
-    <main className="flex flex-col gap-8 max-w-2xl">
+    <main className="flex flex-col gap-8 max-w-2xl mx-auto">
       <div>
         <span className="flex items-center gap-2.5">
           <h1 className="font-display text-3xl font-semibold">Clientes</h1>

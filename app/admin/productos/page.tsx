@@ -32,7 +32,7 @@ export default async function ProductosPage() {
 
   if (!f.productos) {
     return (
-      <main className="max-w-2xl">
+      <main className="max-w-2xl mx-auto">
         <h1 className="font-display text-3xl font-semibold">Productos</h1>
         <p className="panel mt-6 p-6 text-muted text-pretty">
           Muy pronto. Podrás vender productos junto a la cita —ceras, champús,
@@ -67,7 +67,7 @@ export default async function ProductosPage() {
   }
 
   return (
-    <main className="flex flex-col gap-8 max-w-2xl">
+    <main className="flex flex-col gap-8 max-w-2xl mx-auto">
       <div>
         <span className="flex items-center gap-2.5">
           <h1 className="font-display text-3xl font-semibold">Productos</h1>

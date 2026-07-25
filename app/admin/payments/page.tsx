@@ -38,7 +38,7 @@ export default async function PaymentsPage() {
   }
 
   return (
-    <main className="flex flex-col gap-6 max-w-2xl">
+    <main className="flex flex-col gap-6 max-w-2xl mx-auto">
       <div>
         <span className="flex items-center gap-2.5">
           <h1 className="font-display text-3xl font-semibold">Cobros</h1>

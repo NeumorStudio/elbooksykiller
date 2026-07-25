@@ -110,7 +110,7 @@ export default async function StatsPage({
   const monthName = monthStart.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
 
   return (
-    <main className="flex flex-col gap-8 max-w-2xl">
+    <main className="flex flex-col gap-8 max-w-2xl mx-auto">
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <span className="flex items-center gap-2.5">
