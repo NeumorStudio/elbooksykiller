@@ -18,6 +18,7 @@ import ConfirmSubmit from "../confirm-submit";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
 import Ayuda from "../ayuda";
+import { BotonInstalar } from "../instalar";
 
 export default async function WebsitePage() {
   const supabase = await supabaseServer();
@@ -115,6 +116,18 @@ export default async function WebsitePage() {
             {platformUrl} ↗
           </Link>
         </p>
+      </div>
+
+      <div className="panel p-6 flex flex-col gap-4">
+        <div>
+          <h2 className="font-semibold">Tu panel, como una app</h2>
+          <p className="text-sm text-muted mt-1 text-pretty">
+            Instálalo en la tablet o el móvil del salón y tendrás la agenda a
+            un toque, en pantalla completa y sin escribir la dirección cada
+            vez. Es el panel, no tu web de reservas: eso es lo de abajo.
+          </p>
+        </div>
+        <BotonInstalar />
       </div>
 
       <div className="panel p-6 flex flex-col gap-4">

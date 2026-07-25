@@ -5,6 +5,17 @@ import Assistant from "./assistant";
 import NavLinks from "./nav-links";
 import { esSuperadmin } from "@/lib/superadmin";
 import { estadoSalon, moduloActivo, MODULOS, type Modulo } from "@/lib/modulos";
+import { AvisoInstalar } from "./instalar";
+
+// El panel se instala como app aparte de la web de reservas: su scope es
+// /admin, así que abre directo en la agenda y no en la página del salón.
+export const metadata = {
+  title: "Salonio — mi agenda",
+  manifest: "/admin/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Salonio", statusBarStyle: "black-translucent" as const },
+  icons: { apple: "/admin/pwa-icon?size=180" },
+};
+export const viewport = { themeColor: "#222325" };
 
 export default async function AdminLayout({
   children,
@@ -84,6 +95,7 @@ export default async function AdminLayout({
       </nav>
       <div className="mx-auto w-full max-w-4xl px-5 py-8 pb-28 flex-1">{children}</div>
       {salon && !esSuper && <Assistant />}
+      {salon && <AvisoInstalar />}
     </div>
   );
 }

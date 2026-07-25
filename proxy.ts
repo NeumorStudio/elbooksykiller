@@ -66,8 +66,13 @@ export default async function proxy(request: NextRequest) {
   if (!pathname.startsWith("/admin")) return response;
 
   const isLogin = pathname === "/admin/login";
+  // El navegador pide manifest e iconos SIN cookies: si el guard los
+  // redirige al login, la instalación del panel como app no llega a
+  // ofrecerse. No llevan ningún dato privado.
+  const publicoPWA =
+    pathname === "/admin/manifest.webmanifest" || pathname === "/admin/pwa-icon";
 
-  if (!user && !isLogin) {
+  if (!user && !isLogin && !publicoPWA) {
     return NextResponse.redirect(new URL("/admin/login", request.url));
   }
   if (user && isLogin) {
