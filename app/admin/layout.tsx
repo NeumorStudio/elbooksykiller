@@ -60,18 +60,20 @@ export default async function AdminLayout({
             cortando "Estadísticas" sin señal de que se puede deslizar. */}
         <div className="mx-auto max-w-4xl px-5 h-14 flex items-center gap-1 overflow-x-auto whitespace-nowrap fade-x fade-x-solo-movil">
           <span className="font-display text-lg font-semibold text-brand mr-4 truncate hidden sm:block">
-            {salon?.name ?? "Mi salón"}
+            {esSuper ? "Superadmin" : (salon?.name ?? "Mi salón")}
           </span>
-          <NavLinks ocultos={ocultos} />
+          {/* El superadmin no gestiona un salón: su menú es solo el panel. */}
+          {esSuper ? (
+            <Link
+              href="/admin/super"
+              className="px-3 min-h-11 inline-flex items-center rounded-lg text-sm font-medium text-brand hover:bg-surface"
+            >
+              Super
+            </Link>
+          ) : (
+            <NavLinks ocultos={ocultos} />
+          )}
           <div className="ml-auto flex items-center gap-1">
-            {esSuper && (
-              <Link
-                href="/admin/super"
-                className="px-3 py-2 rounded-lg text-sm font-medium text-brand hover:bg-surface"
-              >
-                Super
-              </Link>
-            )}
             <form action={logout}>
               <button className="px-3 py-2 rounded-lg text-sm text-muted hover:bg-surface">
                 Salir
@@ -81,7 +83,7 @@ export default async function AdminLayout({
         </div>
       </nav>
       <div className="mx-auto w-full max-w-4xl px-5 py-8 pb-28 flex-1">{children}</div>
-      {salon && <Assistant />}
+      {salon && !esSuper && <Assistant />}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import Agenda, { type Cita, type Profesional, type Servicio } from "./agenda";
 import ActionForm from "./action-form";
 import SubmitButton from "./submit-button";
 import Ayuda from "./ayuda";
+import { esSuperadmin } from "@/lib/superadmin";
 
 type Row = {
   id: string;
@@ -25,6 +26,8 @@ type Row = {
 export default async function AdminHome() {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
+  // El superadmin no gestiona una peluquería: directo a su panel.
+  if (esSuperadmin(user?.email)) redirect("/admin/super");
   const { data: salon } = await supabase
     .from("salons")
     .select("*")
