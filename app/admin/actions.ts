@@ -148,6 +148,152 @@ export async function deleteHours(formData: FormData) {
 }
 
 /**
+ * Fija el horario de unos días concretos, sustituyendo lo que hubiera.
+ *
+ * addHours() solo sabe AÑADIR tramos, y ese es justo el problema: para
+ * partir una jornada de 10-20 había que borrar el tramo, crear el de mañana
+ * y crear el de tarde — tres pasos, y en medio el empleado se quedaba sin
+ * horario y desaparecía de la web de reservas. Peor: nada impedía dejar dos
+ * tramos solapados, y en producción pasó (10:00-14:00 junto a 04:00-21:00,
+ * que ofrecía huecos a las cuatro de la madrugada).
+ *
+ * Aquí el borrado y la inserción son una sola operación sobre los días
+ * elegidos, así que el estado intermedio no existe y el solape no se puede
+ * construir: dos tramos del mismo día vienen siempre de este formulario,
+ * que valida que la tarde empiece después de acabar la mañana.
+ */
+export async function guardarHorario(formData: FormData) {
+  const { supabase } = await db();
+  const employeeId = String(formData.get("employee_id"));
+  const modo = String(formData.get("modo"));
+  const weekdays = [...new Set(formData.getAll("weekday").map(Number))].filter(
+    (d) => d >= 0 && d <= 6
+  );
+  if (weekdays.length === 0) return { error: "Elige al menos un día." };
+
+  const tramos: [number, number][] = [];
+  if (modo === "continua") {
+    const a = toMin(String(formData.get("inicio")));
+    const b = toMin(String(formData.get("fin")));
+    if (b <= a) return { error: "La hora de cierre debe ser posterior a la de apertura." };
+    tramos.push([a, b]);
+  } else if (modo === "partida") {
+    const m1 = toMin(String(formData.get("m_inicio")));
+    const m2 = toMin(String(formData.get("m_fin")));
+    const t1 = toMin(String(formData.get("t_inicio")));
+    const t2 = toMin(String(formData.get("t_fin")));
+    if (m2 <= m1) return { error: "El tramo de mañana termina antes de empezar." };
+    if (t2 <= t1) return { error: "El tramo de tarde termina antes de empezar." };
+    if (t1 < m2) return { error: "La tarde no puede empezar antes de que acabe la mañana." };
+    tramos.push([m1, m2], [t1, t2]);
+  } else if (modo !== "cerrado") {
+    return { error: "Elige jornada continua, partida o cerrado." };
+  }
+
+  // La RLS de working_hours ya comprueba que el empleado es de un salón de
+  // quien firma; si no lo es, esto afecta a cero filas.
+  const { error: errBorrado } = await supabase
+    .from("working_hours")
+    .delete()
+    .eq("employee_id", employeeId)
+    .in("weekday", weekdays);
+  if (errBorrado) return { error: "No se pudo guardar el horario. Inténtalo de nuevo." };
+
+  if (tramos.length > 0) {
+    const { error } = await supabase.from("working_hours").insert(
+      weekdays.flatMap((weekday) =>
+        tramos.map(([start_min, end_min]) => ({
+          employee_id: employeeId,
+          weekday,
+          start_min,
+          end_min,
+        }))
+      )
+    );
+    if (error) return { error: "No se pudo guardar el horario. Inténtalo de nuevo." };
+  }
+  revalidatePath("/admin/employees");
+}
+
+// Dar de baja es reversible: `active` es una bandera, no un borrado. Sin
+// esta acción, un clic por error en "Dar de baja" era definitivo desde el
+// panel — y el empleado de temporada que vuelve obligaba a crearlo de nuevo,
+// perdiendo el vínculo con su historial de citas.
+export async function reactivarEmpleado(formData: FormData) {
+  const { supabase } = await db();
+  await supabase
+    .from("employees")
+    .update({ active: true })
+    .eq("id", String(formData.get("id")));
+  revalidatePath("/admin/employees");
+}
+
+// Copiar el horario de un compañero. En un salón pequeño casi todo el mundo
+// hace las mismas horas, así que dar de alta a alguien son dos clics en vez
+// de rellenar catorce campos.
+export async function copiarHorario(formData: FormData) {
+  const { supabase } = await db();
+  const destino = String(formData.get("destino"));
+  const origen = String(formData.get("origen"));
+  if (!origen) return { error: "Elige de quién copiar el horario." };
+  if (origen === destino) return { error: "Ese es su propio horario." };
+
+  const { data: filas } = await supabase
+    .from("working_hours")
+    .select("weekday, start_min, end_min")
+    .eq("employee_id", origen);
+  if (!filas?.length) return { error: "Esa persona todavía no tiene horario." };
+
+  await supabase.from("working_hours").delete().eq("employee_id", destino);
+  const { error } = await supabase
+    .from("working_hours")
+    .insert(filas.map((f) => ({ ...f, employee_id: destino })));
+  if (error) return { error: "No se pudo copiar el horario. Inténtalo de nuevo." };
+  revalidatePath("/admin/employees");
+}
+
+/**
+ * Cierra el salón un día suelto: festivo local, mudanza, lo que sea.
+ *
+ * Por debajo es una ausencia para cada persona del equipo, porque `time_off`
+ * cuelga del empleado y no del salón. Se expone aparte porque nadie busca
+ * "bloquear ausencias" cuando lo que quiere decir es "el 15 no abro", y
+ * porque hacerlo a mano son tantas operaciones como empleados.
+ */
+export async function cerrarDia(formData: FormData) {
+  const { supabase, user } = await db();
+  const dia = String(formData.get("dia"));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return { error: "Elige la fecha que cierras." };
+
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("timezone, employees(id, active)")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!salon) return { error: "Primero crea tu peluquería en la Agenda." };
+
+  const activos = (salon.employees as { id: string; active: boolean }[]).filter((e) => e.active);
+  if (activos.length === 0) return { error: "No hay nadie en el equipo a quien cerrarle el día." };
+
+  const tz = salon.timezone ?? "Europe/Madrid";
+  const fin = new Date(dia);
+  fin.setDate(fin.getDate() + 1); // ends_at es exclusivo
+  const motivo = String(formData.get("motivo") ?? "").trim() || "Cerrado";
+
+  const { error } = await supabase.from("time_off").insert(
+    activos.map((e) => ({
+      employee_id: e.id,
+      starts_at: zonedMidnightUtc(dia, tz),
+      ends_at: zonedMidnightUtc(fin.toISOString().slice(0, 10), tz),
+      reason: motivo,
+    }))
+  );
+  if (error) return { error: "No se pudo cerrar el día. Inténtalo de nuevo." };
+  revalidatePath("/admin/employees");
+}
+
+/**
  * Marca el estado de una cita ya pasada o en curso.
  *
  * La BD admitía 'completed' y 'no_show' desde el día uno, pero no había
