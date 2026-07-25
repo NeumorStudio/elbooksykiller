@@ -11,6 +11,7 @@ import { confirmPaidSession } from "./actions";
 import { fotosDelSalon } from "./galeria";
 import { telHref } from "@/lib/tel";
 import { features } from "@/lib/features";
+import { estadoSalon, moduloActivo } from "@/lib/modulos";
 
 export const viewport = { themeColor: "#1b1712" };
 
@@ -101,6 +102,10 @@ export default async function SalonPage({
 
   if (!salon) notFound();
 
+  // Salón bloqueado por el superadmin: su web desaparece.
+  const estadoModulos = await estadoSalon(salon.id);
+  if (estadoModulos.blocked) notFound();
+
   const paidBooking = paid ? await confirmPaidSession(slug, paid) : null;
 
   const services = salon.services.filter((s) => s.active);
@@ -110,7 +115,7 @@ export default async function SalonPage({
   // las migraciones ambas consultas devuelven vacío y la página se comporta
   // exactamente como hoy.
   const f = await features();
-  const productos = f.productos
+  const productos = f.productos && moduloActivo(estadoModulos, "productos")
     ? ((
         await supabase
           .from("products")

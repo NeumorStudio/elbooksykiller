@@ -4,6 +4,8 @@ import { enviarNewsletter } from "./actions";
 import ActionForm from "../action-form";
 import SubmitButton from "../submit-button";
 import Ayuda from "../ayuda";
+import ModuloApagado from "../modulo-apagado";
+import { estadoSalon, moduloActivo } from "@/lib/modulos";
 
 /**
  * Newsletter del salón: promos, días flojos, novedades.
@@ -23,6 +25,8 @@ export default async function NewsletterPage() {
     .maybeSingle();
 
   if (!salon) return <p className="text-muted">Primero crea tu peluquería en la Agenda.</p>;
+  if (!moduloActivo(await estadoSalon(salon.id), "newsletter"))
+    return <ModuloApagado titulo="Newsletter" />;
 
   if (!f.newsletter) {
     return (

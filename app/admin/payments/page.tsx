@@ -3,6 +3,8 @@ import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
 import { connectStripe } from "../actions";
 import Ayuda from "../ayuda";
+import ModuloApagado from "../modulo-apagado";
+import { estadoSalon, moduloActivo } from "@/lib/modulos";
 
 export default async function PaymentsPage() {
   const supabase = await supabaseServer();
@@ -15,6 +17,8 @@ export default async function PaymentsPage() {
     .maybeSingle();
 
   if (!salon) return <p className="text-muted">Primero crea tu peluquería en la Agenda.</p>;
+  if (!moduloActivo(await estadoSalon(salon.id), "cobros"))
+    return <ModuloApagado titulo="Cobros" />;
 
   // Al volver del onboarding, refrescar el estado desde Stripe
   let chargesEnabled = salon.charges_enabled;

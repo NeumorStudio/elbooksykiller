@@ -19,11 +19,11 @@ const LINKS = [
   ["/admin/website", "Mi web"],
 ] as const;
 
-export default function NavLinks() {
+export default function NavLinks({ ocultos = [] }: { ocultos?: string[] }) {
   const pathname = usePathname();
   return (
     <>
-      {LINKS.map(([href, label]) => {
+      {LINKS.filter(([href]) => !ocultos.includes(href)).map(([href, label]) => {
         const current = pathname === href;
         return (
           <Link

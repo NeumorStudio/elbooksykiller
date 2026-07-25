@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import Ayuda from "../ayuda";
+import ModuloApagado from "../modulo-apagado";
+import { estadoSalon, moduloActivo } from "@/lib/modulos";
 
 type Row = {
   starts_at: string;
@@ -28,6 +30,8 @@ export default async function StatsPage({
     .maybeSingle();
 
   if (!salon) return <p className="text-muted">Primero crea tu peluquería en la Agenda.</p>;
+  if (!moduloActivo(await estadoSalon(salon.id), "estadisticas"))
+    return <ModuloApagado titulo="Estadísticas" />;
 
   const now = new Date();
   // Mes seleccionado (?mes=YYYY-MM); por defecto, el actual
