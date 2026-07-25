@@ -124,7 +124,15 @@ export function faltaHtml(d: {
       ? `Tu última cita en <b>${esc(d.salonName)}</b> quedó sin asistir. Sabemos que puede pasar — pero ese hueco lo pierde otro cliente y el salón. Si se repite, la reserva online se bloqueará temporalmente.${llamar}`
       : d.nivel === "bloqueo"
         ? `Por citas sin asistir, tu reserva online en <b>${esc(d.salonName)}</b> queda pausada hasta el <b>${esc(d.hasta ?? "")}</b>. Cada cita a la que asistas después limpia una falta.${llamar}`
-        : `Por faltas repetidas, la reserva online en <b>${esc(d.salonName)}</b> ya no está disponible para ti.${llamar}`;
+        : // El veto no caduca solo, y quien lo tiene no puede reservar: sin
+          // decirle por dónde se sale, la escalera acaba en un muro y el
+          // salón pierde al cliente sin enterarse. El bloqueo es de la
+          // reserva *online*, no de la puerta del local — que se note.
+          `Por faltas repetidas, la reserva online en <b>${esc(d.salonName)}</b> queda cerrada. No es una puerta cerrada: ${
+            d.salonPhone
+              ? `puedes seguir pidiendo cita llamando al <a href="${telAttr(d.salonPhone)}">${esc(d.salonPhone)}</a>`
+              : "puedes seguir pidiendo cita en el salón"
+          }, y cuando vuelvas a venir con normalidad te reactivamos la reserva por internet.`;
   return wrap(
     d.nivel === "aviso" ? "Te esperamos y no viniste" : "Reserva online pausada",
     `<p style="font-size:14px;margin:0">Hola ${esc(d.customerName)}: ${cuerpo}</p>`
