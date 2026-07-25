@@ -484,6 +484,37 @@ html[data-reserva] .solo-escaparate {
   }
 }
 
+/* ── Aviso de "cargando" en los enlaces del menú ──────────────────────
+   Un punto de tamaño fijo SIEMPRE presente (visibility, no display): si
+   apareciera al pulsar movería el texto de sitio. Arranca invisible y con
+   100 ms de retraso, así una navegación rápida no llega a enseñarlo y solo
+   se ve cuando de verdad tarda — que es el caso de la tablet vieja. */
+.link-hint {
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-left: 0.4rem;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0;
+  visibility: hidden;
+}
+.link-hint.is-pending {
+  visibility: visible;
+  animation-name: hint-entra, hint-late;
+  animation-duration: 200ms, 1s;
+  animation-delay: 100ms, 100ms;
+  animation-timing-function: ease, ease-in-out;
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: forwards, none;
+}
+@keyframes hint-entra {
+  to { opacity: 1; }
+}
+@keyframes hint-late {
+  50% { opacity: 0.25; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

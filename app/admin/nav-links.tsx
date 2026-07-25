@@ -1,8 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+
+/**
+ * Punto que late mientras la sección está cargando.
+ *
+ * En una tablet vieja el panel tarda lo suficiente como para que el dueño
+ * dude de si ha pulsado y vuelva a tocar. useLinkStatus da el estado
+ * pendiente del enlace en el que se ha tocado; el retraso de la animación
+ * vive en el CSS, para que una navegación rápida no lo llegue a enseñar.
+ */
+function Cargando() {
+  const { pending } = useLinkStatus();
+  return <span aria-hidden className={`link-hint ${pending ? "is-pending" : ""}`} />;
+}
 
 // Lo diario a la vista, el resto bajo «Más»: la Agenda se abre veinte veces
 // al día y Cobros una vez al mes — no merecen el mismo sitio en la barra.
@@ -43,8 +57,12 @@ export default function NavLinks({ ocultos = [] }: { ocultos?: string[] }) {
     };
   }, [abierto]);
 
+  // active: responde en el mismo frame del toque, sin esperar a la red —
+  // es lo único que de verdad quita la duda de "¿le he dado?".
   const clase = (activo: boolean) =>
-    `px-2 sm:px-3 min-h-11 inline-flex items-center rounded-lg text-sm font-medium transition-colors duration-150
+    `px-2 sm:px-3 min-h-11 inline-flex items-center rounded-lg text-sm font-medium
+     transition-[background-color,color,transform] duration-150
+     active:scale-95 active:bg-surface-2
      ${activo ? "bg-surface text-brand" : "hover:bg-surface"}`;
 
   const secundarios = SECUNDARIOS.filter(([href]) => !ocultos.includes(href));
@@ -60,6 +78,7 @@ export default function NavLinks({ ocultos = [] }: { ocultos?: string[] }) {
           className={clase(pathname === href)}
         >
           {label}
+          <Cargando />
         </Link>
       ))}
       {secundarios.length > 0 && (
@@ -92,9 +111,11 @@ export default function NavLinks({ ocultos = [] }: { ocultos?: string[] }) {
                   role="menuitem"
                   aria-current={pathname === href ? "page" : undefined}
                   className={`rounded-lg px-3 py-2.5 text-sm font-medium
+                    transition-[background-color,color] duration-150 active:bg-surface-2
                     ${pathname === href ? "bg-surface text-brand" : "hover:bg-surface"}`}
                 >
                   {label}
+                  <Cargando />
                 </Link>
               ))}
             </div>
