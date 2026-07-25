@@ -50,3 +50,6 @@ next-env.d.ts
 scripts/assets/
 p-*.png
 supabase/.temp/
+
+# Copias de seguridad: datos personales de clientes reales, nunca al repo.
+copias/

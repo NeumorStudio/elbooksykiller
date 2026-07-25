@@ -1,42 +1,100 @@
 # Tareas programadas (crons)
 
-Los endpoints existen y funcionan, pero **no tienen disparador automático**
-todavía. Se quitaron de `vercel.json` porque el **plan Hobby de Vercel solo
-permite crons una vez al día**, y estos necesitan correr cada hora — un solo
-cron sub-diario hace que Vercel **rechace el despliegue entero**.
+**Están funcionando.** Los dispara `pg_cron` desde la propia base de Supabase,
+no Vercel. Comprobado el 2026-07-26: 288 ejecuciones en 24 h, **0 fallos**,
+todas HTTP 200.
 
-Cada endpoint está protegido con `CRON_SECRET`: el disparador debe enviar la
+> Este documento decía lo contrario —«los endpoints no tienen disparador
+> automático»— y siguió diciéndolo semanas después de que se montaran. Costó
+> una tarde dar por rotas cosas que iban bien. Si vuelves a tocar los crons,
+> actualiza esto en el mismo commit.
+
+## Por qué no van en Vercel
+
+El plan Hobby solo admite **un cron al día**, y estos necesitan correr cada
+hora o menos. Peor: un cron sub-diario en `vercel.json` hace que Vercel
+**rechace el despliegue entero**, así que ese fichero se borró.
+
+`pg_cron` sale gratis, no depende de ningún servidor extra y tiene un efecto
+lateral que interesa: la base recibe actividad cada 10 minutos, así que
+**nunca se pausa** por inactividad — un proyecto Free de Supabase se suspende
+a los 7 días sin uso.
+
+## Qué hay programado
+
+| Job | Cuándo | Qué hace |
+|---|---|---|
+| `recordatorios` | `*/10 * * * *` | Recordatorio 1 h antes de la cita |
+| `autocompletar` | `30 * * * *` | Marca `completed` lo ya pasado → dispara los sellos |
+| `resenas` | `45 * * * *` | Pide valoración 2-3 h tras el servicio |
+| `newsletter` | `*/15 * * * *` | Despacha las campañas encoladas, en tandas de 60 |
+
+Todos llaman a `https://reservas.neumorstudio.com/api/cron/<nombre>` con la
 cabecera `Authorization: Bearer <CRON_SECRET>`.
 
-| Endpoint | Cada | Qué hace |
-|---|---|---|
-| `/api/cron/recordatorios` | 1 h (`0 * * * *`) | Recordatorio 24 h antes de la cita |
-| `/api/cron/autocompletar` | 1 h (`30 * * * *`) | Marca `completed` lo que ya pasó → dispara los sellos |
-| `/api/cron/resenas` | 1 h (`45 * * * *`) | Pide valoración 2-3 h tras el servicio |
-| `/api/cron/newsletter` | 15 min (`*/15 * * * *`) | Envía las campañas encoladas por tandas |
+**`autocompletar` es el que más se echa de menos si falla:** es quien pone las
+citas en `completed`, y de ese estado dependen los sellos de fidelidad y los
+segmentos de la newsletter (`racha`, `enfriándose`, `nuevos`). Si una campaña
+dice que no hay destinatarios, mira aquí antes que en el panel.
 
-> **Consecuencia práctica, por si no es obvia:** sin disparador, una campaña de
-> newsletter se queda en «Enviando…» para siempre. Y como `autocompletar` es
-> quien marca las citas como `completed`, los segmentos *racha*, *enfriándose*
-> y *nuevos* devuelven cero destinatarios: dependen de ese estado.
+## Cómo mirar si van
 
-## Cómo activarlos
+No hacen falta los logs de Vercel — que en Hobby duran **1 hora** y se
+evaporan antes de que nadie se entere del problema. La base guarda el
+historial, y ese es el log bueno:
 
-**Opción 0 — servidor propio (gratis, la recomendada):** ya existe
-`scripts/cron-droplet.sh`, listo para instalar en un servidor encendido 24/7.
-Lee el `CRON_SECRET` de `/etc/elbooksykiller.env` y llama a los cuatro
-endpoints con los mismos horarios que tenía `vercel.json`. Instrucciones de
-instalación en la cabecera del propio script.
+```sql
+-- Qué hay programado y si está activo
+select jobid, jobname, schedule, active from cron.job order by jobid;
 
-**Opción A — Vercel Pro (~20 $/mes):** volver a crear `vercel.json` con el
-bloque `crons` de la tabla. Pro admite granularidad de minutos.
+-- Ejecuciones y fallos del último día
+select j.jobname,
+       count(*) filter (where d.status = 'succeeded') as ok,
+       count(*) filter (where d.status <> 'succeeded') as fallos,
+       max(d.start_time) as ultima
+from cron.job_run_details d join cron.job j on j.jobid = d.jobid
+where d.start_time > now() - interval '24 hours'
+group by j.jobname;
 
-**Opción B — GitHub Actions (gratis):** un workflow programado que haga
-`curl` a cada endpoint con la cabecera del secreto. Requiere `CRON_SECRET` y
-la URL de producción como secrets del repo.
+-- Qué contestó el endpoint
+select id, status_code, content, created
+from net._http_response order by id desc limit 20;
+```
 
-**Opción C — Servicio externo** (cron-job.org, EasyCron): igual que B pero
-sin GitHub Actions.
+Un 200 con `{"enviados":0}` es normal: no había nada que hacer en esa pasada.
+Un **401** es `CRON_SECRET` desincronizado entre Vercel y el job. Un **404**,
+que la URL apunta a un despliegue que ya no existe.
 
-La ventana de cada cron es amplia (p. ej. recordatorios barre 23-25 h), así
-que tolera que el disparo no sea puntual al minuto.
+## Cambiar la URL sin filtrar el secreto
+
+El `command` de cada job lleva el `Bearer` dentro. Para reapuntarlos no lo
+copies a mano ni lo imprimas: sustituye solo el trozo de la URL.
+
+```sql
+select cron.alter_job(
+  jobid,
+  command := replace(command, 'https://viejo.example', 'https://nuevo.example')
+)
+from cron.job
+where command like '%viejo.example%';
+```
+
+## Conectarse a la base
+
+No hay `psql` en la máquina de trabajo, y el host directo
+(`db.<ref>.supabase.co`) **solo resuelve por IPv6**, así que falla. Se entra
+por el pooler en modo sesión, que además admite DDL:
+
+```
+postgresql://postgres.<ref>@aws-0-eu-west-3.pooler.supabase.com:5432/postgres
+```
+
+Para SQL suelto basta con `npm i pg` en una carpeta temporal y un script de
+tres líneas.
+
+## Si algún día se vuelve a Vercel
+
+Con el plan Pro los crons nativos admiten granularidad de minutos: bastaría
+recrear `vercel.json` con la tabla de arriba **y borrar los jobs de
+`cron.job`**, o cada aviso saldría por duplicado. Mientras tanto, no toques
+`vercel.json`.
