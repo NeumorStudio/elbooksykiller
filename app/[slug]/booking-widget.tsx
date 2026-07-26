@@ -36,6 +36,17 @@ const esCorteInfantil = (s: Service) =>
     // NFD + fuera los diacríticos: así «niño» entra por `nin[oa]`.
     s.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   );
+// «caballero» y «hombre» no llevan tilde: aquí no hace falta normalizar.
+const esCorteCaballero = (s: Service) => /\b(caballero|hombre)\b/i.test(s.name);
+
+/**
+ * Los dos únicos servicios que se pueden pedir juntos: el corte de caballero
+ * y el del niño. Es el caso real —el padre que se corta y trae al crío— y el
+ * único que tiene sentido encadenar. Una barba con un color no es «venir
+ * acompañado», son dos citas distintas y así se piden.
+ */
+const esCombinable = (s: Service) => esCorteInfantil(s) || esCorteCaballero(s);
+
 type Employee = { id: string; name: string };
 type Producto = {
   id: string;
@@ -205,10 +216,49 @@ export default function BookingWidget({
       new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", hour12: false, timeZone: timezone })
     );
 
-  // El corte de niño del salón, si lo tiene. Es el único acompañante que se
-  // ofrece: la combinada resuelve «vengo con el crío», no armar cestas de
-  // servicios sueltos. Un salón sin corte infantil no ve nada de esto.
-  const corteInfantil = useMemo(() => services.find(esCorteInfantil), [services]);
+  /**
+   * ¿Tiene este salón los dos servicios que se combinan?
+   *
+   * Hace falta uno de cada: con solo el de caballero no hay nada que
+   * encadenar. Si falta alguno, la carta se comporta exactamente como antes
+   * —elección única— y nadie ve nada raro.
+   *
+   * Se excluyen los que llevan pago por adelantado: el importe de Stripe se
+   * calcula sobre un servicio, y cobrar de menos por una cita doble sería
+   * peor que no ofrecerla. Hoy no afecta a nadie, Cobros está apagado.
+   */
+  const hayPareja = useMemo(() => {
+    const libres = services.filter((s) => amountDue(s) === 0);
+    return libres.some(esCorteInfantil) && libres.some(esCorteCaballero);
+  }, [services]);
+
+  /**
+   * Un toque en la carta.
+   *
+   * Los combinables se comportan como casillas: se suman entre ellos y se
+   * quitan volviéndolos a tocar. Cualquier otro servicio es exclusivo y
+   * limpia la selección — pedir barba y color a la vez no es este flujo.
+   */
+  function elegir(s: Service) {
+    const marcado = pedido.some((p) => p.id === s.id);
+    const combinable = esCombinable(s) && hayPareja && amountDue(s) === 0;
+
+    if (!combinable) {
+      setService(s);
+      setExtras([]);
+      return;
+    }
+    // Solo se conserva lo que también sea combinable: si venías de «Corte y
+    // barba», ese se cae al marcar el del niño.
+    const previos = pedido.filter(
+      (p) => esCombinable(p) && amountDue(p) === 0 && p.id !== s.id
+    );
+    const nuevos = marcado ? previos : [...previos, s];
+    // El adulto primero: es el orden en que se atenderán en el salón.
+    nuevos.sort((a, b) => Number(esCorteInfantil(a)) - Number(esCorteInfantil(b)));
+    setService(nuevos[0] ?? null);
+    setExtras(nuevos.slice(1));
+  }
 
   // Todo lo que se va a reservar, en el orden en que se atenderá.
   const pedido = useMemo(
@@ -336,8 +386,14 @@ export default function BookingWidget({
         <h2 className="mt-4 text-2xl font-semibold">Cita confirmada</h2>
         <dl className="mt-6 space-y-1 text-left mx-auto max-w-xs">
           <div className="flex justify-between gap-4">
-            <dt className="text-muted">Servicio</dt>
-            <dd className="font-medium text-right">{service!.name}</dd>
+            <dt className="text-muted">{pedido.length > 1 ? "Servicios" : "Servicio"}</dt>
+            {/* Con cita combinada hay que ver los dos: es la única prueba
+                en pantalla de que el corte del niño entró de verdad. */}
+            <dd className="font-medium text-right">
+              {pedido.map((p) => (
+                <span key={p.id} className="block">{p.name}</span>
+              ))}
+            </dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted">Con</dt>
@@ -357,7 +413,7 @@ export default function BookingWidget({
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted">Precio</dt>
-            <dd className="font-medium text-right">{fmtPrice(service!.price_cents)}</dd>
+            <dd className="font-medium text-right">{fmtPrice(precioTotal)}</dd>
           </div>
           {apartados.map((p) => (
             <div key={p.id} className="flex justify-between gap-4">
@@ -440,17 +496,22 @@ export default function BookingWidget({
     <div className="flex flex-col gap-8 sm:gap-10">
       {reminder}
       <Step n={1} id="paso-1" title="Elige servicio">
-        <div className="flex flex-col gap-2" role="radiogroup" aria-label="Servicio">
+        <div className="flex flex-col gap-2" aria-label="Servicio">
           {services.map((s) => {
-            const on = service?.id === s.id;
+            const on = pedido.some((p) => p.id === s.id);
+            const combinable = esCombinable(s) && hayPareja;
             return (
               <button
                 key={s.id}
-                role="radio"
+                // Los combinables se marcan y desmarcan como casillas; el
+                // resto sigue siendo elección única, como estaba.
+                role={combinable ? "checkbox" : "radio"}
                 aria-checked={on}
                 onClick={() => {
-                  setService(s);
-                  scrollTo("paso-2");
+                  elegir(s);
+                  // Al desmarcar no se baja: el cliente sigue mirando la
+                  // carta, y arrastrarle al paso 2 sería pelearse con él.
+                  if (!on) scrollTo("paso-2");
                 }}
                 className={`servicio-fila group flex items-baseline gap-4 rounded-xl border p-4 text-left
                   focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand
@@ -486,67 +547,25 @@ export default function BookingWidget({
           })}
         </div>
 
-        {/* ── Acompañantes ────────────────────────────────────────────
-            Aparece en cuanto hay un servicio elegido, porque es ahí donde
-            el padre está pensando «¿y al niño lo meto?». Destacado a
-            propósito: si no se ve, nadie descubre que existe y se acaban
-            haciendo dos reservas sueltas con el riesgo de que no salgan
-            seguidas.
+        {/* La combinada se explica en una línea bajo la carta, no en un
+            cartel aparte: el sitio donde se hace es la propia lista, y un
+            recuadro de colores en mitad del flujo abarata la página. */}
+        {hayPareja && (
+          <p className="mt-3 text-sm text-muted text-pretty">
+            ¿Venís dos? Marca{" "}
+            <b className="text-ink">el corte de caballero y el de niño</b> a la
+            vez y os atendemos seguidos, con la misma persona, en una sola
+            reserva.
+          </p>
+        )}
 
-            Fuera si hay pago por adelantado: el importe de Stripe se
-            calcula sobre un solo servicio y cobrar de menos por una cita
-            combinada es peor que no ofrecerla. */}
-        {corteInfantil && service && !esCorteInfantil(service) &&
-          amountDue(service) === 0 && amountDue(corteInfantil) === 0 && (
-          <div className="mt-4 rounded-xl border border-brand/40 bg-brand/[0.07] p-4">
-            <p className="font-display text-lg leading-tight text-brand">
-              ¿Vienes con un niño?
-            </p>
-            <p className="mt-1 text-sm text-muted text-pretty">
-              Añade su corte y os atendemos{" "}
-              <b className="text-ink">seguidos y con la misma persona</b>, en la
-              misma reserva: no tenéis que esperar entre uno y otro.
-            </p>
-
-            <button
-              type="button"
-              onClick={() =>
-                setExtras(extras.length ? [] : [corteInfantil])
-              }
-              aria-pressed={extras.length > 0}
-              className={`mt-3 flex w-full items-baseline gap-3 rounded-xl border p-3 text-left
-                focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand
-                ${extras.length > 0 ? "border-brand bg-brand/10" : "border-line bg-surface"}`}
-            >
-              <span className="min-w-0">
-                <span
-                  className={`block leading-tight ${extras.length > 0 ? "font-medium text-brand" : ""}`}
-                >
-                  {extras.length > 0 ? "✓ " : "+ "}
-                  {corteInfantil.name}
-                </span>
-                <span className="mt-0.5 block text-sm text-muted">
-                  {corteInfantil.duration_min} min
-                </span>
-              </span>
-              <span
-                aria-hidden
-                className="h-px flex-1 self-center border-b border-dotted border-line"
-              />
-              <span className="shrink-0 tabular-nums">
-                {fmtPrice(corteInfantil.price_cents)}
-              </span>
-            </button>
-
-            {extras.length > 0 && (
-              <p className="mt-3 border-t border-brand/20 pt-3 text-sm">
-                <b>2 citas seguidas</b>{" "}
-                <span className="text-muted">
-                  · {duracionTotal} min en total · {fmtPrice(precioTotal)}
-                </span>
-              </p>
-            )}
-          </div>
+        {pedido.length > 1 && (
+          <p className="mt-2 text-sm">
+            <b>2 citas seguidas</b>{" "}
+            <span className="text-muted">
+              · {duracionTotal} min en total · {fmtPrice(precioTotal)}
+            </span>
+          </p>
         )}
       </Step>
 
@@ -558,7 +577,10 @@ export default function BookingWidget({
           onBack={() => {
             // Cambiar de servicio invalida hora y disponibilidad: se limpia
             // todo lo de abajo para no reservar con datos de otro servicio.
+            // Los acompañantes también, o se arrastraría el corte del niño
+            // a una selección que ya no lo incluye.
             setService(null);
+            setExtras([]);
             setEmployee(null);
             setDay("");
             setSlots(null);
