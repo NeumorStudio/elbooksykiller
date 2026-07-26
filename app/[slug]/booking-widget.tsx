@@ -18,6 +18,24 @@ const amountDue = (s: Service) =>
   s.payment_type === "full" ? s.price_cents
   : s.payment_type === "deposit" ? (s.deposit_cents ?? 0)
   : 0;
+
+/**
+ * ¿Es el corte del niño?
+ *
+ * Se mira por el nombre porque no hay nada en la tabla que lo distinga, y
+ * cada salón lo llama a su manera: «Corte de niño (hasta 10 años)» en uno,
+ * «Corte infantil» en otro. Es frágil a propósito por el lado seguro: si un
+ * salón lo llama de otra forma, simplemente no se ofrece la combinada y todo
+ * sigue funcionando como siempre — nunca se ofrece de más.
+ *
+ * El día que haya que hacerlo bien, una columna `es_infantil` en `services`
+ * marcada por el dueño lo resuelve sin adivinar.
+ */
+const esCorteInfantil = (s: Service) =>
+  /(\bnin[oa]s?\b|\binfantil\b|\bjunior\b|\bkids?\b)/i.test(
+    // NFD + fuera los diacríticos: así «niño» entra por `nin[oa]`.
+    s.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  );
 type Employee = { id: string; name: string };
 type Producto = {
   id: string;
@@ -186,6 +204,11 @@ export default function BookingWidget({
     Number(
       new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", hour12: false, timeZone: timezone })
     );
+
+  // El corte de niño del salón, si lo tiene. Es el único acompañante que se
+  // ofrece: la combinada resuelve «vengo con el crío», no armar cestas de
+  // servicios sueltos. Un salón sin corte infantil no ve nada de esto.
+  const corteInfantil = useMemo(() => services.find(esCorteInfantil), [services]);
 
   // Todo lo que se va a reservar, en el orden en que se atenderá.
   const pedido = useMemo(
@@ -473,60 +496,51 @@ export default function BookingWidget({
             Fuera si hay pago por adelantado: el importe de Stripe se
             calcula sobre un solo servicio y cobrar de menos por una cita
             combinada es peor que no ofrecerla. */}
-        {service && amountDue(service) === 0 && (
+        {corteInfantil && service && !esCorteInfantil(service) &&
+          amountDue(service) === 0 && amountDue(corteInfantil) === 0 && (
           <div className="mt-4 rounded-xl border border-brand/40 bg-brand/[0.07] p-4">
             <p className="font-display text-lg leading-tight text-brand">
-              ¿Vienes con alguien más?
+              ¿Vienes con un niño?
             </p>
             <p className="mt-1 text-sm text-muted text-pretty">
-              Añade el corte de tu hijo, tu pareja o quien te acompañe. Se
-              reservan <b className="text-ink">seguidos y con la misma persona</b>,
-              en una sola cita: no tenéis que esperar entre uno y otro.
+              Añade su corte y os atendemos{" "}
+              <b className="text-ink">seguidos y con la misma persona</b>, en la
+              misma reserva: no tenéis que esperar entre uno y otro.
             </p>
 
-            {extras.length > 0 && (
-              <ul className="mt-3 flex flex-col gap-1.5">
-                {extras.map((e, i) => (
-                  <li
-                    key={`${e.id}-${i}`}
-                    className="flex items-center gap-3 rounded-lg bg-surface px-3 py-2 text-sm"
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {e.name}{" "}
-                      <span className="text-muted">· {e.duration_min} min</span>
-                    </span>
-                    <span className="shrink-0 tabular-nums">{fmtPrice(e.price_cents)}</span>
-                    <button
-                      type="button"
-                      onClick={() => setExtras(extras.filter((_, j) => j !== i))}
-                      aria-label={`Quitar ${e.name}`}
-                      className="shrink-0 rounded-lg px-2 text-lg text-danger hover:bg-danger/10"
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              {services
-                .filter((s) => amountDue(s) === 0)
-                .map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setExtras([...extras, s])}
-                    className="chip px-3 text-sm hover:border-brand hover:text-brand"
-                  >
-                    + {s.name}
-                  </button>
-                ))}
-            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setExtras(extras.length ? [] : [corteInfantil])
+              }
+              aria-pressed={extras.length > 0}
+              className={`mt-3 flex w-full items-baseline gap-3 rounded-xl border p-3 text-left
+                focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand
+                ${extras.length > 0 ? "border-brand bg-brand/10" : "border-line bg-surface"}`}
+            >
+              <span className="min-w-0">
+                <span
+                  className={`block leading-tight ${extras.length > 0 ? "font-medium text-brand" : ""}`}
+                >
+                  {extras.length > 0 ? "✓ " : "+ "}
+                  {corteInfantil.name}
+                </span>
+                <span className="mt-0.5 block text-sm text-muted">
+                  {corteInfantil.duration_min} min
+                </span>
+              </span>
+              <span
+                aria-hidden
+                className="h-px flex-1 self-center border-b border-dotted border-line"
+              />
+              <span className="shrink-0 tabular-nums">
+                {fmtPrice(corteInfantil.price_cents)}
+              </span>
+            </button>
 
             {extras.length > 0 && (
               <p className="mt-3 border-t border-brand/20 pt-3 text-sm">
-                <b>{pedido.length} citas seguidas</b>{" "}
+                <b>2 citas seguidas</b>{" "}
                 <span className="text-muted">
                   · {duracionTotal} min en total · {fmtPrice(precioTotal)}
                 </span>

@@ -181,7 +181,10 @@ export async function bookAppointment(input: {
   // pegada a la anterior, pero las crea todas la misma función para que sea
   // todo o nada — quedarse con la cita del padre y sin la del niño es peor
   // que no haber reservado.
-  const extras = input.extraServiceIds?.filter(Boolean) ?? [];
+  // Uno como mucho: es lo que ofrece la web, pero esto es una server action
+  // y se puede llamar a pelo. Sin tope, una sola reserva podía encadenar
+  // diez servicios y comerse media mañana del salón.
+  const extras = (input.extraServiceIds?.filter(Boolean) ?? []).slice(0, 1);
   // El widget no ofrece combinar cuando hay que pagar por adelantado: el
   // importe de Stripe se calcula sobre un servicio. Si llega igualmente, se
   // corta — reservar solo el primero sin avisar sería perder una cita en
