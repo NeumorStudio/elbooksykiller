@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
 import PerfilLogin from "./login";
+import { proveedoresAuth } from "@/lib/auth-proveedores";
 import { cerrarSesion } from "./actions";
 import { vincularFichas } from "@/lib/perfil";
 
@@ -49,7 +50,7 @@ export default async function PerfilContenido() {
           móvil. No hace falta para ver una cita: esa está en el enlace de tu
           correo.
         </p>
-        <PerfilLogin />
+        <PerfilLogin proveedores={await proveedoresAuth()} />
       </main>
     );
   }
