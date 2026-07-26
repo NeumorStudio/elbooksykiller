@@ -12,6 +12,7 @@ import { fotosDelSalon } from "./galeria";
 import { telHref } from "@/lib/tel";
 import { features } from "@/lib/features";
 import { estadoSalon, moduloActivo } from "@/lib/modulos";
+import { baseUrl } from "@/lib/urls";
 
 export const viewport = { themeColor: "#1b1712" };
 
@@ -63,15 +64,31 @@ export async function generateMetadata({
   const supabase = await supabaseServer();
   const { data: salon } = await supabase
     .from("salons")
-    .select("name, address")
+    .select("name, address, custom_domain")
     .eq("slug", slug)
     .maybeSingle();
   if (!salon) return {};
   const description = `Reserva tu cita en ${salon.name}${salon.address ? ` — ${salon.address}` : ""}. Elige servicio, día y hora en un minuto.`;
+
+  /**
+   * En cuanto un salón conecta dominio propio, su web vive en dos sitios a
+   * la vez: `sudominio.com/` y `plataforma.com/su-slug`. Para Google eso es
+   * contenido duplicado — reparte las señales entre las dos direcciones y
+   * decide él cuál enseña, que puede ser justo la que no interesa.
+   *
+   * El canonical dice cuál manda. Es el dominio del salón siempre que lo
+   * tenga: es el que va en el cartel y el que quiere ver un cliente que
+   * busca la peluquería por su nombre.
+   */
+  const canonical = salon.custom_domain
+    ? `https://${salon.custom_domain}`
+    : `${baseUrl()}/${slug}`;
+
   return {
     title: `${salon.name} — Reserva tu cita`,
     description,
-    openGraph: { title: salon.name, description },
+    alternates: { canonical },
+    openGraph: { title: salon.name, description, url: canonical },
     manifest: `/${slug}/manifest.webmanifest`,
     appleWebApp: { capable: true, title: salon.name, statusBarStyle: "black-translucent" },
     icons: { apple: `/${slug}/pwa-icon?size=180` },
