@@ -77,6 +77,9 @@ async function atarACuenta(
 export async function bookAppointment(input: {
   employeeId: string;
   serviceId: string;
+  // Servicios de quien viene acompañando, en el orden en que se atenderán
+  // después del principal. Solo llega cuando el cliente los ha añadido.
+  extraServiceIds?: string[];
   startIso: string;
   name: string;
   phone: string;
@@ -174,12 +177,35 @@ export async function bookAppointment(input: {
   let citaUrl: string | undefined;
   let omitidos: string[] = [];
 
+  // Acompañantes: el niño, la pareja. Cada uno acaba siendo su propia cita,
+  // pegada a la anterior, pero las crea todas la misma función para que sea
+  // todo o nada — quedarse con la cita del padre y sin la del niño es peor
+  // que no haber reservado.
+  const extras = input.extraServiceIds?.filter(Boolean) ?? [];
+  // El widget no ofrece combinar cuando hay que pagar por adelantado: el
+  // importe de Stripe se calcula sobre un servicio. Si llega igualmente, se
+  // corta — reservar solo el primero sin avisar sería perder una cita en
+  // silencio.
+  if (extras.length && needsPayment) return { error: "invalid" };
+
   if (clientes) {
-    const { data, error } = await anon.rpc("create_booking_v2", {
-      ...base_args,
-      p_marketing: !!input.marketing && !!input.email,
-      p_products: input.productos?.length ? input.productos : null,
-    });
+    const { data, error } = extras.length
+      ? await anon.rpc("create_booking_combo", {
+          p_employee: input.employeeId,
+          p_services: [input.serviceId, ...extras],
+          p_start: input.startIso,
+          p_name: input.name,
+          p_phone: input.phone,
+          p_email: input.email || null,
+          p_pending_payment: false,
+          p_marketing: !!input.marketing && !!input.email,
+          p_products: input.productos?.length ? input.productos : null,
+        })
+      : await anon.rpc("create_booking_v2", {
+          ...base_args,
+          p_marketing: !!input.marketing && !!input.email,
+          p_products: input.productos?.length ? input.productos : null,
+        });
     if (error) {
       return { error: error.message.includes("slot_unavailable") ? "slot_unavailable" : "invalid" };
     }

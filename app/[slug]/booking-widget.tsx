@@ -95,6 +95,10 @@ export default function BookingWidget({
   cliente?: { name: string; phone: string; email: string } | null;
 }) {
   const [service, setService] = useState<Service | null>(null);
+  // Servicios de quien viene contigo: el niño, la pareja. Cada uno es su
+  // propia cita en la agenda del salón, pero se reservan pegadas y en una
+  // sola operación — o entran todas o no entra ninguna.
+  const [extras, setExtras] = useState<Service[]>([]);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [day, setDay] = useState("");
   const [slots, setSlots] = useState<string[] | null>(null);
@@ -183,13 +187,40 @@ export default function BookingWidget({
       new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", hour12: false, timeZone: timezone })
     );
 
+  // Todo lo que se va a reservar, en el orden en que se atenderá.
+  const pedido = useMemo(
+    () => (service ? [service, ...extras] : []),
+    [service, extras]
+  );
+  const duracionTotal = pedido.reduce((n, s) => n + s.duration_min, 0);
+  const precioTotal = pedido.reduce((n, s) => n + s.price_cents, 0);
+
+  /**
+   * Con acompañantes hay que pedir los huecos donde cabe el bloque ENTERO,
+   * no donde cabe el primer corte: si no, se ofrecen horas en las que el
+   * niño se queda fuera del cierre. Y no vale encadenar dos consultas,
+   * porque el segundo servicio empieza cuando acaba el primero y eso cae
+   * fuera de la rejilla de 15 minutos en cuanto un servicio dura 20 o 25.
+   */
   useEffect(() => {
     if (!service || !employee || !day) return;
     setSlots(null);
     setSlot("");
     let stale = false;
-    supabaseBrowser()
-      .rpc("available_slots", { p_employee: employee.id, p_service: service.id, p_day: day })
+    const sb = supabaseBrowser();
+    const consulta =
+      extras.length > 0
+        ? sb.rpc("available_slots_combo", {
+            p_employee: employee.id,
+            p_services: [service.id, ...extras.map((e) => e.id)],
+            p_day: day,
+          })
+        : sb.rpc("available_slots", {
+            p_employee: employee.id,
+            p_service: service.id,
+            p_day: day,
+          });
+    consulta
       .then(({ data, error }) => {
         if (stale) return;
         if (error) setError("No se pudo cargar la disponibilidad. Inténtalo de nuevo.");
@@ -198,7 +229,7 @@ export default function BookingWidget({
     return () => {
       stale = true;
     };
-  }, [service, employee, day, refresh]);
+  }, [service, extras, employee, day, refresh]);
 
   async function book() {
     setSaving(true);
@@ -209,6 +240,9 @@ export default function BookingWidget({
       result = await bookAppointment({
         employeeId: employee!.id,
         serviceId: service!.id,
+        // Solo viaja con acompañantes: sin ellos la reserva sigue el camino
+        // de siempre, que es el 95% de los casos y el que está más rodado.
+        extraServiceIds: extras.length ? extras.map((e) => e.id) : undefined,
         startIso: slot,
         name,
         phone,
@@ -428,6 +462,78 @@ export default function BookingWidget({
             );
           })}
         </div>
+
+        {/* ── Acompañantes ────────────────────────────────────────────
+            Aparece en cuanto hay un servicio elegido, porque es ahí donde
+            el padre está pensando «¿y al niño lo meto?». Destacado a
+            propósito: si no se ve, nadie descubre que existe y se acaban
+            haciendo dos reservas sueltas con el riesgo de que no salgan
+            seguidas.
+
+            Fuera si hay pago por adelantado: el importe de Stripe se
+            calcula sobre un solo servicio y cobrar de menos por una cita
+            combinada es peor que no ofrecerla. */}
+        {service && amountDue(service) === 0 && (
+          <div className="mt-4 rounded-xl border border-brand/40 bg-brand/[0.07] p-4">
+            <p className="font-display text-lg leading-tight text-brand">
+              ¿Vienes con alguien más?
+            </p>
+            <p className="mt-1 text-sm text-muted text-pretty">
+              Añade el corte de tu hijo, tu pareja o quien te acompañe. Se
+              reservan <b className="text-ink">seguidos y con la misma persona</b>,
+              en una sola cita: no tenéis que esperar entre uno y otro.
+            </p>
+
+            {extras.length > 0 && (
+              <ul className="mt-3 flex flex-col gap-1.5">
+                {extras.map((e, i) => (
+                  <li
+                    key={`${e.id}-${i}`}
+                    className="flex items-center gap-3 rounded-lg bg-surface px-3 py-2 text-sm"
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {e.name}{" "}
+                      <span className="text-muted">· {e.duration_min} min</span>
+                    </span>
+                    <span className="shrink-0 tabular-nums">{fmtPrice(e.price_cents)}</span>
+                    <button
+                      type="button"
+                      onClick={() => setExtras(extras.filter((_, j) => j !== i))}
+                      aria-label={`Quitar ${e.name}`}
+                      className="shrink-0 rounded-lg px-2 text-lg text-danger hover:bg-danger/10"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {services
+                .filter((s) => amountDue(s) === 0)
+                .map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setExtras([...extras, s])}
+                    className="chip px-3 text-sm hover:border-brand hover:text-brand"
+                  >
+                    + {s.name}
+                  </button>
+                ))}
+            </div>
+
+            {extras.length > 0 && (
+              <p className="mt-3 border-t border-brand/20 pt-3 text-sm">
+                <b>{pedido.length} citas seguidas</b>{" "}
+                <span className="text-muted">
+                  · {duracionTotal} min en total · {fmtPrice(precioTotal)}
+                </span>
+              </p>
+            )}
+          </div>
+        )}
       </Step>
 
       {service && (
