@@ -66,7 +66,11 @@ export default function BarraInferior({ slug }: { slug: string }) {
           <span aria-hidden className="text-lg leading-none">
             ◍
           </span>
-          <span className="flex items-center">
+          {/* pl-[0.8rem]: el punto de carga mide 0.4rem + 0.4rem de margen y
+              está siempre presente aunque invisible (así no mueve el texto al
+              aparecer); este padding lo equilibra para que «Mi cuenta» quede
+              centrado bajo el icono. */}
+          <span className="flex items-center pl-[0.8rem]">
             Mi cuenta
             <LinkCargando />
           </span>
