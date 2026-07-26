@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import LinkCargando from "@/app/link-cargando";
 
 /**
  * Barra de navegación inferior, solo en la app instalada.
@@ -35,10 +37,13 @@ export default function BarraInferior({ slug }: { slug: string }) {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="mx-auto flex max-w-md">
+        {/* active:scale responde en el mismo frame del toque — es lo único
+            que de verdad quita la duda de «¿le he dado?» mientras carga. */}
         <a
           href={`/${slug}`}
           className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs text-muted
-            transition-colors hover:text-brand focus-visible:outline-2
+            transition-[color,transform] duration-150 active:scale-90 hover:text-brand
+            focus-visible:outline-2
             focus-visible:outline-offset-[-2px] focus-visible:outline-brand"
         >
           <span aria-hidden className="text-lg leading-none">
@@ -47,18 +52,25 @@ export default function BarraInferior({ slug }: { slug: string }) {
           Inicio
         </a>
         {/* /[slug]/perfil y no /perfil: el manifest declara scope "/[slug]",
-            y salirse de él saca al usuario de la app instalada. */}
-        <a
+            y salirse de él saca al usuario de la app instalada.
+            <Link> y no <a>: la recarga completa dejaba segundos en blanco
+            sin ninguna señal; en cliente el esqueleto de loading.tsx entra
+            al momento y el punto late si aun así tarda. */}
+        <Link
           href={`/${slug}/perfil`}
           className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs text-muted
-            transition-colors hover:text-brand focus-visible:outline-2
+            transition-[color,transform] duration-150 active:scale-90 hover:text-brand
+            focus-visible:outline-2
             focus-visible:outline-offset-[-2px] focus-visible:outline-brand"
         >
           <span aria-hidden className="text-lg leading-none">
             ◍
           </span>
-          Mi cuenta
-        </a>
+          <span className="flex items-center">
+            Mi cuenta
+            <LinkCargando />
+          </span>
+        </Link>
       </div>
     </nav>
   );

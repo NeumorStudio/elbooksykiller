@@ -1,6 +1,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import LinkCargando from "@/app/link-cargando";
 import BookingWidget from "./booking-widget";
 import InstallPrompt from "./install-prompt";
 import BarraInferior from "./barra-inferior";
@@ -456,7 +457,8 @@ export default async function SalonPage({
         {f.clientes && (
           <Link
             href={`/${salon.slug}/perfil`}
-            className="text-sm text-muted transition-colors hover:text-brand"
+            className="text-sm text-muted transition-[color,transform] duration-150
+              active:scale-95 hover:text-brand"
           >
             {haySesion ? (
               <span className="text-brand underline underline-offset-4">Mi cuenta</span>
@@ -466,6 +468,7 @@ export default async function SalonPage({
                 <span className="text-brand underline underline-offset-4">Entra a tu cuenta</span>
               </>
             )}
+            <LinkCargando />
           </Link>
         )}
         {/* La nota de privacidad es del salón, no de la plataforma: quien
@@ -477,9 +480,11 @@ export default async function SalonPage({
           <span aria-hidden className="opacity-40">·</span>
           <Link
             href={`/${salon.slug}/privacidad`}
-            className="underline underline-offset-4 transition-colors hover:text-brand"
+            className="underline underline-offset-4 transition-[color,transform] duration-150
+              active:scale-95 hover:text-brand"
           >
             Privacidad
+            <LinkCargando />
           </Link>
         </span>
       </footer>
