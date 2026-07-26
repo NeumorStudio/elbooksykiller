@@ -96,6 +96,12 @@ export async function bookAppointment(input: {
 > {
   const anon = anonClient();
 
+  // El mismo criterio que normalizar_tel en la BD: un teléfono que no
+  // normaliza pasa el trigger sin crear ficha y la cita queda huérfana —
+  // invisible para el perfil, la fidelización y las penalizaciones. El
+  // widget ya lo valida; esto cierra la puerta a quien no pase por él.
+  if (!normalizarTel(input.phone)) return { error: "invalid" };
+
   // Qué se cobra y si el salón puede cobrar. Con service role: la cuenta de
   // Stripe del salón ya no es legible con la clave pública (migración 0016),
   // y esto corre en el servidor, no en el navegador.

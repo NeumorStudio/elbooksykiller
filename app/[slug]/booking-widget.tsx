@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { bookAppointment } from "./actions";
-import { telHref } from "@/lib/tel";
+import { telHref, normalizarTel } from "@/lib/tel";
 
 type Service = {
   id: string;
@@ -97,8 +97,6 @@ function Step({
     </section>
   );
 }
-
-const digitsOf = (s: string) => s.replace(/\D/g, "");
 
 export default function BookingWidget({
   slug,
@@ -821,12 +819,16 @@ export default function BookingWidget({
                 autoComplete="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                aria-invalid={phone.length > 0 && digitsOf(phone).length < 9}
+                aria-invalid={phone.length > 0 && !normalizarTel(phone)}
                 className="field"
               />
-              {phone.length > 0 && digitsOf(phone).length < 9 && (
+              {/* El mismo criterio que normalizar_tel en la BD: un teléfono
+                  que no normaliza crea una cita sin ficha de cliente,
+                  invisible para el perfil y la fidelización. */}
+              {phone.length > 0 && !normalizarTel(phone) && (
                 <p className="text-sm text-danger mt-1.5">
-                  Pon un teléfono válido (al menos 9 dígitos) — lo usamos para avisarte de cualquier cambio.
+                  Pon un teléfono válido (9 dígitos, o con prefijo internacional) —
+                  lo usamos para avisarte de cualquier cambio.
                 </p>
               )}
             </div>
@@ -911,7 +913,7 @@ export default function BookingWidget({
 
             <button
               type="submit"
-              disabled={saving || name.trim().length < 2 || digitsOf(phone).length < 9}
+              disabled={saving || name.trim().length < 2 || !normalizarTel(phone)}
               className="btn-primary mt-2 text-base"
             >
               {(() => {
