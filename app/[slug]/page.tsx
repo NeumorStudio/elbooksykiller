@@ -12,6 +12,7 @@ import Carrusel from "./carrusel";
 import { confirmPaidSession } from "./actions";
 import { fotosDelSalon } from "./galeria";
 import { telHref } from "@/lib/tel";
+import { mapaUrl } from "@/lib/mapa";
 import { features } from "@/lib/features";
 import { estadoSalon, moduloActivo } from "@/lib/modulos";
 import { baseUrl } from "@/lib/urls";
@@ -236,7 +237,7 @@ export default async function SalonPage({
   const fotos = await fotosDelSalon(salon.id);
 
   const mapa = salon.address
-    ? `https://maps.google.com/?q=${encodeURIComponent(`${salon.name}, ${salon.address}`)}`
+    ? mapaUrl(salon.address)
     : null;
 
   return (

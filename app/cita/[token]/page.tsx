@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
 import { telHref } from "@/lib/tel";
+import { mapaUrl } from "@/lib/mapa";
 import CancelarBoton from "./cancelar-boton";
 import Avisos from "./avisos";
 import Valorar from "./valorar";
@@ -146,7 +147,7 @@ export default async function CitaPage({
     (salon.address ? `&location=${encodeURIComponent(salon.address)}` : "");
 
   const mapa = salon.address
-    ? `https://maps.google.com/?q=${encodeURIComponent(`${salon.name}, ${salon.address}`)}`
+    ? mapaUrl(salon.address)
     : null;
 
   const chip = (() => {
