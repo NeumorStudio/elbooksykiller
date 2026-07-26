@@ -115,7 +115,7 @@ export default async function SalonPage({
 
   const { data: salon } = await supabase
     .from("salons")
-    .select("id, name, slug, phone, address, timezone, logo_url, services(*), employees(*)")
+    .select("id, name, slug, phone, address, timezone, logo_url, opens_at, services(*), employees(*)")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -177,7 +177,34 @@ export default async function SalonPage({
     .eq("employees.salon_id", salon.id)
     .eq("employees.active", true);
   const listaTramos = (tramos ?? []) as unknown as Tramo[];
-  const estado = listaTramos.length ? estadoApertura(listaTramos, salon.timezone) : null;
+  /**
+   * Un salón que todavía no ha abierto reparte su enlace antes de abrir —el
+   * cartel, el Instagram, el boca a boca empiezan días antes—, así que la
+   * web tiene que estar en pie y decir la verdad: ni «abierto ahora» ni «no
+   * queda hueco», que es lo que entendería el cliente si solo se bloquearan
+   * los huecos.
+   *
+   * Se compara en la zona del salón, no en UTC: el día 1 empieza cuando
+   * amanece allí.
+   */
+  const hoyLocal = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: salon.timezone,
+  }).format(new Date());
+  const abreEl: string | null =
+    salon.opens_at && salon.opens_at > hoyLocal ? salon.opens_at : null;
+
+  const estado = abreEl
+    ? {
+        abierto: false,
+        texto: `Abrimos el ${new Date(`${abreEl}T12:00:00`).toLocaleDateString("es-ES", {
+          day: "numeric",
+          month: "long",
+          timeZone: salon.timezone,
+        })}`,
+      }
+    : listaTramos.length
+      ? estadoApertura(listaTramos, salon.timezone)
+      : null;
 
   // Horario público de la semana: la unión de los tramos del equipo. Dos
   // profesionales con el mismo turno no deben pintar la franja dos veces,
@@ -401,6 +428,7 @@ export default async function SalonPage({
           productos={productos}
           conCuenta={f.clientes}
           cliente={cliente}
+          abreEl={abreEl}
         />
       )}
 

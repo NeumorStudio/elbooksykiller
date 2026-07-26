@@ -108,6 +108,7 @@ export default function BookingWidget({
   productos = [],
   conCuenta = false,
   cliente = null,
+  abreEl = null,
 }: {
   slug: string;
   timezone: string;
@@ -120,6 +121,8 @@ export default function BookingWidget({
   // Ficha de quien tiene sesión abierta: rellena el formulario para que
   // reserve con el mismo teléfono con el que ya está fichado.
   cliente?: { name: string; phone: string; email: string } | null;
+  /** Día de apertura (YYYY-MM-DD) si el salón aún no ha abierto. */
+  abreEl?: string | null;
 }) {
   const [service, setService] = useState<Service | null>(null);
   // Servicios de quien viene contigo: el niño, la pareja. Cada uno es su
@@ -181,6 +184,14 @@ export default function BookingWidget({
   const days = useMemo(() => {
     const out: { iso: string; weekday: string; dayNum: string; month: string }[] = [];
     const d = new Date();
+    // Si el salón aún no ha abierto, la ventana de 14 días arranca el día de
+    // la apertura en vez de hoy. Filtrar los días previos dejaría la lista
+    // corta —o vacía si abre dentro de tres semanas—; desplazarla enseña
+    // siempre catorce días reservables.
+    if (abreEl) {
+      const apertura = new Date(`${abreEl}T12:00:00`);
+      if (apertura > d) d.setTime(apertura.getTime());
+    }
     for (let i = 0; i < 14; i++) {
       out.push({
         iso: d.toLocaleDateString("sv-SE", { timeZone: timezone }),
@@ -191,7 +202,7 @@ export default function BookingWidget({
       d.setDate(d.getDate() + 1);
     }
     return out;
-  }, [timezone]);
+  }, [timezone, abreEl]);
 
   // Calendario mensual: solo los próximos 14 días admiten reserva, así que
   // la ventana abarca como mucho dos meses.
@@ -493,6 +504,25 @@ export default function BookingWidget({
   return (
     <div className="flex flex-col gap-8 sm:gap-10">
       {reminder}
+
+      {/* Antes de abrir, el enlace ya circula —cartel, Instagram, boca a
+          boca— y la web tiene que explicarse. Sin esto el cliente ve días
+          sin huecos y entiende que está lleno, justo lo contrario. */}
+      {abreEl && (
+        <p className="rounded-xl border border-brand/40 bg-brand/[0.07] p-4 text-pretty">
+          <b className="text-brand">
+            Abrimos el{" "}
+            {new Date(`${abreEl}T12:00:00`).toLocaleDateString("es-ES", {
+              day: "numeric",
+              month: "long",
+            })}
+            .
+          </b>{" "}
+          Ya puedes reservar tu cita a partir de ese día — elige servicio y
+          te guardamos el hueco.
+        </p>
+      )}
+
       <Step n={1} id="paso-1" title="Elige servicio">
         <div className="flex flex-col gap-2" aria-label="Servicio">
           {services.map((s) => {
