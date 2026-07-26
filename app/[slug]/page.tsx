@@ -5,6 +5,7 @@ import BookingWidget from "./booking-widget";
 import InstallPrompt from "./install-prompt";
 import BarraInferior from "./barra-inferior";
 import ModoReserva from "./modo-reserva";
+import LogoInicio from "./logo-inicio";
 import VideoFondo from "../video-fondo";
 import Carrusel from "./carrusel";
 import { confirmPaidSession } from "./actions";
@@ -251,18 +252,12 @@ export default async function SalonPage({
                   sobre todo dentro del flujo de reserva: es el gesto que
                   todo el mundo prueba para volver atrás.
 
-                  <a> y no <Link>, igual que «Inicio» de la barra inferior y
-                  por lo mismo: la recarga completa reinicia el widget
-                  (servicio, profesional, hora) y saca del modo reserva, que
-                  va por :target sobre #reservar. Con navegación de cliente
-                  el estado se quedaría a medias.
-
                   aria-label porque el alt va vacío —el logo es decorativo
                   junto al nombre— y un enlace sin nombre accesible no lo
                   puede usar quien navega con lector de pantalla. */}
-              <a
+              <LogoInicio
                 href={`/${salon.slug}`}
-                aria-label={`Ir al inicio de ${salon.name}`}
+                etiqueta={`Ir al inicio de ${salon.name}`}
                 className="block rounded-xl focus-visible:outline-2
                   focus-visible:outline-offset-4 focus-visible:outline-brand"
               >
@@ -277,7 +272,7 @@ export default async function SalonPage({
                     enLocal ? "h-16 w-16" : "h-28 w-28 sm:h-32 sm:w-32"
                   }`}
                 />
-              </a>
+              </LogoInicio>
             </span>
           )}
           <h1 className="font-display display-l font-semibold text-brand text-balance">
