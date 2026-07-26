@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cache } from "react";
 import { supabaseServer } from "@/lib/supabase/server";
 import { logout } from "./actions";
 import Assistant from "./assistant";
@@ -7,14 +8,56 @@ import { esSuperadmin } from "@/lib/superadmin";
 import { estadoSalon, moduloActivo, MODULOS, type Modulo } from "@/lib/modulos";
 import { AvisoInstalar } from "./instalar";
 
-// El panel se instala como app aparte de la web de reservas: su scope es
-// /admin, así que abre directo en la agenda y no en la página del salón.
-export const metadata = {
-  title: "Salonio — mi agenda",
-  manifest: "/admin/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "Salonio", statusBarStyle: "black-translucent" as const },
-  icons: { apple: "/admin/pwa-icon?size=180" },
-};
+/**
+ * El salón de quien está dentro. `cache()` porque lo piden dos: el layout y
+ * generateMetadata, y son dos consultas idénticas en la misma petición.
+ */
+const miSalon = cache(async () => {
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from("salons")
+    .select("id, name, slug")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  return data ? { ...data, email: user.email } : { id: null, name: null, slug: null, email: user.email };
+});
+
+/**
+ * El panel se instala como app aparte de la web de reservas: su scope es
+ * /admin, así que abre directo en la agenda y no en la página del salón.
+ *
+ * Los nombres llevan el salón, no «Salonio»: quien instala esto es el
+ * peluquero, y en su tablet el icono tiene que decir de quién es la agenda
+ * — sobre todo cuando al lado está instalada también su web de reservas.
+ *
+ * El slug va en el enlace del manifest porque el navegador lo pide sin
+ * cookies: la ruta del manifest no puede saber de quién es el panel, y aquí
+ * sí lo sabemos.
+ */
+export async function generateMetadata() {
+  const salon = await miSalon();
+  const titulo = salon?.name ? `Panel Admin ${salon.name}` : "Salonio — mi agenda";
+  return {
+    title: titulo,
+    manifest: salon?.slug
+      ? `/admin/manifest.webmanifest?s=${encodeURIComponent(salon.slug)}`
+      : "/admin/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      title: titulo,
+      statusBarStyle: "black-translucent" as const,
+    },
+    // El logo del salón como icono de la app instalada, no el genérico.
+    icons: {
+      apple: salon?.slug
+        ? `/${salon.slug}/pwa-icon?size=180`
+        : "/admin/pwa-icon?size=180",
+    },
+  };
+}
 export const viewport = { themeColor: "#222325" };
 
 export default async function AdminLayout({

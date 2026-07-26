@@ -19,10 +19,25 @@ export async function GET(
     .maybeSingle();
   if (!salon) return new NextResponse(null, { status: 404 });
 
+  /**
+   * `name` es lo que sale en el diálogo de «Añadir a pantalla de inicio», y
+   * ahí un nombre a secas no dice qué es: entre veinte iconos, «Paye
+   * Villalobos» puede ser cualquier cosa. Se le pone delante lo que es.
+   *
+   * Solo si no lo dice ya: «Barbería Paco» no necesita que le llamemos
+   * peluquería, y ponérselo sería llamarle otra cosa de la que es.
+   */
+  const yaSeSabe = /(peluquer|barber|sal[oó]n|estilis|estudio)/i.test(salon.name);
+  const nombre = yaSeSabe ? salon.name : `Peluquería ${salon.name}`;
+
   return NextResponse.json(
     {
-      name: salon.name,
-      short_name: salon.name.length > 12 ? salon.name.slice(0, 12) : salon.name,
+      name: nombre,
+      // Antes se cortaba a 12 caracteres a mano y quedaba «Paye Villalo»:
+      // un nombre partido a mitad de palabra parece un error de la app. El
+      // recorte bajo el icono lo hace el sistema, y lo hace con puntos
+      // suspensivos — que se entiende. Aquí va el nombre entero.
+      short_name: salon.name,
       description: `Reserva tu cita en ${salon.name}`,
       id: `/${slug}`,
       start_url: `/${slug}`,
