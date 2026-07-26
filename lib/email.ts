@@ -335,22 +335,25 @@ export function ownerLowRatingHtml(d: {
  */
 export function resenaHtml(d: {
   salonName: string;
+  salonSlug?: string;
   customerName: string;
   citaUrl: string;
   sellos?: { tiene: number; requiere: number; premio: string } | null;
 }) {
   return wrap(
-    `¿Qué tal fue tu visita a ${esc(d.salonName)}?`,
-    `<p style="font-size:14px;margin:0 0 16px">Hola ${esc(d.customerName)}: gracias por venir. Nos ayuda mucho saber cómo lo hicimos — es un toque, y es privado.</p>
-     <p style="margin:0">${boton(`${d.citaUrl}#valorar`, "Valorar mi visita")}</p>${
+    "¿Qué tal fue tu visita?",
+    `<p style="margin:0 0 18px">Hola ${esc(d.customerName)}: gracias por venir. Nos ayuda mucho saber cómo lo hicimos — es un toque, y es privado.</p>
+     <div style="margin:0">${boton(`${d.citaUrl}#valorar`, "Valorar mi visita")}</div>${
        d.sellos
-         ? `<p style="font-size:14px;margin:18px 0 0;padding:12px;background:#faf6ec;border-radius:8px">🎯 Tu tarjeta: <b>${d.sellos.tiene} de ${d.sellos.requiere}</b> visitas. ${
+         ? `<p style="font-size:14px;margin:22px 0 0;padding:14px;background:${C.fondo};border:1px solid ${C.linea};border-radius:10px">Tu tarjeta: <b style="color:${C.oro}">${d.sellos.tiene} de ${d.sellos.requiere}</b> visitas. ${
              d.sellos.tiene >= d.sellos.requiere
                ? `¡<b>${esc(d.sellos.premio)}</b> conseguido! Díselo al equipo en tu próxima visita.`
                : `A ${d.sellos.requiere - d.sellos.tiene} de: ${esc(d.sellos.premio)}.`
            }</p>`
          : ""
-     }`
+     }`,
+    { salonName: d.salonName, salonSlug: d.salonSlug },
+    "Un toque y nos cuentas cómo fue. Es privado."
   );
 }
 

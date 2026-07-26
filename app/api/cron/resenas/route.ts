@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
 import { sendEmail, resenaHtml } from "@/lib/email";
+import { enviarPush } from "@/lib/push";
 import { baseUrl } from "@/lib/urls";
 
 /**
@@ -26,7 +27,7 @@ type Fila = {
   customer_email: string | null;
   public_token: string;
   salon_id: string;
-  salons: { name: string; timezone: string } | null;
+  salons: { name: string; slug: string; timezone: string } | null;
 };
 
 export async function GET(req: Request) {
@@ -49,12 +50,12 @@ export async function GET(req: Request) {
   const { data, error } = await admin
     .from("bookings")
     .select(
-      "id, ends_at, customer_id, customer_name, customer_email, public_token, salon_id, salons(name, timezone)"
+      "id, ends_at, customer_id, customer_name, customer_email, public_token, salon_id, salons(name, slug, timezone)"
     )
     .eq("status", "completed")
     .lt("ends_at", new Date(ahora - 2 * 3600_000).toISOString())
     .gte("ends_at", new Date(ahora - 24 * 3600_000).toISOString())
-    .not("customer_email", "is", null);
+    ;
 
   if (error) {
     console.error("[resenas] consulta fallida:", error.message);
@@ -63,10 +64,11 @@ export async function GET(req: Request) {
 
   const citas = (data ?? []) as unknown as Fila[];
   let enviados = 0;
+  let porPush = 0;
   let omitidos = 0;
 
   for (const c of citas) {
-    if (!c.salons || !c.customer_email) {
+    if (!c.salons) {
       omitidos++;
       continue;
     }
@@ -115,19 +117,49 @@ export async function GET(req: Request) {
       }
     }
 
+    const citaUrl = `${baseUrl()}/cita/${c.public_token}`;
+
+    // Push primero: la valoración se pide a las dos horas de salir del
+    // salón, con el corte todavía reciente. Un toque en la notificación
+    // lleva directo a las estrellas; un correo a esa hora se queda sin
+    // abrir hasta la noche, cuando ya da igual.
+    if (c.customer_id) {
+      const entregados = await enviarPush(c.customer_id, {
+        titulo: `¿Qué tal fue tu visita a ${c.salons.name}?`,
+        cuerpo: "Cuéntanoslo en un toque — nos ayuda mucho.",
+        url: citaUrl,
+        tag: `resena-${c.id}`,
+      });
+      if (entregados > 0) {
+        porPush++;
+        continue;
+      }
+    }
+
+    if (!c.customer_email) {
+      // Ni push ni correo: se deshace el reclamo. Si no, quedaría anotada
+      // una petición de valoración que nunca salió — y el reclamo es
+      // precisamente lo que impide volver a intentarlo.
+      await admin.from("review_requests").delete().eq("booking_id", c.id);
+      omitidos++;
+      continue;
+    }
+
     await sendEmail({
       to: c.customer_email,
       subject: `¿Qué tal fue tu visita a ${c.salons.name}?`,
       html: resenaHtml({
         salonName: c.salons.name,
+        salonSlug: c.salons.slug,
         customerName: c.customer_name,
-        citaUrl: `${baseUrl()}/cita/${c.public_token}`,
+        citaUrl,
         sellos,
       }),
       idempotencyKey: `review-request/${c.id}`,
+      fromName: c.salons.name,
     });
     enviados++;
   }
 
-  return NextResponse.json({ candidatos: citas.length, enviados, omitidos });
+  return NextResponse.json({ candidatos: citas.length, enviados, porPush, omitidos });
 }

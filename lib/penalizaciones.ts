@@ -1,6 +1,8 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { sendEmail, faltaHtml } from "@/lib/email";
+import { enviarPush } from "@/lib/push";
+import { baseUrl } from "@/lib/urls";
 
 /**
  * Escalera de faltas por no presentarse.
@@ -69,9 +71,34 @@ export async function aplicarFalta(bookingId: string) {
     }
     await admin.from("customers").update(cambio).eq("id", b.customer_id!);
 
-    // El aviso al cliente: sin email guardado no se envía, como el resto de
-    // notificaciones. idempotencyKey: re-marcar la misma cita no re-avisa.
-    if (b.customer_email) {
+    /**
+     * El aviso al cliente, push primero.
+     *
+     * Este es el aviso que más importa que se lea: le dice que ha perdido
+     * la reserva online y cómo recuperarla. Enterrado en el correo, el
+     * cliente se encuentra el bloqueo semanas después al intentar reservar
+     * y no entiende nada — y ahí ya lo has perdido.
+     */
+    const avisoPush = await enviarPush(b.customer_id!, {
+      titulo:
+        nivel === "aviso"
+          ? `Tu cita en ${b.salons.name} quedó sin asistir`
+          : `Tu reserva online en ${b.salons.name} está pausada`,
+      cuerpo:
+        nivel === "aviso"
+          ? "Si se repite, la reserva por internet se bloquea. Toca para verlo."
+          : hasta
+            ? `Puedes volver a reservar el ${hasta}. Toca para verlo.`
+            : "Llámanos y lo arreglamos. Toca para ver el teléfono.",
+      url: `${baseUrl()}/${b.salons.slug}`,
+      icono: `${baseUrl()}/${b.salons.slug}/pwa-icon?size=192`,
+      tag: `falta-${bookingId}`,
+    });
+
+    // Si el push llegó no se manda el correo: avisar dos veces de una
+    // sanción se lee como insistencia. idempotencyKey: re-marcar la misma
+    // cita no re-avisa.
+    if (!avisoPush && b.customer_email) {
       await sendEmail({
         to: b.customer_email,
         subject:
