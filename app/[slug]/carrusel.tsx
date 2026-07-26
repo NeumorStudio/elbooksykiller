@@ -18,29 +18,59 @@ export default function Carrusel({
   alt: string;
 }) {
   const pista = useRef<HTMLDivElement>(null);
-  const [activa, setActiva] = useState(0);
+  const pastilla = useRef<HTMLSpanElement>(null);
   const [autoOn, setAutoOn] = useState(true);
 
-  // Índice visible según la posición de scroll, para los puntos.
+  /**
+   * La pastilla naranja sigue al dedo.
+   *
+   * Antes iba con un `setTimeout` de 90 ms que se reiniciaba en cada evento
+   * de scroll: mientras arrastrabas, el temporizador no llegaba a cumplirse
+   * nunca, así que el indicador **no se movía en absoluto** hasta que
+   * soltabas. Luego encima animaba 300 ms. De ahí la sensación de ir a
+   * remolque.
+   *
+   * Ahora la posición se calcula en cada frame con requestAnimationFrame y
+   * se escribe directa en el DOM. Sin estado de React de por medio: un
+   * re-render por frame para mover un punto es tirar trabajo, y es
+   * justamente lo que vuelve a introducir retraso en un móvil modesto.
+   *
+   * La posición es fraccionaria, no el índice redondeado: a media pasada
+   * entre dos fotos la pastilla está a medio camino, que es lo que hace que
+   * parezca pegada al gesto en vez de saltar.
+   */
   useEffect(() => {
     const el = pista.current;
-    if (!el) return;
-    let t: ReturnType<typeof setTimeout>;
-    const onScroll = () => {
-      clearTimeout(t);
-      t = setTimeout(() => {
-        const hijo = el.firstElementChild as HTMLElement | null;
-        if (!hijo) return;
-        const paso = hijo.offsetWidth + 12; // ancho + gap
-        setActiva(Math.round(el.scrollLeft / paso));
-      }, 90);
+    if (!el || fotos.length < 2) return;
+    let frame = 0;
+
+    const pintar = () => {
+      frame = 0;
+      const p = pastilla.current;
+      const hijo = el.firstElementChild as HTMLElement | null;
+      if (!p || !hijo) return;
+      const paso = hijo.offsetWidth + 12; // ancho de la foto + gap-3
+      const avance = Math.min(Math.max(el.scrollLeft / paso, 0), fotos.length - 1);
+      // PASO_PUNTOS: punto (6px) + gap-2 (8px). CENTRADO: la pastilla mide
+      // 24px y hay que centrarla sobre un punto de 6.
+      p.style.transform = `translate3d(${avance * 14 - 9}px,0,0)`;
     };
+
+    const onScroll = () => {
+      // Coalescer a un cálculo por frame: el scroll dispara muchos más
+      // eventos que frames tiene la pantalla.
+      if (!frame) frame = requestAnimationFrame(pintar);
+    };
+
+    pintar();
     el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", pintar);
     return () => {
       el.removeEventListener("scroll", onScroll);
-      clearTimeout(t);
+      window.removeEventListener("resize", pintar);
+      if (frame) cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [fotos.length]);
 
   useEffect(() => {
     if (!autoOn || fotos.length < 2) return;
@@ -90,15 +120,22 @@ export default function Carrusel({
       </div>
 
       {fotos.length > 1 && (
-        <div className="mt-1 flex justify-center gap-2" aria-hidden>
-          {fotos.map((src, i) => (
+        <div className="mt-1 flex justify-center" aria-hidden>
+          {/* Los puntos son la pista; la pastilla naranja se desliza por
+              encima. Antes el punto activo se ensanchaba en su sitio, lo que
+              obligaba a esperar a saber CUÁL era el activo — y por eso solo
+              podía moverse a saltos, al terminar el gesto. */}
+          <div className="relative flex gap-2">
+            {fotos.map((src) => (
+              <span key={src} className="h-1.5 w-1.5 rounded-full bg-line-strong" />
+            ))}
             <span
-              key={src}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                i === activa ? "w-6 bg-brand" : "w-1.5 bg-line-strong"
-              }`}
+              ref={pastilla}
+              // Sin transition: sigue al scroll fotograma a fotograma, y una
+              // animación encima solo añadiría el retraso que quitamos.
+              className="pointer-events-none absolute left-0 top-0 h-1.5 w-6 rounded-full bg-brand will-change-transform"
             />
-          ))}
+          </div>
         </div>
       )}
     </div>
