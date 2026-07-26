@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
 import { esSuperadmin } from "@/lib/superadmin";
 import { MODULOS, POR_DEFECTO, type Modulo } from "@/lib/modulos";
-import { superBloquear, superGuardarModulos } from "./actions";
+import { superBloquear, superGuardarModulos, superEntrarComo } from "./actions";
 import ActionForm from "../action-form";
 import SubmitButton from "../submit-button";
 import ConfirmSubmit from "../confirm-submit";
@@ -107,6 +107,21 @@ export default async function SuperPage() {
                   {" · "}{citas.get(s.id)} {citas.get(s.id) === 1 ? "cita" : "citas"}
                 </p>
               </div>
+
+              {/* Soporte sin pedirle la contraseña al dueño: se abre su
+                  panel con un acceso de un solo uso. Con confirmación
+                  porque sustituye tu sesión por la suya. */}
+              {!bloqueado && (
+                <ActionForm action={superEntrarComo}>
+                  <input type="hidden" name="id" value={s.id} />
+                  <ConfirmSubmit
+                    className="btn-quiet text-sm"
+                    message={`¿Entrar en el panel de «${s.name}»? Se cerrará tu sesión de superadmin y entrarás como el dueño. Para volver, cierra sesión y entra con tu cuenta.`}
+                  >
+                    Entrar como
+                  </ConfirmSubmit>
+                </ActionForm>
+              )}
 
               <ActionForm action={superBloquear}>
                 <input type="hidden" name="id" value={s.id} />
