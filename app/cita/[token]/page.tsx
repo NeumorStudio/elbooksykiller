@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
 import { telHref } from "@/lib/tel";
 import CancelarBoton from "./cancelar-boton";
+import Avisos from "./avisos";
 import Valorar from "./valorar";
 
 /**
@@ -252,6 +253,14 @@ export default async function CitaPage({
               </a>
             )}
           </div>
+          {/* Solo con la cita viva y clave configurada: ofrecer un aviso que
+              no se puede mandar es peor que no ofrecerlo. */}
+          {process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && b.customer_id && (
+            <Avisos
+              token={token}
+              claveVapid={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+            />
+          )}
           {margen ? (
             <CancelarBoton token={token} pagada={b.payment_status === "paid"} />
           ) : (

@@ -18,6 +18,9 @@ import {
  * políticas RLS abiertas a anon (la lección de public_read_salons).
  */
 
+// El token va a la consulta: si no tiene forma de UUID, ni se pregunta.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const fmtWhen = (iso: string, tz: string) =>
   new Date(iso).toLocaleString("es-ES", {
     weekday: "long", day: "numeric", month: "long",
@@ -27,6 +30,53 @@ const fmtWhen = (iso: string, tz: string) =>
 async function ownerEmail(ownerId: string): Promise<string | null> {
   const { data } = await supabaseAdmin().auth.admin.getUserById(ownerId);
   return data?.user?.email ?? null;
+}
+
+/**
+ * Guarda la suscripción push de este móvil para el cliente de esta cita.
+ *
+ * El token hace de credencial: solo quien tiene el enlace de la cita puede
+ * atar un dispositivo a esa ficha. Sin esa comprobación, cualquiera podría
+ * suscribir su móvil a los avisos de otro cliente.
+ *
+ * Sin `customer_id` no hay a quién atarla — reserva de paso, sin ficha— y
+ * se devuelve error en vez de guardar algo huérfano.
+ */
+export async function guardarPush(
+  token: string,
+  sub: { endpoint: string; keys: { p256dh: string; auth: string } }
+): Promise<{ error?: string }> {
+  if (!UUID_RE.test(token)) return { error: "Enlace no válido." };
+  if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
+    return { error: "Suscripción incompleta." };
+  }
+
+  const admin = supabaseAdmin();
+  const { data: b } = await admin
+    .from("bookings")
+    .select("customer_id")
+    .eq("public_token", token)
+    .maybeSingle();
+  if (!b?.customer_id) return { error: "Esta cita no está ligada a una ficha." };
+
+  // onConflict en endpoint: volver a suscribir el mismo móvil lo actualiza
+  // en vez de duplicarlo. El navegador puede rotar las claves del mismo
+  // endpoint, así que se refrescan siempre.
+  const { error } = await admin.from("push_subscriptions").upsert(
+    {
+      customer_id: b.customer_id,
+      endpoint: sub.endpoint,
+      p256dh: sub.keys.p256dh,
+      auth: sub.keys.auth,
+      fallos: 0,
+    },
+    { onConflict: "endpoint" }
+  );
+  if (error) {
+    console.error("guardarPush:", error.message);
+    return { error: "No se pudo activar el aviso. Inténtalo de nuevo." };
+  }
+  return {};
 }
 
 export async function cancelarCita(token: string): Promise<{ error?: string }> {

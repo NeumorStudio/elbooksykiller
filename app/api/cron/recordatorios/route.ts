@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { sendEmail, reminderHtml } from "@/lib/email";
 import { features } from "@/lib/features";
 import { baseUrl } from "@/lib/urls";
+import { enviarPush } from "@/lib/push";
 
 /**
  * Recordatorio de cita ~1 h antes.
@@ -33,6 +34,7 @@ type Fila = {
   created_at: string;
   customer_name: string;
   customer_email: string | null;
+  customer_id: string | null;
   public_token?: string;
   services: { name: string; price_cents: number } | null;
   employees: { name: string } | null;
@@ -66,14 +68,16 @@ export async function GET(req: Request) {
   const { data, error } = await admin
     .from("bookings")
     .select(
-      "id, starts_at, created_at, customer_name, customer_email" +
+      "id, starts_at, created_at, customer_name, customer_email, customer_id" +
         (clientes ? ", public_token" : "") +
         ", services(name, price_cents), employees(name), salons(name, slug, phone, address, timezone)"
     )
     .gte("starts_at", desde)
     .lt("starts_at", hasta)
-    .eq("status", "confirmed")
-    .not("customer_email", "is", null);
+    // Ya no se filtra por customer_email: un cliente puede tener el aviso
+    // push activado y no haber dejado correo, y filtrarlo aquí lo dejaba
+    // fuera del recordatorio sin que nadie lo notara.
+    .eq("status", "confirmed");
 
   if (error) {
     console.error("[recordatorios] consulta fallida:", error.message);
@@ -82,11 +86,12 @@ export async function GET(req: Request) {
 
   const citas = (data ?? []) as unknown as Fila[];
   let enviados = 0;
+  let porPush = 0;
   let omitidos = 0;
 
   for (const c of citas) {
     const salon = c.salons;
-    if (!salon || !c.customer_email) {
+    if (!salon) {
       omitidos++;
       continue;
     }
@@ -110,6 +115,45 @@ export async function GET(req: Request) {
       timeZone: salon.timezone,
     });
 
+    const citaUrl = c.public_token ? `${baseUrl()}/cita/${c.public_token}` : undefined;
+
+    /**
+     * Push primero, y si llega, no se manda el correo.
+     *
+     * No es solo evitar avisar dos veces de lo mismo: el plan gratuito de
+     * Resend son 100 emails al DÍA, y el recordatorio es el envío más
+     * repetitivo que hay. Cada cliente que activa el aviso en el móvil
+     * libera cuota para lo que sí necesita correo.
+     *
+     * Si el push falla —móvil apagado, endpoint caducado— se cae al email,
+     * que es justo lo que tiene que pasar: el aviso importa más que el
+     * canal.
+     */
+    if (c.customer_id) {
+      const entregados = await enviarPush(c.customer_id, {
+        titulo: `Tu cita en ${salon.name} es en 1 hora`,
+        cuerpo: `${c.services?.name ?? "Tu cita"}${c.employees?.name ? ` con ${c.employees.name}` : ""} · ${new Date(
+          c.starts_at
+        ).toLocaleTimeString("es-ES", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: salon.timezone,
+        })}`,
+        url: citaUrl ?? `${baseUrl()}/${salon.slug}`,
+        icono: `${baseUrl()}/${salon.slug}/pwa-icon?size=192`,
+        tag: `cita-${c.id}`,
+      });
+      if (entregados > 0) {
+        porPush++;
+        continue;
+      }
+    }
+
+    if (!c.customer_email) {
+      omitidos++;
+      continue;
+    }
+
     await sendEmail({
       to: c.customer_email,
       subject: `En 1 hora: tu cita en ${salon.name}`,
@@ -126,7 +170,7 @@ export async function GET(req: Request) {
           style: "currency",
           currency: "EUR",
         }),
-        citaUrl: c.public_token ? `${baseUrl()}/cita/${c.public_token}` : undefined,
+        citaUrl,
       }),
       idempotencyKey: `booking-reminder/${c.id}`,
       // El recordatorio llega una hora antes: que se vea de quién es.
@@ -135,5 +179,5 @@ export async function GET(req: Request) {
     enviados++;
   }
 
-  return NextResponse.json({ candidatos: citas.length, enviados, omitidos });
+  return NextResponse.json({ candidatos: citas.length, enviados, porPush, omitidos });
 }
