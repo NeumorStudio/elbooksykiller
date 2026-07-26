@@ -247,17 +247,37 @@ export default async function SalonPage({
                 enLocal ? "mb-4" : "mb-6"
               }`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={salon.logo_url}
-                alt=""
-                width={512}
-                height={512}
-                fetchPriority="high"
-                className={`rounded-xl object-contain ${
-                  enLocal ? "h-16 w-16" : "h-28 w-28 sm:h-32 sm:w-32"
-                }`}
-              />
+              {/* El logo lleva al inicio, como en cualquier web. Importa
+                  sobre todo dentro del flujo de reserva: es el gesto que
+                  todo el mundo prueba para volver atrás.
+
+                  <a> y no <Link>, igual que «Inicio» de la barra inferior y
+                  por lo mismo: la recarga completa reinicia el widget
+                  (servicio, profesional, hora) y saca del modo reserva, que
+                  va por :target sobre #reservar. Con navegación de cliente
+                  el estado se quedaría a medias.
+
+                  aria-label porque el alt va vacío —el logo es decorativo
+                  junto al nombre— y un enlace sin nombre accesible no lo
+                  puede usar quien navega con lector de pantalla. */}
+              <a
+                href={`/${salon.slug}`}
+                aria-label={`Ir al inicio de ${salon.name}`}
+                className="block rounded-xl focus-visible:outline-2
+                  focus-visible:outline-offset-4 focus-visible:outline-brand"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={salon.logo_url}
+                  alt=""
+                  width={512}
+                  height={512}
+                  fetchPriority="high"
+                  className={`rounded-xl object-contain ${
+                    enLocal ? "h-16 w-16" : "h-28 w-28 sm:h-32 sm:w-32"
+                  }`}
+                />
+              </a>
             </span>
           )}
           <h1 className="font-display display-l font-semibold text-brand text-balance">

@@ -167,14 +167,25 @@ export default async function CitaPage({
       <header className="text-center">
         {salon.logo_url && (
           <span className="plato-logo mx-auto mb-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={salon.logo_url}
-              alt=""
-              width={512}
-              height={512}
-              className="h-16 w-16 rounded-xl object-contain"
-            />
+            {/* Desde la ficha de la cita, el logo devuelve a la web del
+                salón: es donde se pide otra o se miran los servicios, y
+                hasta ahora esta página era un callejón sin salida — se
+                llega por el enlace del email y no hay nada más. */}
+            <Link
+              href={`/${salon.slug}`}
+              aria-label={`Ir al inicio de ${salon.name}`}
+              className="block rounded-xl focus-visible:outline-2
+                focus-visible:outline-offset-4 focus-visible:outline-brand"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={salon.logo_url}
+                alt=""
+                width={512}
+                height={512}
+                className="h-16 w-16 rounded-xl object-contain"
+              />
+            </Link>
           </span>
         )}
         <p className="text-sm text-muted">Tu cita en</p>
