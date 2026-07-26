@@ -39,23 +39,34 @@ const miSalon = cache(async () => {
  */
 export async function generateMetadata() {
   const salon = await miSalon();
-  const titulo = salon?.name ? `Panel Admin ${salon.name}` : "Salonio — mi agenda";
+
+  /**
+   * Sin salón —o sea, en la pantalla de login— NO se declara manifest.
+   *
+   * Es lo que hacía que el panel se instalara como «Salonio» por mucho que
+   * el nombre estuviera bien: el menú del navegador ofrece «Instalar app»
+   * en cualquier página que declare un manifest, y desde el login no hay
+   * sesión con la que saber de quién es el panel. Quien pulsaba ahí se
+   * llevaba el nombre genérico, y una vez instalado ya no se renombra.
+   *
+   * Sin manifest, el navegador no ofrece instalar en el login. Solo se puede
+   * desde dentro, que es donde el nombre y el logo son los del salón.
+   */
+  if (!salon?.slug) {
+    return { title: "Salonio — mi agenda" };
+  }
+
+  const titulo = `Panel Admin ${salon.name}`;
   return {
     title: titulo,
-    manifest: salon?.slug
-      ? `/admin/manifest.webmanifest?s=${encodeURIComponent(salon.slug)}`
-      : "/admin/manifest.webmanifest",
+    manifest: `/admin/manifest.webmanifest?s=${encodeURIComponent(salon.slug)}`,
     appleWebApp: {
       capable: true,
       title: titulo,
       statusBarStyle: "black-translucent" as const,
     },
     // El logo del salón como icono de la app instalada, no el genérico.
-    icons: {
-      apple: salon?.slug
-        ? `/${salon.slug}/pwa-icon?size=180`
-        : "/admin/pwa-icon?size=180",
-    },
+    icons: { apple: `/${salon.slug}/pwa-icon?size=180` },
   };
 }
 export const viewport = { themeColor: "#222325" };
