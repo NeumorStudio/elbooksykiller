@@ -136,12 +136,13 @@ export default async function CitaPage({
   const finCal = new Date(inicio.getTime() + b.services.duration_min * 60000);
   const fCal = (d: Date) => d.toISOString().replace(/[-:]|\.\d{3}/g, "");
   const titulo = `${b.services.name} en ${salon.name}`;
-  const ics = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT",
-    `DTSTART:${fCal(inicio)}`, `DTEND:${fCal(finCal)}`, `SUMMARY:${titulo}`,
-    "END:VEVENT", "END:VCALENDAR",
-  ].join("\r\n");
-  const gcal = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(titulo)}&dates=${fCal(inicio)}/${fCal(finCal)}`;
+  // El .ics se sirve desde /cita/[token]/cita.ics: generarlo aquí en un
+  // `data:` hacía que el botón no hiciera nada en el navegador del correo.
+  const gcal =
+    `https://calendar.google.com/calendar/render?action=TEMPLATE` +
+    `&text=${encodeURIComponent(titulo)}` +
+    `&dates=${fCal(inicio)}/${fCal(finCal)}` +
+    (salon.address ? `&location=${encodeURIComponent(salon.address)}` : "");
 
   const mapa = salon.address
     ? `https://maps.google.com/?q=${encodeURIComponent(`${salon.name}, ${salon.address}`)}`
@@ -222,15 +223,20 @@ export default async function CitaPage({
       {activa && (
         <section className="flex flex-col items-center gap-4">
           <div className="flex flex-wrap justify-center gap-2">
-            <a href={`data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`}
-              download="cita.ics" className="btn-quiet text-sm">
+            {/* Sin target="_blank" a propósito: este enlace se abre desde el
+                email, y el navegador integrado de Gmail y Outlook ignora la
+                petición de pestaña nueva — el botón se quedaba muerto sin
+                dar ni error. En el mismo destino funciona siempre, y en el
+                móvil el sistema entrega el enlace a la app de Calendario o
+                de Mapas igual. */}
+            <a href={`/cita/${token}/cita.ics`} className="btn-quiet text-sm">
               Añadir al calendario
             </a>
-            <a href={gcal} target="_blank" rel="noopener" className="btn-quiet text-sm">
+            <a href={gcal} rel="noopener" className="btn-quiet text-sm">
               Google Calendar
             </a>
             {mapa && (
-              <a href={mapa} target="_blank" rel="noopener" className="btn-quiet text-sm">
+              <a href={mapa} rel="noopener" className="btn-quiet text-sm">
                 Cómo llegar
               </a>
             )}
