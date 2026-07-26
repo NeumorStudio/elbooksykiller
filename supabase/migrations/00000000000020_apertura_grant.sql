@@ -1,0 +1,13 @@
+-- `opens_at` también la lee el visitante anónimo.
+--
+-- La migración 0016 dejó de dar `select` sobre `salons` a `anon` y lo
+-- sustituyó por una lista de columnas concreta. Una columna nueva NO entra
+-- sola en esa lista: la 0019 añadió `opens_at`, la web pública la pidió, y
+-- Postgres devolvió 42501 «permission denied» sobre la tabla ENTERA — no
+-- sobre la columna. Resultado: la consulta del salón fallaba, la página se
+-- quedaba sin datos y todas las webs de reserva dejaron de pintar.
+--
+-- Recordatorio para la próxima: **cada columna nueva de `salons` que tenga
+-- que ver la web pública necesita su grant aquí.** El fallo no avisa en el
+-- despliegue ni en el build; aparece en producción y tumba la página.
+grant select (opens_at) on salons to anon;
