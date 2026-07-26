@@ -44,8 +44,11 @@ export default function Avisos({
         return;
       }
       try {
-        const reg = await navigator.serviceWorker.ready;
-        const ya = await reg.pushManager.getSubscription();
+        // getRegistration() y no .ready: .ready se queda colgada para siempre
+        // si la página no tiene SW registrado — y quien llega por el enlace
+        // del email no lo tiene, así que el botón no aparecía nunca.
+        const reg = await navigator.serviceWorker.getRegistration();
+        const ya = reg ? await reg.pushManager.getSubscription() : null;
         if (vivo) setEstado(ya ? "activo" : "listo");
       } catch {
         if (vivo) setEstado("listo");
