@@ -95,6 +95,16 @@ const C = {
   oroInk: "#1b150b",
 } as const;
 
+/**
+ * Quién firma el correo al pie, debajo del salón.
+ *
+ * NeumorStudio y no «Salonio»: quien responde de estos envíos y de los datos
+ * es el estudio, y es el nombre que el cliente puede buscar y encontrar.
+ * «Salonio» es el nombre del producto, que a quien recibe un recordatorio de
+ * su peluquería no le dice nada.
+ */
+const PLATAFORMA = "NeumorStudio";
+
 // Fraunces y Geist no se pueden cargar en un correo: Georgia hace de
 // display —también es serif con carácter— y la pila del sistema, de texto.
 const DISPLAY = "Georgia,'Times New Roman',serif";
@@ -135,7 +145,7 @@ const pie = (m?: Marca) => {
   ].filter(Boolean);
   return `
     ${datos.length ? `<p style="margin:0 0 6px;font-size:12px;color:${C.muted}">${datos.join(" · ")}</p>` : ""}
-    <p style="margin:0;font-size:11px;color:${C.faint}">Reservas por Salonio</p>`;
+    <p style="margin:0;font-size:11px;color:${C.faint}">Reservas por ${PLATAFORMA}</p>`;
 };
 
 /**
