@@ -36,7 +36,10 @@ type Fila = {
   public_token?: string;
   services: { name: string; price_cents: number } | null;
   employees: { name: string } | null;
-  salons: { name: string; phone: string | null; address: string | null; timezone: string } | null;
+  salons: {
+    name: string; slug: string; phone: string | null;
+    address: string | null; timezone: string;
+  } | null;
 };
 
 export async function GET(req: Request) {
@@ -65,7 +68,7 @@ export async function GET(req: Request) {
     .select(
       "id, starts_at, created_at, customer_name, customer_email" +
         (clientes ? ", public_token" : "") +
-        ", services(name, price_cents), employees(name), salons(name, phone, address, timezone)"
+        ", services(name, price_cents), employees(name), salons(name, slug, phone, address, timezone)"
     )
     .gte("starts_at", desde)
     .lt("starts_at", hasta)
@@ -112,6 +115,7 @@ export async function GET(req: Request) {
       subject: `En 1 hora: tu cita en ${salon.name}`,
       html: reminderHtml({
         salonName: salon.name,
+        salonSlug: salon.slug,
         salonPhone: salon.phone,
         salonAddress: salon.address,
         serviceName: c.services?.name ?? "tu cita",
@@ -125,6 +129,8 @@ export async function GET(req: Request) {
         citaUrl: c.public_token ? `${baseUrl()}/cita/${c.public_token}` : undefined,
       }),
       idempotencyKey: `booking-reminder/${c.id}`,
+      // El recordatorio llega una hora antes: que se vea de quién es.
+      fromName: salon.name,
     });
     enviados++;
   }

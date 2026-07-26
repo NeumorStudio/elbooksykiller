@@ -30,7 +30,7 @@ export async function notifyBookingConfirmed(bookingId: string) {
     const { data } = await admin
       .from("bookings")
       .select(
-        "starts_at, customer_name, customer_phone, customer_email, services(name, price_cents), employees(name), salons(name, phone, timezone, owner_id)" +
+        "starts_at, customer_name, customer_phone, customer_email, services(name, price_cents), employees(name), salons(name, slug, phone, address, timezone, owner_id)" +
           (clientes ? ", public_token" : "")
       )
       .eq("id", bookingId)
@@ -49,11 +49,14 @@ export async function notifyBookingConfirmed(bookingId: string) {
     if (!b) return;
 
     const salon = b.salons as unknown as {
-      name: string; phone: string | null; timezone: string; owner_id: string;
+      name: string; slug: string; phone: string | null; address: string | null;
+      timezone: string; owner_id: string;
     };
     const d: BookingEmailData = {
       salonName: salon.name,
       salonPhone: salon.phone,
+      salonSlug: salon.slug,
+      salonAddress: salon.address,
       serviceName: (b.services as unknown as { name: string }).name,
       employeeName: (b.employees as unknown as { name: string }).name,
       when: fmtWhen(b.starts_at, salon.timezone),
@@ -78,6 +81,9 @@ export async function notifyBookingConfirmed(bookingId: string) {
           subject: `Cita confirmada en ${d.salonName}`,
           html: customerConfirmationHtml(d),
           idempotencyKey: `booking-confirm/${bookingId}`,
+          // Quien reservó espera un correo de la peluquería, no de
+          // «Reservas»: en la bandeja el nombre es lo único que se lee.
+          fromName: d.salonName,
         })
       );
     }

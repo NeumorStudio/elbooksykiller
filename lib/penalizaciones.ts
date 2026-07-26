@@ -19,7 +19,7 @@ async function contexto(bookingId: string) {
   const admin = supabaseAdmin();
   const { data } = await admin
     .from("bookings")
-    .select("customer_id, salon_id, customer_name, customer_email, salons(name, phone, timezone)")
+    .select("customer_id, salon_id, customer_name, customer_email, salons(name, slug, phone, timezone)")
     .eq("id", bookingId)
     .maybeSingle();
   const b = data as unknown as {
@@ -27,7 +27,7 @@ async function contexto(bookingId: string) {
     salon_id: string;
     customer_name: string;
     customer_email: string | null;
-    salons: { name: string; phone: string | null; timezone: string };
+    salons: { name: string; slug: string; phone: string | null; timezone: string };
   } | null;
   if (!b?.customer_id) return null; // walk-in sin ficha: no hay a quién sancionar
   const { data: prog } = await admin
@@ -81,11 +81,13 @@ export async function aplicarFalta(bookingId: string) {
         html: faltaHtml({
           customerName: b.customer_name,
           salonName: b.salons.name,
+          salonSlug: b.salons.slug,
           salonPhone: b.salons.phone,
           nivel,
           hasta,
         }),
         idempotencyKey: `falta-${bookingId}`,
+        fromName: b.salons.name,
       });
     }
   } catch {}

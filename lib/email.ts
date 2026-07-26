@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { baseUrl } from "@/lib/urls";
 
 // Sin RESEND_API_KEY los envíos se saltan en silencio: el email nunca
 // debe romper una reserva.
@@ -10,7 +11,19 @@ type SendArgs = {
   subject: string;
   html: string;
   idempotencyKey: string;
+  /**
+   * Nombre que verá el cliente como remitente. Sin esto todos los correos
+   * llegaban de «Reservas», que no le dice nada a quien reservó en una
+   * peluquería concreta: en la bandeja, junto a diez remitentes más, «Paye
+   * Villalobos» se reconoce y «Reservas» se ignora o se marca como spam.
+   * La dirección no cambia — sigue siendo la del dominio verificado.
+   */
+  fromName?: string;
 };
+
+// «Nombre <correo@dominio>» → se queda con el correo para poder cambiarle
+// el nombre delante sin tocar la configuración.
+const DIRECCION = FROM.match(/<([^>]+)>/)?.[1] ?? FROM;
 
 export type SendResult = { ok: boolean; error?: string };
 
@@ -25,13 +38,19 @@ export async function sendEmail({
   subject,
   html,
   idempotencyKey,
+  fromName,
 }: SendArgs): Promise<SendResult> {
   if (!resend) {
     console.warn(`[email] sin RESEND_API_KEY: no se envía "${subject}" a ${to}`);
     return { ok: false, error: "RESEND_API_KEY ausente" };
   }
+  // Comillas fuera del nombre: un salón llamado `Paye "El Rápido"` rompía
+  // la cabecera From y el envío entero se caía.
+  const from = fromName
+    ? `${fromName.replace(/["<>\r\n]/g, "").trim()} <${DIRECCION}>`
+    : FROM;
   const { error } = await resend.emails.send(
-    { from: FROM, to: [to], subject, html },
+    { from, to: [to], subject, html },
     { idempotencyKey }
   );
   if (error) {
@@ -57,21 +76,114 @@ const esc = (s: string) =>
 const telAttr = (phone: string) =>
   `tel:${phone.trim().startsWith("+") ? "+" : ""}${phone.replace(/[^\d]/g, "")}`;
 
-const wrap = (title: string, body: string) => `
-<div style="margin:0 auto;max-width:480px;font-family:system-ui,sans-serif;color:#2b2620">
-  <div style="padding:28px 24px;border:1px solid #e4ded4;border-radius:12px">
-    <h1 style="margin:0 0 16px;font-size:20px;color:#8a6410">${title}</h1>
-    ${body}
-  </div>
-  <p style="text-align:center;font-size:12px;color:#8d857a;margin-top:12px">Reservas por Salonio</p>
-</div>`;
+/**
+ * Paleta de la web, traída al correo.
+ *
+ * Son los tokens OKLCH de DESIGN.md convertidos a hex: en un email no hay
+ * variables CSS ni oklch() —Outlook y Gmail lo ignoran—, así que van fijos.
+ * Si se cambia la paleta de la web, hay que volver a convertirlos o el
+ * correo dejará de parecerse a la página a la que lleva.
+ */
+const C = {
+  fondo: "#1f2023", // un punto por debajo del bg de la web: da marco a la tarjeta
+  tarjeta: "#292a2d",
+  linea: "#3d3e42",
+  ink: "#edeef1",
+  muted: "#aeafb2",
+  faint: "#88898c",
+  oro: "#e9b44b",
+  oroInk: "#1b150b",
+} as const;
+
+// Fraunces y Geist no se pueden cargar en un correo: Georgia hace de
+// display —también es serif con carácter— y la pila del sistema, de texto.
+const DISPLAY = "Georgia,'Times New Roman',serif";
+const TEXTO = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
+export type Marca = {
+  salonName: string;
+  /** Para el logo: se sirve en PNG desde /[slug]/pwa-icon. */
+  salonSlug?: string;
+  salonPhone?: string | null;
+  salonAddress?: string | null;
+};
+
+/**
+ * La cabecera con el logo del salón.
+ *
+ * El logo va por la ruta pwa-icon y no por `logo_url` a propósito: los
+ * logos se guardan en WebP, que **Outlook no pinta** — el cliente vería un
+ * hueco roto justo en la parte que da confianza. Esa ruta ya convierte a
+ * PNG con sharp para el icono de la PWA, así que sirve igual aquí.
+ */
+const cabecera = (m?: Marca) => {
+  if (!m) return "";
+  const logo = m.salonSlug
+    ? `<img src="${baseUrl()}/${encodeURIComponent(m.salonSlug)}/pwa-icon?size=180"
+         width="56" height="56" alt=""
+         style="display:block;margin:0 auto 12px;border-radius:14px;border:1px solid ${C.linea}">`
+    : "";
+  return `${logo}
+    <p style="margin:0;text-align:center;font-family:${DISPLAY};font-size:19px;letter-spacing:.01em;color:${C.ink}">${esc(m.salonName)}</p>
+    <div style="height:1px;margin:18px 0 22px;background:${C.linea}"></div>`;
+};
+
+const pie = (m?: Marca) => {
+  const datos = [
+    m?.salonAddress ? esc(m.salonAddress) : null,
+    m?.salonPhone ? `<a href="${telAttr(m.salonPhone)}" style="color:${C.muted};text-decoration:none">${esc(m.salonPhone)}</a>` : null,
+  ].filter(Boolean);
+  return `
+    ${datos.length ? `<p style="margin:0 0 6px;font-size:12px;color:${C.muted}">${datos.join(" · ")}</p>` : ""}
+    <p style="margin:0;font-size:11px;color:${C.faint}">Reservas por Salonio</p>`;
+};
+
+/**
+ * Maqueta base. Tablas y estilos en línea porque un correo no tiene
+ * hojas de estilo fiables, y `bgcolor` además de `background` porque
+ * Outlook ignora el segundo en algunos contextos.
+ *
+ * `preheader` es la línea que la bandeja de entrada enseña junto al asunto.
+ * Sin ella, ahí se cuela el primer texto del cuerpo —normalmente «Hola
+ * Fulano»— y se desaprovecha el único sitio donde se decide si se abre.
+ */
+const wrap = (title: string, body: string, m?: Marca, preheader?: string) => `<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<title>${esc(title)}</title>
+</head>
+<body style="margin:0;padding:0;background:${C.fondo};color:${C.ink}">
+${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(preheader)}</div>` : ""}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.fondo}" style="background:${C.fondo}">
+  <tr><td align="center" style="padding:28px 14px 34px">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px">
+      <tr><td bgcolor="${C.tarjeta}" style="background:${C.tarjeta};border:1px solid ${C.linea};border-radius:14px;padding:28px 26px">
+        ${cabecera(m)}
+        <h1 style="margin:0 0 18px;font-family:${DISPLAY};font-size:23px;line-height:1.25;font-weight:normal;color:${C.oro}">${title}</h1>
+        <div style="font-family:${TEXTO};font-size:15px;line-height:1.55;color:${C.ink}">${body}</div>
+      </td></tr>
+      <tr><td align="center" style="padding:18px 8px 0;font-family:${TEXTO}">${pie(m)}</td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`;
 
 const row = (label: string, value: string) =>
-  `<tr><td style="padding:4px 12px 4px 0;color:#8d857a">${label}</td><td style="padding:4px 0;font-weight:600">${value}</td></tr>`;
+  `<tr>
+     <td style="padding:7px 14px 7px 0;color:${C.muted};font-size:14px;white-space:nowrap;vertical-align:top">${label}</td>
+     <td style="padding:7px 0;font-weight:600;font-size:15px;color:${C.ink}">${value}</td>
+   </tr>`;
 
 export type BookingEmailData = {
   salonName: string;
   salonPhone: string | null;
+  // Para el logo y el pie del correo. Opcionales: sin ellos el email sale
+  // igual, solo que sin marca — nunca deben impedir que se envíe.
+  salonSlug?: string;
+  salonAddress?: string | null;
   serviceName: string;
   employeeName: string;
   when: string; // ya formateado en la zona del salón
@@ -85,33 +197,51 @@ export type BookingEmailData = {
 
 // Botón de email: enlaces con pinta de acción, compatibles con clientes viejos.
 const boton = (href: string, texto: string) =>
-  `<a href="${href}" style="display:inline-block;padding:10px 20px;background:#8a6410;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">${texto}</a>`;
+  `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+     <td bgcolor="${C.oro}" style="background:${C.oro};border-radius:10px">
+       <a href="${href}" style="display:inline-block;padding:12px 24px;color:${C.oroInk};text-decoration:none;font-weight:700;font-size:15px;font-family:${TEXTO}">${texto}</a>
+     </td>
+   </tr></table>`;
+
+// Los datos de marca que lleva toda cita: se extraen una vez y se pasan a
+// wrap(), en vez de repetir los cuatro campos en cada plantilla.
+const marcaDe = (d: BookingEmailData): Marca => ({
+  salonName: d.salonName,
+  salonSlug: d.salonSlug,
+  salonPhone: d.salonPhone,
+  salonAddress: d.salonAddress,
+});
 
 export function customerConfirmationHtml(d: BookingEmailData) {
   return wrap(
-    `Cita confirmada en ${esc(d.salonName)}`,
-    `<table style="font-size:14px">${row("Servicio", esc(d.serviceName))}${row("Con", esc(d.employeeName))}${row("Cuándo", esc(d.when))}${row("Precio", esc(d.price))}</table>
-     <p style="font-size:14px;margin:16px 0 0">Te esperamos, ${esc(d.customerName)}.${
-       d.salonPhone ? ` Si no puedes venir, avísanos al <a href="${telAttr(d.salonPhone)}">${esc(d.salonPhone)}</a>.` : ""
+    "Tu cita está confirmada",
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0">${row("Servicio", esc(d.serviceName))}${row("Con", esc(d.employeeName))}${row("Cuándo", esc(d.when))}${row("Precio", esc(d.price))}</table>
+     <p style="margin:20px 0 0">Te esperamos, ${esc(d.customerName)}.${
+       d.salonPhone ? ` Si no puedes venir, avísanos al <a href="${telAttr(d.salonPhone)}" style="color:${C.oro}">${esc(d.salonPhone)}</a> y liberamos el hueco.` : ""
      }</p>${
        d.citaUrl
-         ? `<p style="margin:18px 0 0">${boton(d.citaUrl, "Ver o cancelar mi cita")}</p>
-            <p style="font-size:12px;color:#8d857a;margin:8px 0 0">Guarda este enlace: es tu cita, sin cuentas ni contraseñas.</p>`
+         ? `<div style="margin:22px 0 0">${boton(d.citaUrl, "Ver o cancelar mi cita")}</div>
+            <p style="font-size:12px;color:${C.muted};margin:10px 0 0">Guarda este enlace: es tu cita, sin cuentas ni contraseñas.</p>`
          : ""
-     }`
+     }`,
+    marcaDe(d),
+    `${d.when} · ${d.serviceName} con ${d.employeeName}`
   );
 }
 
 export function ownerNotificationHtml(d: BookingEmailData) {
   return wrap(
     `Nueva reserva: ${esc(d.serviceName)}`,
-    `<table style="font-size:14px">${row("Cuándo", esc(d.when))}${row("Cliente", esc(d.customerName))}${row("Teléfono", `<a href="${telAttr(d.customerPhone)}">${esc(d.customerPhone)}</a>`)}${row("Con", esc(d.employeeName))}${row("Precio", esc(d.price))}</table>`
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0">${row("Cuándo", esc(d.when))}${row("Cliente", esc(d.customerName))}${row("Teléfono", `<a href="${telAttr(d.customerPhone)}" style="color:${C.oro}">${esc(d.customerPhone)}</a>`)}${row("Con", esc(d.employeeName))}${row("Precio", esc(d.price))}</table>`,
+    marcaDe(d),
+    `${d.customerName} · ${d.when}`
   );
 }
 
 export function faltaHtml(d: {
   customerName: string;
   salonName: string;
+  salonSlug?: string;
   salonPhone: string | null;
   nivel: "aviso" | "bloqueo" | "veto";
   hasta?: string; // fecha formateada, solo para nivel "bloqueo"
@@ -135,16 +265,19 @@ export function faltaHtml(d: {
           }, y cuando vuelvas a venir con normalidad te reactivamos la reserva por internet.`;
   return wrap(
     d.nivel === "aviso" ? "Te esperamos y no viniste" : "Reserva online pausada",
-    `<p style="font-size:14px;margin:0">Hola ${esc(d.customerName)}: ${cuerpo}</p>`
+    `<p style="margin:0">Hola ${esc(d.customerName)}: ${cuerpo}</p>`,
+    { salonName: d.salonName, salonSlug: d.salonSlug, salonPhone: d.salonPhone }
   );
 }
 
 export function cancellationHtml(d: Omit<BookingEmailData, "customerPhone" | "price">) {
   return wrap(
-    `Tu cita en ${esc(d.salonName)} se ha cancelado`,
-    `<p style="font-size:14px;margin:0">Hola ${esc(d.customerName)}: tu cita de <b>${esc(d.serviceName)}</b> (${esc(d.when)}) ha sido cancelada por el salón.${
-      d.salonPhone ? ` Para reprogramar, llámanos al <a href="${telAttr(d.salonPhone)}">${esc(d.salonPhone)}</a> o reserva de nuevo online.` : " Puedes reservar de nuevo online cuando quieras."
-    }</p>`
+    "Tu cita se ha cancelado",
+    `<p style="margin:0">Hola ${esc(d.customerName)}: tu cita de <b>${esc(d.serviceName)}</b> (${esc(d.when)}) ha sido cancelada por el salón.${
+      d.salonPhone ? ` Para reprogramar, llámanos al <a href="${telAttr(d.salonPhone)}" style="color:${C.oro}">${esc(d.salonPhone)}</a> o reserva de nuevo online.` : " Puedes reservar de nuevo online cuando quieras."
+    }</p>`,
+    marcaDe(d as BookingEmailData),
+    `${d.serviceName} · ${d.when}`
   );
 }
 
@@ -152,16 +285,18 @@ export function reminderHtml(
   d: Omit<BookingEmailData, "customerPhone"> & { salonAddress: string | null }
 ) {
   return wrap(
-    `En 1 hora: tu cita en ${esc(d.salonName)}`,
-    `<p style="font-size:14px;margin:0 0 14px">Hola ${esc(d.customerName)} 👋 Te recordamos tu cita:</p>
-     <table style="font-size:14px">${row("Cuándo", esc(d.when))}${row("Servicio", esc(d.serviceName))}${row("Con", esc(d.employeeName))}${
+    "En 1 hora tienes tu cita",
+    `<p style="margin:0 0 16px">Hola ${esc(d.customerName)}, te recordamos tu cita:</p>
+     <table role="presentation" cellpadding="0" cellspacing="0" border="0">${row("Cuándo", esc(d.when))}${row("Servicio", esc(d.serviceName))}${row("Con", esc(d.employeeName))}${
        d.salonAddress ? row("Dónde", esc(d.salonAddress)) : ""
      }</table>
-     <p style="font-size:14px;margin:16px 0 0">Si no puedes venir, avísanos cuanto antes${
-       d.salonPhone ? ` al <a href="${telAttr(d.salonPhone)}">${esc(d.salonPhone)}</a>` : ""
+     <p style="margin:20px 0 0">Si no puedes venir, avísanos cuanto antes${
+       d.salonPhone ? ` al <a href="${telAttr(d.salonPhone)}" style="color:${C.oro}">${esc(d.salonPhone)}</a>` : ""
      } y liberamos el hueco para otra persona. Cancelar a última hora deja la silla vacía (${esc(d.price)}).</p>${
-       d.citaUrl ? `<p style="margin:18px 0 0">${boton(d.citaUrl, "Ver o cancelar mi cita")}</p>` : ""
-     }`
+       d.citaUrl ? `<div style="margin:22px 0 0">${boton(d.citaUrl, "Ver o cancelar mi cita")}</div>` : ""
+     }`,
+    marcaDe(d as BookingEmailData),
+    `${d.when} · ${d.serviceName}`
   );
 }
 
@@ -226,19 +361,23 @@ export function resenaHtml(d: {
  */
 export function newsletterHtml(d: {
   salonName: string;
+  salonSlug?: string;
   body: string;
   bajaUrl: string;
 }) {
   const cuerpo = esc(d.body)
     .split(/\n{2,}/)
-    .map((p) => `<p style="font-size:14px;margin:0 0 14px;white-space:pre-line">${p}</p>`)
+    .map((p) => `<p style="margin:0 0 14px;white-space:pre-line">${p}</p>`)
     .join("");
   return wrap(
     esc(d.salonName),
     `${cuerpo}
-     <p style="font-size:12px;color:#8d857a;margin:20px 0 0;border-top:1px solid #e4ded4;padding-top:12px">
+     <p style="font-size:12px;color:${C.muted};margin:22px 0 0;border-top:1px solid ${C.linea};padding-top:14px">
        Recibes este correo porque aceptaste recibir novedades de ${esc(d.salonName)} al reservar.
-       <a href="${d.bajaUrl}" style="color:#8d857a">Darme de baja</a>
-     </p>`
+       <a href="${d.bajaUrl}" style="color:${C.muted}">Darme de baja</a>
+     </p>`,
+    { salonName: d.salonName, salonSlug: d.salonSlug },
+    // El primer párrafo hace de línea de preview: es la promoción misma.
+    esc(d.body).split(/\n/)[0]?.slice(0, 120)
   );
 }
