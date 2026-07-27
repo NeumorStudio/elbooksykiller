@@ -24,8 +24,7 @@
 #
 #   4. Comprobar:  /usr/local/bin/elbooksykiller-cron.sh newsletter
 #
-# Los cuatro endpoints exportan GET (no POST: docs/HANDOFF-PROD.md propone
-# POST y devolvería 405).
+# Los cuatro endpoints exportan GET. Con POST devuelven 405.
 set -euo pipefail
 
 ENV_FILE=/etc/elbooksykiller.env
