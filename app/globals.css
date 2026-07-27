@@ -515,6 +515,117 @@ html[data-reserva] .solo-escaparate {
   50% { opacity: 0.25; }
 }
 
+/* ── Visor de fotos ───────────────────────────────────────────────────
+   <dialog> nativo a pantalla completa: Esc, foco atrapado, fondo inerte y
+   ::backdrop salen de fábrica.
+
+   display:grid va SOLO en [open]. El navegador cierra el diálogo con
+   display:none, y ponerlo en la regla base lo dejaría visible siempre. */
+dialog.visor {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: transparent;
+}
+dialog.visor[open] {
+  display: grid;
+  place-items: center;
+}
+dialog.visor::backdrop {
+  background: rgb(9 9 12 / 0.82);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  backdrop-filter: blur(16px) saturate(130%);
+}
+
+/* Capa de controles: no intercepta el clic, así que pulsar «al lado» de la
+   foto sigue cerrando el visor. Los botones lo reactivan. */
+.visor-controles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Cristal sobre la foto: el neumorfismo de la página no funciona aquí
+   porque no hay superficie debajo, solo la imagen. */
+.visor-btn,
+.visor-contador {
+  pointer-events: auto;
+}
+.visor-btn {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  color: #fff;
+  background: rgb(255 255 255 / 0.14);
+  border: 1px solid rgb(255 255 255 / 0.24);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition:
+    background 160ms ease,
+    scale 160ms ease;
+}
+.visor-btn:hover {
+  background: rgb(255 255 255 / 0.26);
+  scale: 1.06;
+}
+.visor-btn:active {
+  scale: 0.94;
+}
+.visor-contador {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 50%;
+  translate: -50% 0;
+  padding: 0.25rem 0.7rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  color: rgb(255 255 255 / 0.85);
+  background: rgb(255 255 255 / 0.12);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+/* El morph: la miniatura y la foto grande comparten `foto-visor`, así que el
+   navegador interpola el recuadro de una a otra. El resto de la página se
+   funde a oscuro sola (transición de `root`, gratis).
+
+   Sin `animation: none` habría además un crossfade entre dos copias de la
+   MISMA imagen: solo la emborrona. height+object-fit evitan que se aplaste
+   al pasar de recorte vertical a foto entera. */
+::view-transition-group(foto-visor) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+::view-transition-old(foto-visor),
+::view-transition-new(foto-visor) {
+  animation: none;
+  mix-blend-mode: normal;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Los controles entran con retraso, cuando la foto ya casi ha llegado a su
+   sitio. Los tiempos se solapan (sale hasta 200 ms, entra desde 100 ms) para
+   que al pasar de foto no haya un parpadeo entre el que se va y el que
+   viene, que llevan lo mismo dibujado. */
+::view-transition-old(visor-controles) {
+  animation-duration: 200ms;
+}
+::view-transition-new(visor-controles) {
+  animation-delay: 100ms;
+  animation-duration: 280ms;
+  animation-fill-mode: backwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
