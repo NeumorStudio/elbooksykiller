@@ -156,7 +156,11 @@ export default function Home() {
 
       <footer className="border-t border-line bg-bg">
         <div className="mx-auto max-w-5xl px-6 py-8 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
-          <span className="font-display text-base text-brand">Salonio</span>
+          <span className="flex items-center gap-2 font-display text-base text-brand">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/marca/salonio.svg" alt="" width={18} height={36} className="h-9 w-auto" />
+            Salonio
+          </span>
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span>Sin comisiones por cita · Sin permanencia</span>
             <span aria-hidden className="opacity-40">·</span>

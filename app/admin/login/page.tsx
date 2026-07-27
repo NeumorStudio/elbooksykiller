@@ -47,7 +47,15 @@ export default function LoginPage() {
   return (
     <main className="flex-1 flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
-        <h1 className="font-display text-3xl font-semibold text-center text-brand">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/marca/salonio.svg"
+          alt=""
+          width={48}
+          height={95}
+          className="mx-auto h-14 w-auto"
+        />
+        <h1 className="font-display text-3xl font-semibold text-center text-brand mt-3">
           Salonio
         </h1>
         <p className="text-center text-muted mt-2 mb-8">Entra en tu panel</p>

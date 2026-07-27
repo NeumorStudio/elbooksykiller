@@ -1,9 +1,13 @@
 import { ImageResponse } from "next/og";
+import { MARCA } from "./marca";
 
-// Icono del panel instalado: la S de Salonio en dorado sobre el fondo del
-// taller. Sin base de datos — el navegador pide los iconos sin cookies, y
-// además el panel es el mismo para todos los dueños.
+// Icono del panel instalado: la marca de Salonio sobre el fondo del taller.
+// Sin base de datos — el navegador pide los iconos sin cookies, y además el
+// panel es el mismo para todos los dueños.
 export const runtime = "nodejs";
+
+// utf8 y no base64: el SVG se lee tal cual en marca.ts y pesa un tercio menos.
+const MARCA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(MARCA)}`;
 
 export function GET(req: Request) {
   // Solo los tamaños del manifest y el de iOS: cada tamaño distinto es una
@@ -18,16 +22,11 @@ export function GET(req: Request) {
           width: "100%",
           height: "100%",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
           background: "#222325",
-          color: "#e0b76c",
-          fontSize: size * 0.58,
-          fontWeight: 700,
-          fontFamily: "serif",
         }}
       >
-        S
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={MARCA_URI} width={size} height={size} alt="" />
       </div>
     ),
     {
