@@ -9,6 +9,21 @@ import sharp from "sharp";
 export const runtime = "nodejs";
 
 /**
+ * `max-age` a secas solo cachea en el navegador: el CDN no guardaba nada y
+ * cada visitante nuevo ejecutaba esta función dos veces —Chrome pide el
+ * icono de 192 y el de 512 al comprobar si la PWA es instalable—, y cada
+ * ejecución es consulta a Supabase + descarga del logo + sharp + Satori.
+ * Con tres salones da igual; es lo que no aguanta al crecer, y ya nos costó
+ * la cuota de funciones una vez (ver el comentario del tamaño, más abajo).
+ *
+ * `s-maxage` mete el CDN de por medio. Un día de desfase es asumible: si un
+ * salón cambia de logo, el icono ya instalado en los móviles no cambia de
+ * todas formas —el sistema lo congela al instalar la app— así que refrescar
+ * antes no arreglaría nada.
+ */
+const CACHE = "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800";
+
+/**
  * El logo solo se descarga si vive en nuestro Storage.
  *
  * `uploadLogo` valida lo que sube el dueño, pero RLS le deja escribir
@@ -96,7 +111,7 @@ export async function GET(
           />
         </div>
       ),
-      { width: size, height: size, headers: { "Cache-Control": "public, max-age=3600" } }
+      { width: size, height: size, headers: { "Cache-Control": CACHE } }
     );
   }
 
@@ -122,7 +137,7 @@ export async function GET(
     {
       width: size,
       height: size,
-      headers: { "Cache-Control": "public, max-age=86400" },
+      headers: { "Cache-Control": CACHE },
     }
   );
 }

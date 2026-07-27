@@ -55,7 +55,10 @@ export async function GET(
     {
       headers: {
         "Content-Type": "application/manifest+json",
-        "Cache-Control": "public, max-age=3600",
+        // `s-maxage` para que lo sirva el CDN: sin él cada visita nueva
+        // ejecutaba la función y consultaba Supabase solo para saber el
+        // nombre del salón. Ver la nota de la caché en pwa-icon/route.tsx.
+        "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
       },
     }
   );
