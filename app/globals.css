@@ -598,17 +598,26 @@ dialog.visor::backdrop {
    navegador interpola el recuadro de una a otra. El resto de la página se
    funde a oscuro sola (transición de `root`, gratis).
 
-   Sin `animation: none` habría además un crossfade entre dos copias de la
-   MISMA imagen: solo la emborrona. height+object-fit evitan que se aplaste
-   al pasar de recorte vertical a foto entera. */
+   El fundido cruzado por defecto se DEJA como está. Quitarlo (`animation:
+   none`) parecía buena idea — es la misma imagen dos veces, ¿para qué
+   fundirla? — pero deja las dos copias opacas a la vez, y como la miniatura
+   es un recorte vertical y la grande es la foto entera, sus recuadros no
+   coinciden: en el iPhone se veía una segunda foto más grande por detrás.
+   El fundido es justo lo que las convierte en una sola.
+
+   height + object-fit alinean el encuadre de las dos copias, y el recorte
+   del par impide que ninguna asome fuera del recuadro que está creciendo. */
 ::view-transition-group(foto-visor) {
   animation-duration: 420ms;
   animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
+::view-transition-image-pair(foto-visor) {
+  overflow: clip;
+  border-radius: 1rem;
+}
 ::view-transition-old(foto-visor),
 ::view-transition-new(foto-visor) {
-  animation: none;
-  mix-blend-mode: normal;
+  width: 100%;
   height: 100%;
   object-fit: cover;
 }
