@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { createSalon, dismissOnboarding } from "./actions";
+import { dismissOnboarding } from "./actions";
+import { OPERADOR } from "@/lib/legal";
 import { features } from "@/lib/features";
 import Agenda, { type Cita, type Profesional, type Servicio } from "./agenda";
-import ActionForm from "./action-form";
-import SubmitButton from "./submit-button";
 import Ayuda from "./ayuda";
 import { esSuperadmin } from "@/lib/superadmin";
 import { estadoSalon, moduloActivo } from "@/lib/modulos";
@@ -53,48 +52,30 @@ export default async function AdminHome() {
     }
   }
 
+  // Sin salón no hay nada que hacer aquí: las altas las damos nosotros a
+  // mano. Quien llegue a esta pantalla es una cuenta creada pero todavía sin
+  // salón asignado, o alguien que se registró por su cuenta.
   if (!salon) {
     return (
       <main className="mx-auto max-w-md pt-8">
-        <h1 className="font-display text-3xl font-semibold">Crea tu peluquería</h1>
-        <p className="text-muted mt-2 mb-8">
-          Dos datos y tienes tu web de reservas funcionando.
-        </p>
-        <ActionForm action={createSalon} className="panel p-6 flex flex-col gap-4">
-          {/* Mientras la plataforma esté cerrada, el código lo da Salonio a
-              mano. El campo solo aparece si de verdad hace falta; la
-              comprobación que manda vive en la action. */}
-          {!!process.env.ALTA_INVITACION && (
-            <div>
-              <label htmlFor="s-inv" className="label">Código de invitación</label>
-              <input id="s-inv" name="invitacion" required className="field" />
-              <p className="text-xs text-muted mt-1.5">
-                Te lo hemos dado nosotros al darte de alta.
-              </p>
-            </div>
+        <h1 className="font-display text-3xl font-semibold">Tu cuenta aún no tiene salón</h1>
+        <div className="panel p-6 mt-6 flex flex-col gap-3">
+          <p className="text-pretty">
+            Damos de alta las peluquerías una a una para acompañar la puesta en
+            marcha. Escríbenos y te montamos la tuya.
+          </p>
+          <p className="text-pretty text-muted text-sm">
+            Si ya has hablado con nosotros, cierra sesión y vuelve a entrar con
+            el correo que nos diste — es en esa cuenta donde está tu salón.
+          </p>
+          {/* El mismo contacto del aviso legal: uno solo que mantener. Sin
+              LEGAL_EMAIL no se pinta un mailto roto. */}
+          {OPERADOR.email && (
+            <a href={`mailto:${OPERADOR.email}`} className="btn-primary mt-2 text-center">
+              Escribirnos
+            </a>
           )}
-          <div>
-            <label htmlFor="s-name" className="label">Nombre del salón</label>
-            <input id="s-name" name="name" required placeholder="Barbería Paco" className="field" />
-          </div>
-          <div>
-            <label htmlFor="s-slug" className="label">Dirección web</label>
-            <input id="s-slug" name="slug" required minLength={3} placeholder="barberia-paco" className="field" />
-            <p className="text-xs text-muted mt-1.5">
-              Tus clientes reservarán en tu-web/<b>lo-que-pongas</b> — podrás
-              conectar un dominio propio después.
-            </p>
-          </div>
-          <div>
-            <label htmlFor="s-phone" className="label">Teléfono (opcional)</label>
-            <input id="s-phone" name="phone" type="tel" className="field" />
-          </div>
-          <div>
-            <label htmlFor="s-address" className="label">Dirección (opcional)</label>
-            <input id="s-address" name="address" className="field" />
-          </div>
-          <SubmitButton className="btn-primary mt-2" pendingText="Creando…">Crear mi peluquería</SubmitButton>
-        </ActionForm>
+        </div>
       </main>
     );
   }

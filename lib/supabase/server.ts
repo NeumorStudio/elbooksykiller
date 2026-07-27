@@ -1,3 +1,9 @@
+// Este módulo guarda la service role key: importarlo desde un componente
+// cliente tiene que ser un error de build, no algo que se descubra leyendo
+// el bundle. Next borra las env sin NEXT_PUBLIC_ del cliente, pero eso es
+// una consecuencia del nombre, no una garantía; esto sí lo es.
+import "server-only";
+
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";

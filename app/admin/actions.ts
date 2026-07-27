@@ -10,47 +10,18 @@ import { sesionAdmin } from "@/lib/sesion-admin";
 // Comprueba sesión y que el salón no esté bloqueado por el superadmin.
 const db = sesionAdmin;
 
-/**
- * Alta de un salón, opcionalmente por invitación.
+/*
+ * Aquí vivía `createSalon`: cualquiera con cuenta se daba de alta y publicaba
+ * un salón, con el código de invitación (`ALTA_INVITACION`) como único freno
+ * y solo si la variable estaba puesta.
  *
- * Registrarse es libre (lo hace Supabase Auth desde el navegador), pero
- * crear un salón es lo que pone contenido público en la plataforma y datos
- * de terceros en la base. Con `ALTA_INVITACION` definida hace falta el
- * código; sin ella, todo sigue como antes.
- *
- * Se comprueba aquí y no en el formulario porque el formulario es cliente:
- * un `fetch` a la server action se salta cualquier validación del navegador.
+ * Ahora las altas las hacemos nosotros a mano: el cliente nos da su email,
+ * le creamos la cuenta en Supabase Auth con su contraseña y le insertamos la
+ * fila en `salons`. Quitar el formulario no bastaba —la política RLS dejaba
+ * insertar con la clave pública desde el navegador—, así que el cierre real
+ * es la migración 0023: `salons` ya no acepta INSERT de `authenticated`.
+ * Solo entra por service role, o sea por nosotros.
  */
-export async function createSalon(formData: FormData) {
-  const { supabase, user } = await db();
-  const invitacion = (process.env.ALTA_INVITACION ?? "").trim();
-  if (invitacion && String(formData.get("invitacion") ?? "").trim() !== invitacion) {
-    return { error: "Ese código de invitación no es válido." };
-  }
-  const name = String(formData.get("name") ?? "").trim();
-  const slug = String(formData.get("slug") ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
-  if (name.length < 2) return { error: "Pon el nombre del salón." };
-  if (slug.length < 3) return { error: "La dirección web necesita al menos 3 letras." };
-  const { error } = await supabase.from("salons").insert({
-    owner_id: user.id,
-    name,
-    slug,
-    phone: String(formData.get("phone") ?? "").trim() || null,
-    address: String(formData.get("address") ?? "").trim() || null,
-  });
-  if (error) {
-    return {
-      error: error.message.includes("salons_slug_key")
-        ? "Esa dirección web ya está cogida — prueba con otra."
-        : "No se pudo crear el salón. Inténtalo de nuevo.",
-    };
-  }
-  revalidatePath("/admin");
-}
 
 export async function addService(formData: FormData) {
   const { supabase } = await db();
