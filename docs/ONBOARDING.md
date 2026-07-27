@@ -30,10 +30,8 @@ Las dos tienen **el mismo esquema** — las 23 migraciones de
 `supabase/migrations/` aplicadas y verificadas (27-07-2026). Lo que cambia son
 los datos.
 
-> Existe un tercer proyecto de Supabase que **también se llama
-> «elBooksyKiller»** y no es nuestro: `ulhlsyrrpjqhfixupglb`, en otra cuenta.
-> Ya se le aplicó una migración por error creyendo que era producción. Si te
-> aparece en un desplegable, no es.
+Esos dos refs son los únicos válidos. Antes de escribir en cualquier base,
+comprueba con `get_project_url` que estás donde crees.
 
 ## 3. El dominio
 
@@ -64,9 +62,7 @@ El del nombre sin sufijo es el de producción. Es a propósito: tienes que ver e
 sufijo `-dev` para saber que estás en la base segura.
 
 Cada uno pide su propio OAuth por separado. Pídele a Claude que llame a
-`authenticate` en el que falte, abre la URL que te dé, y **elige la
-organización correcta** en la pantalla de Supabase — la que tiene los dos refs
-del apartado 2, no la del proyecto homónimo ajeno.
+`authenticate` en el que falte y abre la URL que te dé.
 
 Necesitas que te hayan invitado antes a la organización de Supabase. Si al
 autorizar no ves los proyectos, es eso; pide acceso.
@@ -119,9 +115,6 @@ Van por el MCP, no por `supabase db push`, y siempre **en dev primero**. El
 orden es: escribir el `.sql` en `supabase/migrations/`, aplicarlo en dev,
 comprobar que funciona, y solo entonces en prod.
 
-Antes de escribir en cualquier base, comprueba el ref con `get_project_url`.
-No des por hecho cuál está activa.
-
 ### Dos avisos con nombre y apellido
 
 - **Las variables de Preview genéricas de Vercel apuntan a producción.** Solo
@@ -146,6 +139,5 @@ de que falle el build.
 ## 7. Documentos vecinos
 
 - `docs/CRONS.md` — los cuatro crons y sus frecuencias.
-- `docs/HANDOFF-PROD.md` — **desactualizado.** Describe una puesta en marcha ya
-  hecha y en sus comandos aparece `ulhlsyrrpjqhfixupglb`, el proyecto ajeno del
-  apartado 2. No copies comandos de ahí.
+- `docs/HANDOFF-PROD.md` — **desactualizado.** Describe una puesta en marcha
+  que ya se hizo. Sirve como historia; no copies comandos de ahí.

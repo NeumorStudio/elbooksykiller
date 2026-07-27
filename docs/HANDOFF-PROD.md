@@ -13,10 +13,6 @@ fidelidad, productos, newsletter, reseñas** y el **recordatorio de cita a 1 h**
   el panel de newsletter muestra el formulario, y eso solo ocurre si existe la
   tabla `newsletter_campaigns`.
 
-  > Corregido el 2026-07-20. Este documento decía antes que producción era
-  > `ulhlsyrrpjqhfixupglb` y que `vgwhornipwxicyfknafm` era de pruebas. Era al
-  > revés, y llevó a diagnosticar mal un fallo del botón de cancelar.
-
 - **Ojo:** `.env.local` apunta a producción. Cada `npm run dev` escribe en datos
   reales y envía emails reales a clientes reales — con enlaces a `localhost`
   si `PLATFORM_URL` no está definida. Conviene un proyecto Supabase aparte
@@ -38,7 +34,7 @@ Ya están en `supabase/migrations/`:
 
 ```bash
 git pull
-supabase link --project-ref ulhlsyrrpjqhfixupglb
+supabase link --project-ref vgwhornipwxicyfknafm
 supabase db push --dry-run        # ver qué aplicaría, sin aplicar
 ```
 
@@ -97,7 +93,7 @@ cliente acaba de recibir la confirmación).
 
 ```bash
 # la RPC debe devolver todo true
-curl -s -X POST "https://ulhlsyrrpjqhfixupglb.supabase.co/rest/v1/rpc/features_disponibles" \
+curl -s -X POST "https://vgwhornipwxicyfknafm.supabase.co/rest/v1/rpc/features_disponibles" \
   -H "apikey: <SERVICE_ROLE>" -H "Authorization: Bearer <SERVICE_ROLE>" \
   -H "Content-Type: application/json" -d '{}'
 # -> {"clientes":true,"fidelizacion":true,"productos":true,"newsletter":true,"resenas":true}
@@ -117,5 +113,4 @@ En el sitio en vivo:
   al reservar) **no dependen del cron** — funcionan en cuanto Resend esté bien
   en Vercel.
 - Los emails solo llegan al cliente si dejó email al reservar (es opcional).
-- Todo esto se ensayó con éxito en `vgwhornipwxicyfknafm`; el procedimiento está
-  probado.
+- El procedimiento está probado; se ejecutó con éxito.
