@@ -139,5 +139,3 @@ de que falle el build.
 ## 7. Documentos vecinos
 
 - `docs/CRONS.md` — los cuatro crons y sus frecuencias.
-- `docs/HANDOFF-PROD.md` — **desactualizado.** Describe una puesta en marcha
-  que ya se hizo. Sirve como historia; no copies comandos de ahí.
