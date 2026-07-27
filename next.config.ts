@@ -47,6 +47,27 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: "4mb" }, // subida de logos
   },
+  /**
+   * Sin esto no hay PWA instalable en Android.
+   *
+   * Next, en páginas dinámicas, no espera a `generateMetadata`: emite la
+   * metadata más tarde, en el cuerpo, y React la sube al <head> ya en
+   * cliente. Para `/[slug]` eso incluye el <link rel="manifest">, que
+   * llegaba unos 9 KB después de cerrar el <head>.
+   *
+   * Chrome decide si la web es instalable mientras carga la página. Al no
+   * ver manifest usaba los valores por defecto —scope la raíz, sin
+   * `display: standalone`, sin iconos—, la daba por no instalable y no
+   * disparaba `beforeinstallprompt`. El banner de instalación no salía en
+   * Android por esto, no por el service worker. En iPhone sí salía porque
+   * iOS no usa ese evento.
+   *
+   * Un patrón que casa con todo es lo que documenta Next para desactivar
+   * el streaming de metadata del todo: trata cada petición como la de un
+   * bot que necesita la metadata en el <head>. Cuesta que el <head> ahora
+   * espera a la consulta del salón; la página ya la esperaba para pintarse.
+   */
+  htmlLimitedBots: /.*/,
   async headers() {
     return [{ source: "/:path*", headers: CABECERAS }];
   },
