@@ -242,6 +242,18 @@ export default async function SalonPage({
 
   return (
     <>
+    {/* En una visita repetida el service worker ya está activo, así que Chrome
+        dispara `beforeinstallprompt` nada más cargar — antes de que hidrate
+        InstallPrompt y ponga su listener. El evento no se puede recuperar
+        después, así que se aparca aquí, en el HTML, y el componente lo recoge
+        al montar. Sin esto el banner sale la primera vez y nunca más. */}
+    <script
+      dangerouslySetInnerHTML={{
+        __html:
+          'addEventListener("beforeinstallprompt",function(e){' +
+          "e.preventDefault();window.__bip=e},{once:true})",
+      }}
+    />
     <main className="flex-1 flex flex-col">
       {/* ── Escaparate: portada ambiental con la identidad del salón ── */}
       <header className="relative overflow-hidden">

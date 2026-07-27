@@ -47,6 +47,10 @@ export default function InstallPrompt({
       setMode("android");
     };
     window.addEventListener("beforeinstallprompt", onBip);
+    // El evento pudo dispararse antes de hidratar: lo aparca el script en
+    // línea de page.tsx, porque después ya no hay forma de recuperarlo.
+    const previo = (window as unknown as { __bip?: BipEvent }).__bip;
+    if (previo) onBip(previo);
 
     const ua = navigator.userAgent;
     // iPadOS 13+ se identifica como Macintosh: sin maxTouchPoints, ningún

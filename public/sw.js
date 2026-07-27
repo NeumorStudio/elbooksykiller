@@ -1,7 +1,32 @@
 // Service worker: instalabilidad PWA y notificaciones push.
-// ponytail: sin caché offline; la reserva necesita red igualmente.
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+
+/**
+ * Sin manejador de `fetch` Chrome no marca la PWA como instalable: no
+ * dispara `beforeinstallprompt` y el banner de Android no aparecía nunca.
+ * iOS no usa ese evento —va por su propio aviso— y por eso el iPhone sí
+ * enseñaba la guía: el fallo se veía solo en Android.
+ *
+ * ponytail: no es una caché, es la respuesta de cortesía sin red. Cachear
+ * de verdad cuando alguien pida que la app abra offline.
+ */
+self.addEventListener("fetch", (event) => {
+  if (event.request.mode !== "navigate") return;
+  event.respondWith(
+    fetch(event.request).catch(
+      () =>
+        new Response(
+          `<!doctype html><meta charset="utf-8">
+           <meta name="viewport" content="width=device-width,initial-scale=1">
+           <title>Sin conexión</title>
+           <p style="font:16px/1.5 system-ui;padding:2rem;color:#1b1712">
+             Sin conexión. Inténtalo otra vez cuando tengas red.</p>`,
+          { headers: { "Content-Type": "text/html; charset=utf-8" } }
+        )
+    )
+  );
+});
 
 /**
  * Recordatorio de la cita.
