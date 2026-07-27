@@ -19,9 +19,9 @@ export default function InstallPrompt({
   const deferred = useRef<BipEvent | null>(null);
 
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
+    // El service worker se registra en el script en línea de page.tsx, no
+    // aquí: hidratar es demasiado tarde para que Chrome dé la web por
+    // instalable en la primera visita.
 
     // Ya instalada, o despedida hace menos de 30 días: no molestar
     const standalone =

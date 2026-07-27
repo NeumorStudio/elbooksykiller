@@ -246,12 +246,21 @@ export default async function SalonPage({
         dispara `beforeinstallprompt` nada más cargar — antes de que hidrate
         InstallPrompt y ponga su listener. El evento no se puede recuperar
         después, así que se aparca aquí, en el HTML, y el componente lo recoge
-        al montar. Sin esto el banner sale la primera vez y nunca más. */}
+        al montar. Sin esto el banner sale la primera vez y nunca más.
+
+        El registro del service worker va aquí y no en el useEffect del
+        componente por el caso contrario, el de la PRIMERA visita: Chrome
+        decide si la web es instalable al cargarla, y si para entonces no hay
+        service worker decide que no y no dispara el evento en toda la
+        sesión. Registrándolo durante el parseo del HTML llega a tiempo;
+        esperando a que hidrate React, no. */}
     <script
       dangerouslySetInnerHTML={{
         __html:
           'addEventListener("beforeinstallprompt",function(e){' +
-          "e.preventDefault();window.__bip=e},{once:true})",
+          "e.preventDefault();window.__bip=e},{once:true});" +
+          'if("serviceWorker"in navigator)' +
+          'navigator.serviceWorker.register("/sw.js").catch(function(){})',
       }}
     />
     <main className="flex-1 flex flex-col">
