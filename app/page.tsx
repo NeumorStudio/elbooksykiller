@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import VideoFondo from "./video-fondo";
+import { OPERADOR } from "@/lib/legal";
+
+// El alta ya no es automática, así que los CTA llevan a hablar con nosotros.
+// Mismo contacto que el aviso legal: uno solo que mantener. Sin LEGAL_EMAIL no
+// se pinta un mailto roto — al aviso legal, que es donde está el contacto.
+const CONTACTO = OPERADOR.email ? `mailto:${OPERADOR.email}` : "/legal";
 
 /**
  * El escaparate de Salonio no se indexa mientras la plataforma no sea un
  * negocio en marcha.
  *
- * Es una página de venta —precio, «Empieza gratis», alta abierta— y el plan
+ * Es una página de venta —precio, «Pide tu alta», captación— y el plan
  * Hobby de Vercel está limitado a uso personal no comercial: «advertising
  * the sale of a product or service» es uno de sus ejemplos textuales. Las
  * webs de los salones no cambian, siguen indexándose; lo que se quita del
@@ -87,9 +93,9 @@ export default function Home() {
           </p>
           {/* El CTA nunca sobre el vídeo: fondo sólido, contraste garantizado */}
           <div className="flex flex-wrap gap-3 mt-9">
-            <Link href="/admin/login?signup=1" className="btn-primary px-8 text-base">
-              Empieza gratis
-            </Link>
+            <a href={CONTACTO} className="btn-primary px-8 text-base">
+              Pide tu alta
+            </a>
             <Link href="/admin/login" className="btn-quiet px-8 text-base bg-bg/70">
               Ya tengo cuenta
             </Link>
@@ -138,12 +144,13 @@ export default function Home() {
             Deja de coger el teléfono a mitad de un corte
           </h2>
           <p className="text-muted max-w-md text-pretty revelar">
-            Crear tu peluquería lleva dos minutos: nombre, dirección web y listo.
-            Los primeros pasos se pueden configurar por voz.
+            Damos de alta las peluquerías una a una para acompañar la puesta en
+            marcha. Escríbenos y te montamos la tuya: la dejamos lista y los
+            primeros pasos se pueden configurar por voz.
           </p>
-          <Link href="/admin/login?signup=1" className="btn-primary px-8 text-base revelar">
-            Crear mi web de reservas
-          </Link>
+          <a href={CONTACTO} className="btn-primary px-8 text-base revelar">
+            Pide tu alta
+          </a>
         </div>
       </section>
 
