@@ -282,7 +282,7 @@ export default function BookingWidget({
    * no donde cabe el primer corte: si no, se ofrecen horas en las que el
    * niño se queda fuera del cierre. Y no vale encadenar dos consultas,
    * porque el segundo servicio empieza cuando acaba el primero y eso cae
-   * fuera de la rejilla de 15 minutos en cuanto un servicio dura 20 o 25.
+   * fuera de la rejilla de 30 minutos en cuanto un servicio no dura 30 ni 60.
    */
   useEffect(() => {
     if (!service || !employee || !day) return;

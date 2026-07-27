@@ -146,8 +146,8 @@ export default function Agenda({
       }
       if (cursor < t.end_min) libres.push({ ini: cursor, fin: t.end_min });
     }
-    // Menos de 15 min no es un hueco reservable.
-    return libres.filter((h) => h.fin - h.ini >= 15);
+    // Menos de 30 min no es un hueco reservable: la rejilla va de 30 en 30.
+    return libres.filter((h) => h.fin - h.ini >= 30);
   };
 
   const irAlForm = () =>
