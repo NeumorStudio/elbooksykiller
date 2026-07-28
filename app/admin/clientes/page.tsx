@@ -180,6 +180,11 @@ export default async function ClientesPage() {
               El sello se da solo cuando la cita se completa. Si subes las
               visitas necesarias, nadie pierde lo ya ganado.
             </p>
+            <p className="text-sm text-muted mt-2 text-pretty">
+              Con el programa apagado tus clientes no ven la tarjeta por
+              ningún sitio y no se apunta ningún sello. Puedes encenderlo
+              cuando quieras: los sellos ya ganados siguen ahí.
+            </p>
           </div>
           <label className="flex items-center gap-3 cursor-pointer">
             <input

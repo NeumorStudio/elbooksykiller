@@ -156,9 +156,13 @@ export default async function PerfilContenido() {
       {tarjetas.length === 0 ? (
         // Sin tarjetas pero con citas, este aviso sobra: ya hay contenido.
         citas.length === 0 ? (
+          // Sin mencionar la tarjeta: aquí no se sabe si el salón tiene el
+          // programa encendido, y prometer sellos que luego no aparecen es
+          // peor que no prometer nada. Cuando el programa está activo la
+          // tarjeta se enseña sola, unas líneas más abajo.
           <p className="panel p-6 text-center text-muted text-pretty">
-            Aquí verás tus próximas citas y tu tarjeta de fidelidad. Reserva en
-            tu peluquería y aparecerán solas.
+            Aquí verás tus próximas citas. Reserva en tu peluquería y
+            aparecerán solas.
           </p>
         ) : null
       ) : (
