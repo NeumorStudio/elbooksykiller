@@ -18,7 +18,7 @@ const PUBLICA = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const PRIVADA = process.env.VAPID_PRIVATE_KEY;
 // mailto: obligatorio en VAPID — es a quien avisa el servicio de push si
 // algo va mal con nuestros envíos.
-const SUJETO = process.env.VAPID_SUBJECT ?? "mailto:neumorstudio@gmail.com";
+const SUJETO = process.env.VAPID_SUBJECT ?? "mailto:info@neumorstudio.com";
 
 export const pushConfigurado = () => !!(PUBLICA && PRIVADA);
 
