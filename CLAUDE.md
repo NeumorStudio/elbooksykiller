@@ -28,7 +28,8 @@ descargando las dos. Por eso: `dev` y ya.
 
 - **Probar en la base de dev**, no en prod. En local eso lo decide `BD=dev` en `.env.local`.
 - **Nunca** sobre el piloto real `paye-villalobos`: es el cliente de verdad.
-- En prod hay un `salon-de-pruebas`, pero es de su compañero. Preguntar antes de usarlo.
+- En prod hay un salón de pruebas, **`salon-de-pruebas-d74a4b`** (el sufijo es a propósito, para
+  que no se encuentre adivinando el slug). Es de su compañero: preguntar antes de usarlo.
 - Borrar los datos de prueba al terminar.
 - Las credenciales están en la ficha de memoria `elbooksykiller-equipo-y-marca`, no aquí
   (esto se commitea).
@@ -57,6 +58,11 @@ El gestor de paquetes es **npm** (`package-lock.json`). Build: `npm run build`.
   RLS y abierta a `anon`; se blindó en la `0024`. Si se recrea, hay que blindarla otra vez.
 - **`push_subscriptions` tiene RLS sin políticas a propósito**: falla cerrado y se accede por
   `service_role`. El linter lo marca como aviso; no es un fallo.
+- **Un slug inexistente devuelve HTTP 200, no 404.** `app/[slug]/page.tsx:123` llama a
+  `notFound()`, pero la respuesta sale con 200 igual (comprobado el 30-07-2026 con
+  `x-vercel-cache: MISS`, así que no es caché). Sospecha: `htmlLimitedBots: /.*/` cambia el modo de
+  render y el estado ya no se puede fijar. Malo para SEO —Google indexa URLs basura como válidas— y
+  pendiente de arreglar con cuidado, porque esa opción es la que hace instalable la PWA.
 - El dominio bueno del salón piloto es `payevillalobos.neumorstudio.com`. El de
   `elbooksykiller.vercel.app` **no es de este proyecto** y da 404 para ese salón.
 
