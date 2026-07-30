@@ -17,8 +17,9 @@ resto. El repo es compartido: avisar antes de tocar ramas compartidas y ofrecer 
 | `dev` | `cjyfbmyidqubqikkbvpx` | Preview de Vercel |
 | `main` | `vgwhornipwxicyfknafm` | `reservas.neumorstudio.com` |
 
-Se trabaja en `dev` y se mergea a `main` cuando funciona. `main` está **protegida**: exige PR.
-Detalle completo en `docs/ONBOARDING_DEV.md`.
+Se trabaja en `dev` y se mergea a `main` cuando funciona. **`main` NO está protegida**: se decidió a
+propósito el 30-07-2026 no exigir PR, porque sois dos y la ceremonia estorbaba más de lo que
+aportaba. Es una convención, no una barrera técnica. Detalle en `docs/ONBOARDING_DEV.md`.
 
 ⚠️ **Una rama que no sea `dev` hereda las variables genéricas de Preview, que apuntan a
 PRODUCCIÓN.** Solo `dev` tiene las suyas hacia la base de dev. Comprobado el 30-07-2026
@@ -28,8 +29,10 @@ descargando las dos. Por eso: `dev` y ya.
 
 - **Probar en la base de dev**, no en prod. En local eso lo decide `BD=dev` en `.env.local`.
 - **Nunca** sobre el piloto real `paye-villalobos`: es el cliente de verdad.
-- En prod hay un salón de pruebas con el slug deliberadamente poco adivinable. **El slug no se
-  escribe aquí: este fichero está en un repo público.** Pedírselo al compañero, que es suyo.
+- En prod hay un salón de pruebas, pero está **`blocked`** desde el 30-07-2026: su web pública da
+  «no encontrado» y no admite reservas. Se cerró porque cada reserva gasta correos de una cuota
+  compartida de 100/día, y quien supiera la URL podía dejar sin correo a la peluquería de verdad.
+  Su dueño es el superadmin, así que sigue entrando al panel. **Probar en la base de dev.**
 - Borrar los datos de prueba al terminar.
 - Las credenciales están en la ficha de memoria `elbooksykiller-equipo-y-marca`, no aquí
   (esto se commitea).
@@ -58,6 +61,9 @@ El gestor de paquetes es **npm** (`package-lock.json`). Build: `npm run build`.
   RLS y abierta a `anon`; se blindó en la `0024`. Si se recrea, hay que blindarla otra vez.
 - **`push_subscriptions` tiene RLS sin políticas a propósito**: falla cerrado y se accede por
   `service_role`. El linter lo marca como aviso; no es un fallo.
+- **Un salón `blocked` sigue filtrando su nombre en el `<title>`.** El cuerpo sí da «no
+  encontrado» —sin formulario ni servicios—, pero `generateMetadata` corre aparte de la página y no
+  comprueba `blocked`. Cosmético, pero engaña al verificar: mirar el cuerpo, no el título.
 - **Un slug inexistente devuelve HTTP 200, no 404.** `app/[slug]/page.tsx:123` llama a
   `notFound()`, pero la respuesta sale con 200 igual (comprobado el 30-07-2026 con
   `x-vercel-cache: MISS`, así que no es caché). Sospecha: `htmlLimitedBots: /.*/` cambia el modo de

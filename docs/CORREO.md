@@ -39,6 +39,11 @@ completa y no vive en el entorno de la app.
 Que sean **dos claves y no una** también es a propósito: si te roban el portátil, se revoca la de
 local y producción sigue enviando.
 
+**Las claves antiguas de acceso completo NO se han borrado**, y es deliberado: ya no las usa nadie,
+pero borrar una credencial que quizá siga en el `.env.local` de otro rompe su entorno sin avisar.
+Se quedan vivas hasta que ambos confirméis que no las tenéis. Una clave sin usar molesta poco;
+borrar una que alguien usa es un problema inmediato.
+
 ## Rotar una clave: el orden importa
 
 **Cambiar una variable en Vercel no afecta al despliegue que está corriendo.** Entra en vigor en el
