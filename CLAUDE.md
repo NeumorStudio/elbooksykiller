@@ -28,8 +28,8 @@ descargando las dos. Por eso: `dev` y ya.
 
 - **Probar en la base de dev**, no en prod. En local eso lo decide `BD=dev` en `.env.local`.
 - **Nunca** sobre el piloto real `paye-villalobos`: es el cliente de verdad.
-- En prod hay un salón de pruebas, **`salon-de-pruebas-d74a4b`** (el sufijo es a propósito, para
-  que no se encuentre adivinando el slug). Es de su compañero: preguntar antes de usarlo.
+- En prod hay un salón de pruebas con el slug deliberadamente poco adivinable. **El slug no se
+  escribe aquí: este fichero está en un repo público.** Pedírselo al compañero, que es suyo.
 - Borrar los datos de prueba al terminar.
 - Las credenciales están en la ficha de memoria `elbooksykiller-equipo-y-marca`, no aquí
   (esto se commitea).
