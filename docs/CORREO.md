@@ -44,6 +44,19 @@ pero borrar una credencial que quizá siga en el `.env.local` de otro rompe su e
 Se quedan vivas hasta que ambos confirméis que no las tenéis. Una clave sin usar molesta poco;
 borrar una que alguien usa es un problema inmediato.
 
+## Qué está comprobado y qué no (30-07-2026)
+
+Reserva de prueba en el preview de `dev`, que usa la misma clave restringida que producción:
+
+- ✅ **La clave restringida envía desde la app desplegada.** Reserva creada a las 19:08:06 UTC, la
+  clave marcó uso a las 19:08:08, y el correo **«Cita confirmada»** llegó `delivered`.
+- ❌ **El aviso «Nueva reserva» al dueño NO salió**, aunque `lib/notifications.ts` encola los dos
+  envíos y el dueño del salón de dev tiene email. Resuelve la dirección con
+  `admin.auth.admin.getUserById(salon.owner_id)`; ahí está el hilo del que tirar.
+
+En producción los dos correos sí salían el 27-07-2026, así que puede ser cosa de dev — pero desde
+entonces no ha habido ninguna reserva real. **Sin comprobar en producción.**
+
 ## Rotar una clave: el orden importa
 
 **Cambiar una variable en Vercel no afecta al despliegue que está corriendo.** Entra en vigor en el

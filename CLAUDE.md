@@ -44,6 +44,17 @@ capturas y medición. No decir que algo funciona sin haberlo ejecutado.
 
 El gestor de paquetes es **npm** (`package-lock.json`). Build: `npm run build`.
 
+## ⚠️ Sin resolver: el aviso al dueño puede no estar saliendo
+
+Reserva de prueba en el preview de `dev` el **30-07-2026 a las 19:08 UTC**: salió «Cita confirmada»
+al cliente (`delivered`) pero **NO salió «Nueva reserva» al dueño**, aunque `lib/notifications.ts`
+encola los dos y el dueño del salón de dev sí tiene email. El aviso al dueño resuelve la dirección
+con `admin.auth.admin.getUserById(salon.owner_id)` — mirar ahí.
+
+En producción **sí salían los dos** el 27-07-2026, así que puede ser cosa de dev. Pero desde
+entonces no ha habido ninguna reserva real, así que **no está comprobado que hoy funcione**. Si
+falla, el salón no se entera de sus citas. Es lo primero que revisar.
+
 ## Trampas conocidas
 
 - **`.env.local` manda solo en tu máquina.** Lo desplegado usa las variables de Vercel y no lee
