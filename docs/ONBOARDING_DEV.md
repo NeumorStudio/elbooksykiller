@@ -26,8 +26,8 @@ Son dos proyectos de Supabase distintos, con datos distintos:
 | **dev** | `cjyfbmyidqubqikkbvpx` | La rama `dev`, su preview, y tu `npm run dev` |
 | **prod** | `vgwhornipwxicyfknafm` | `main` y el dominio público |
 
-Las dos tienen **el mismo esquema** — las 23 migraciones de
-`supabase/migrations/` aplicadas y verificadas (27-07-2026). Lo que cambia son
+Las dos tienen **el mismo esquema** — las 25 migraciones de
+`supabase/migrations/` aplicadas y verificadas (31-07-2026). Lo que cambia son
 los datos.
 
 Esos dos refs son los únicos válidos. Antes de escribir en cualquier base,
@@ -38,10 +38,15 @@ comprueba con `get_project_url` que estás donde crees.
 `reservas.neumorstudio.com` es la plataforma en producción. Sale de la rama
 `main` y habla con la base de prod.
 
-El mismo dominio se usa para probar hasta el **7 de agosto de 2026**, que es
-cuando entra el primer cliente real. Hasta entonces casi todo lo que hay en
-producción son pruebas — **con una excepción**: el salón «Paye Villalobos», su
-ficha y sus servicios son datos buenos. No los borres.
+**Ahí no se prueba.** Se probó hasta el 30-07-2026, y desde ese día no: el
+salón de pruebas que había en producción quedó `blocked` porque cada reserva
+gasta correos de una cuota compartida de 100 al día, y cualquiera que supiera
+la URL podía dejar sin avisos a la peluquería de verdad. **Las pruebas van a la
+base de dev**, que para eso está.
+
+De lo que hay en producción, el salón «Paye Villalobos», su ficha y sus
+servicios son **datos buenos** — el primer cliente real entra el **7 de agosto
+de 2026**. No los toques.
 
 Los correos salen de `citas@neumorstudio.com` (Resend, dominio verificado). Es
 decir: **desde local puedes enviar correo de verdad a gente de verdad.**
@@ -90,7 +95,7 @@ git.
 
 ---
 
-## 5. El flujo, a partir del 7 de agosto
+## 5. El flujo
 
 ```
 commit → dev
@@ -102,12 +107,16 @@ merge dev → main
 reservas.neumorstudio.com + base de prod
 ```
 
-Nadie commitea a `main` directamente. Se trabaja en `dev`, se comprueba en el
-preview —que ya apunta solo a la base de dev— y cuando funciona se mergea.
+Se trabaja en `dev`, se comprueba en el preview —que ya apunta solo a la base de
+dev— y cuando funciona se mergea. A `main` no se commitea directamente.
 
-**Hasta el 7 de agosto** el criterio es más suelto porque producción es casi
-toda de prueba, pero el flujo de arriba ya está montado y funcionando: úsalo
-desde el primer día y el 7 no hay que cambiar nada.
+**`main` no está protegida y no exige PR**: se decidió así el 30-07-2026, porque
+sois dos y la ceremonia estorbaba más de lo que aportaba. Es una convención, no
+una barrera técnica — lo cual quiere decir que la disciplina la pones tú.
+
+Y ya no hay criterio suelto: producción tiene un cliente real con su ficha y sus
+servicios, y el salón de pruebas que había está cerrado. Lo que se prueba, se
+prueba en dev.
 
 ### Las migraciones no se aplican a mano
 
@@ -139,3 +148,7 @@ de que falle el build.
 ## 7. Documentos vecinos
 
 - `docs/CRONS.md` — los cuatro crons y sus frecuencias.
+- `docs/CORREO.md` — Resend: qué clave usa cada entorno y por qué son de solo envío.
+- `CLAUDE.md` — las trampas conocidas. Léelas antes de ejecutar cualquier script
+  de `scripts/`: dos de ellos escriben en producción se ponga lo que se ponga en
+  `BD`.

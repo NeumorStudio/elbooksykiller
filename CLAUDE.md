@@ -39,21 +39,37 @@ descargando las dos. Por eso: `dev` y ya.
 
 ## Cómo verificar
 
-Hay **Playwright en `/tmp/pw`** con una sesión de admin reutilizable (`sesion-admin.json`) para
-capturas y medición. No decir que algo funciona sin haberlo ejecutado.
+Hay **Playwright instalado en `/tmp/pw`** (y `pg`, para SQL suelto). Ojo: ahí **ya no queda ninguna
+sesión de admin guardada** —el `sesion-admin.json` que hubo se perdió, comprobado el 31-07-2026—,
+así que hay que volver a iniciar sesión y, si se quiere reutilizar, guardar el `storageState`.
+
+No decir que algo funciona sin haberlo ejecutado.
 
 El gestor de paquetes es **npm** (`package-lock.json`). Build: `npm run build`.
 
-## ⚠️ Sin resolver: el aviso al dueño puede no estar saliendo
+## El aviso al dueño: resuelto el 31-07-2026, y es solo de dev
 
-Reserva de prueba en el preview de `dev` el **30-07-2026 a las 19:08 UTC**: salió «Cita confirmada»
-al cliente (`delivered`) pero **NO salió «Nueva reserva» al dueño**, aunque `lib/notifications.ts`
-encola los dos y el dueño del salón de dev sí tiene email. El aviso al dueño resuelve la dirección
-con `admin.auth.admin.getUserById(salon.owner_id)` — mirar ahí.
+El síntoma era que en el preview de `dev` salía «Cita confirmada» al cliente pero **no** «Nueva
+reserva» al dueño. **El código está bien**; lo que está roto son los datos de `auth.users` en dev.
 
-En producción **sí salían los dos** el 27-07-2026, así que puede ser cosa de dev. Pero desde
-entonces no ha habido ninguna reserva real, así que **no está comprobado que hoy funcione**. Si
-falla, el salón no se entera de sus citas. Es lo primero que revisar.
+El usuario dueño de dev se insertó a mano por SQL, y eso dejó `confirmation_token`,
+`recovery_token`, `email_change_token_new` y `email_change` a **NULL**. GoTrue los lee como cadena
+no nula, así que revienta:
+
+```
+error finding user: sql: Scan error on column index 3, name "confirmation_token":
+converting NULL to string is unsupported     ← log de auth, 30-07-2026 19:08:07 UTC
+```
+
+`getUserById` devuelve **500**, el `?? null` del código se lo traga y el correo no se encola.
+**Producción no está afectada:** los cinco usuarios tienen esos campos a cadena vacía, y
+`getUserById` del dueño del piloto devuelve 200 con su email (comprobado el 31-07-2026).
+
+Se arregla poniendo `''` en esos cuatro campos del usuario de dev. **Mientras no se arregle, en dev
+fallan en silencio cuatro sitios**, no uno: `lib/notifications.ts:90` (aviso de nueva reserva),
+`app/cita/[token]/actions.ts:31` (aviso cuando el cliente cancela) y `app/admin/super/page.tsx:47`
++ `actions.ts:46` (el panel del super enseña «—» en vez del email de cada dueño, porque
+`listUsers` da el mismo 500).
 
 ## Trampas conocidas
 
@@ -63,6 +79,12 @@ falla, el salón no se entera de sus citas. Es lo primero que revisar.
 - **`scripts/backup.mjs` NO pasa por `next.config.ts`:** lee `NEXT_PUBLIC_SUPABASE_URL` y
   `SUPABASE_SERVICE_ROLE_KEY` directamente del fichero. Esas dos tienen que seguir apuntando a
   **prod**, que es de lo que hay que hacer copias. No repuntarlas a dev.
+- **`scripts/smoke-test.sh` tampoco pasa por `next.config.ts`, y por eso apunta a producción.**
+  Lee `NEXT_PUBLIC_SUPABASE_*` del fichero igual que el backup, así que `BD=dev` no le afecta:
+  daría de alta un usuario, un salón y **una reserva de verdad en prod**. Además está **roto**
+  desde la `0023`, que revocó el INSERT sobre `salons` — muere en el paso 2, pero después del
+  signup del paso 1 y antes de la limpieza del paso 8, así que deja el usuario huérfano en
+  `auth.users` de producción. **No ejecutarlo** hasta que se le ponga el interruptor de base.
 - **`salons.opens_at` no se puede cambiar desde el panel** — no hay campo ni en `/admin` ni en el
   super. Cada cambio de fecha es un UPDATE a mano. Hueco de producto pendiente.
 - **`opens_at` filtra por el día de la CITA, no por hoy.** Con `opens_at = 2026-08-07` se puede

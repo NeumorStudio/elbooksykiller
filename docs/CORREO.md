@@ -44,18 +44,20 @@ pero borrar una credencial que quizá siga en el `.env.local` de otro rompe su e
 Se quedan vivas hasta que ambos confirméis que no las tenéis. Una clave sin usar molesta poco;
 borrar una que alguien usa es un problema inmediato.
 
-## Qué está comprobado y qué no (30-07-2026)
+## Qué está comprobado (31-07-2026)
 
 Reserva de prueba en el preview de `dev`, que usa la misma clave restringida que producción:
 
 - ✅ **La clave restringida envía desde la app desplegada.** Reserva creada a las 19:08:06 UTC, la
   clave marcó uso a las 19:08:08, y el correo **«Cita confirmada»** llegó `delivered`.
-- ❌ **El aviso «Nueva reserva» al dueño NO salió**, aunque `lib/notifications.ts` encola los dos
-  envíos y el dueño del salón de dev tiene email. Resuelve la dirección con
-  `admin.auth.admin.getUserById(salon.owner_id)`; ahí está el hilo del que tirar.
+- ✅ **El aviso «Nueva reserva» al dueño falla solo en dev, y ya se sabe por qué.** No es cosa de
+  Resend ni de `lib/notifications.ts`: el usuario dueño de dev tiene cuatro campos de token a NULL
+  en `auth.users`, GoTrue los lee como cadena no nula y `getUserById` devuelve 500, así que el
+  envío nunca se encola. El detalle y el arreglo, en `CLAUDE.md`.
 
-En producción los dos correos sí salían el 27-07-2026, así que puede ser cosa de dev — pero desde
-entonces no ha habido ninguna reserva real. **Sin comprobar en producción.**
+En producción **el mismo `getUserById` devuelve 200 con el email del dueño del piloto** (probado el
+31-07-2026), y los dos correos salían el 27-07-2026. Lo que sigue sin comprobarse en producción es
+una reserva de punta a punta, porque desde entonces no ha habido ninguna real.
 
 ## Rotar una clave: el orden importa
 

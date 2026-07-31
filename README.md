@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Salonio
 
-## Getting Started
+SaaS de reservas para peluquerías y barberías. Cada salón tiene su web pública
+(`/[slug]`, o su propio dominio si lo trae) y un panel de gestión en `/admin`:
+agenda, servicios, equipo, clientes, fidelización y newsletter.
 
-First, run the development server:
+La web **es** de la peluquería, no un marketplace: sin comisiones por cita y sin
+marca ajena delante del cliente.
+
+En producción: [reservas.neumorstudio.com](https://reservas.neumorstudio.com).
+
+## Stack
+
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · Supabase
+(Postgres + Auth + RLS) · Resend para el correo · Stripe para los pagos ·
+`web-push` para los avisos. Desplegado en Vercel.
+
+El gestor de paquetes es **npm** — hay `package-lock.json`, no mezclar con pnpm
+ni bun.
+
+## Arrancar en local
 
 ```bash
+npm install
+cp .env.example .env.local   # y pedir las claves al dueño del repo
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+En `.env.local` la variable que decide todo es **`BD`**: `BD=dev` apunta a la
+base de pruebas y `BD=prod` a la de clientes reales. Déjala en `dev`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build     # compilar
+npm run backup    # copia de la base de producción
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Antes de tocar nada
 
-## Learn More
+Hay un cliente real cogiendo citas, y dos bases de datos que es fácil confundir.
+Léete esto en este orden:
 
-To learn more about Next.js, take a look at the following resources:
+| Documento | Qué cuenta |
+|---|---|
+| [`docs/ONBOARDING_DEV.md`](docs/ONBOARDING_DEV.md) | Las dos ramas, las dos bases y el flujo. **Empieza aquí.** |
+| [`CLAUDE.md`](CLAUDE.md) | Las trampas conocidas — incluidos dos scripts que escriben en producción ignorando `BD` |
+| [`docs/CRONS.md`](docs/CRONS.md) | Los cuatro crons, que corren en `pg_cron` y no en Vercel |
+| [`docs/CORREO.md`](docs/CORREO.md) | Resend: una clave por entorno, y las dos son de solo envío |
+| [`DESIGN.md`](DESIGN.md) | Tokens, neumorfismo y las reglas de movimiento |
+| [`PRODUCT.md`](PRODUCT.md) | A quién sirve y contra qué se posiciona |
+| [`AGENTS.md`](AGENTS.md) | Este Next no es el que conoces: leer sus docs antes de escribir |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+El esquema vive en `supabase/migrations/`. Las migraciones se aplican **siempre
+en dev primero**, nunca a mano en producción.

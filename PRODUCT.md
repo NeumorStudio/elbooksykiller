@@ -14,7 +14,7 @@ Dos audiencias con superficies separadas. El cliente final de la peluquería res
 
 ## Product Purpose
 
-SaaS multi-tenant de reservas para peluquerías y barberías españolas. Cada salón tiene su web pública de reservas (`/[slug]`, con dominio propio en el futuro) y un panel de gestión. Éxito: el dueño deja de coger el teléfono para dar citas y el cliente final prefiere reservar aquí antes que llamar.
+SaaS multi-tenant de reservas para peluquerías y barberías españolas. Cada salón tiene su web pública de reservas (`/[slug]`, y dominio propio si lo trae: el piloto ya sirve desde `payevillalobos.neumorstudio.com`, y ese dominio es el que manda en el canonical) y un panel de gestión. Éxito: el dueño deja de coger el teléfono para dar citas y el cliente final prefiere reservar aquí antes que llamar.
 
 ## Positioning
 
