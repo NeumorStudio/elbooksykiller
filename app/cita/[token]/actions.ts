@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
+import { MARGEN_CANCELACION_TEXTO, sePuedeCancelar } from "@/lib/cancelacion";
 import {
   sendEmail,
   ownerCancelledByCustomerHtml,
@@ -104,10 +105,12 @@ export async function cancelarCita(token: string): Promise<{ error?: string }> {
   if (["completed", "no_show"].includes(b.status))
     return { error: "Esta cita ya pasó." };
 
-  // Margen de 2 horas: más cerca del inicio, el hueco ya no se recoloca y
-  // la cancelación se habla por teléfono, no con un botón.
-  if (new Date(b.starts_at).getTime() - Date.now() < 2 * 60 * 60 * 1000)
-    return { error: "Queda menos de 2 horas: llama al salón para cancelar." };
+  // El margen y su redacción salen del mismo sitio que los usa la página y
+  // los correos: ver lib/cancelacion.ts.
+  if (!sePuedeCancelar(b.starts_at))
+    return {
+      error: `Queda menos de ${MARGEN_CANCELACION_TEXTO}: llama al salón para cancelar.`,
+    };
 
   const { error } = await admin
     .from("bookings")

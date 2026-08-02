@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
+import { MARGEN_CANCELACION_TEXTO, sePuedeCancelar } from "@/lib/cancelacion";
 import { telHref } from "@/lib/tel";
 import { mapaUrl } from "@/lib/mapa";
 import CancelarBoton from "./cancelar-boton";
@@ -131,7 +132,9 @@ export default async function CitaPage({
   });
 
   const esFutura = inicio.getTime() > Date.now();
-  const margen = inicio.getTime() - Date.now() > 2 * 60 * 60 * 1000;
+  // Mismo criterio que la action que cancela: si aquí sale el botón, allí
+  // tiene que dejar cancelar (lib/cancelacion.ts).
+  const margen = sePuedeCancelar(inicio);
   const activa = ["confirmed", "pending_payment"].includes(b.status) && esFutura;
 
   // Añadir al calendario: mismo formato que la confirmación del widget.
@@ -266,7 +269,7 @@ export default async function CitaPage({
             <CancelarBoton token={token} pagada={b.payment_status === "paid"} />
           ) : (
             <p className="text-sm text-muted text-center text-pretty">
-              Queda menos de 2 horas: si no puedes venir,{" "}
+              Queda menos de {MARGEN_CANCELACION_TEXTO}: si no puedes venir,{" "}
               {salon.phone ? (
                 <a href={telHref(salon.phone)} className="underline underline-offset-4">
                   llámanos al {salon.phone}

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { sendEmail, reminderHtml } from "@/lib/email";
 import { features } from "@/lib/features";
+import { sePuedeCancelar } from "@/lib/cancelacion";
 import { baseUrl } from "@/lib/urls";
 import { enviarPush } from "@/lib/push";
 
@@ -171,6 +172,10 @@ export async function GET(req: Request) {
           currency: "EUR",
         }),
         citaUrl,
+        // El aviso sale entre 50 y 70 min antes y el margen para cancelar
+        // es de 1 h: dentro de la misma tanda hay citas que aún se pueden
+        // cancelar y citas que ya no. El botón lo dice por cada una.
+        puedeCancelar: sePuedeCancelar(c.starts_at),
       }),
       idempotencyKey: `booking-reminder/${c.id}`,
       // El recordatorio llega una hora antes: que se vea de quién es.

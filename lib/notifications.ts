@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { sePuedeCancelar } from "@/lib/cancelacion";
 import {
   sendEmail,
   customerConfirmationHtml,
@@ -69,6 +70,9 @@ export async function notifyBookingConfirmed(bookingId: string) {
       citaUrl: b.public_token
         ? `${(await import("@/lib/urls")).baseUrl()}/cita/${b.public_token}`
         : undefined,
+      // Casi siempre sí, pero nada impide reservar para dentro de media
+      // hora: en esa cita el botón no debe ofrecer cancelar.
+      puedeCancelar: sePuedeCancelar(b.starts_at),
     };
 
     // Aquí el resultado no cambia nada: la reserva ya existe y el email es

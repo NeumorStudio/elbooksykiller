@@ -203,6 +203,11 @@ export type BookingEmailData = {
   // URL permanente de la cita (/cita/[token]); ausente hasta que la
   // migración 0006 esté aplicada.
   citaUrl?: string;
+  // Si a esta cita le queda margen para cancelarse desde el enlace. Manda el
+  // texto del botón: prometer «cancelar» a quien ya no puede es mandarlo a
+  // un aviso de «llama al salón» que no esperaba. Sin dato, se asume que sí
+  // —es el caso normal— y el correo sale como salía.
+  puedeCancelar?: boolean;
 };
 
 // Botón de email: enlaces con pinta de acción, compatibles con clientes viejos.
@@ -212,6 +217,12 @@ const boton = (href: string, texto: string) =>
        <a href="${href}" style="display:inline-block;padding:12px 24px;color:${C.oroInk};text-decoration:none;font-weight:700;font-size:15px;font-family:${TEXTO}">${texto}</a>
      </td>
    </tr></table>`;
+
+// El botón que lleva a /cita/[token]. Lo que promete depende de si aún se
+// puede cancelar: el recordatorio sale ~1 h antes, o sea justo en el borde
+// del margen, y hasta ahora ofrecía cancelar siempre.
+const textoBotonCita = (d: { puedeCancelar?: boolean }) =>
+  d.puedeCancelar === false ? "Ver mi cita" : "Ver o cancelar mi cita";
 
 // Los datos de marca que lleva toda cita: se extraen una vez y se pasan a
 // wrap(), en vez de repetir los cuatro campos en cada plantilla.
@@ -230,7 +241,7 @@ export function customerConfirmationHtml(d: BookingEmailData) {
        d.salonPhone ? ` Si no puedes venir, avísanos al <a href="${telAttr(d.salonPhone)}" style="color:${C.oro}">${esc(d.salonPhone)}</a> y liberamos el hueco.` : ""
      }</p>${
        d.citaUrl
-         ? `<div style="margin:22px 0 0">${boton(d.citaUrl, "Ver o cancelar mi cita")}</div>
+         ? `<div style="margin:22px 0 0">${boton(d.citaUrl, textoBotonCita(d))}</div>
             <p style="font-size:12px;color:${C.muted};margin:10px 0 0">Guarda este enlace: es tu cita, sin cuentas ni contraseñas.</p>`
          : ""
      }`,
@@ -303,7 +314,7 @@ export function reminderHtml(
      <p style="margin:20px 0 0">Si no puedes venir, avísanos cuanto antes${
        d.salonPhone ? ` al <a href="${telAttr(d.salonPhone)}" style="color:${C.oro}">${esc(d.salonPhone)}</a>` : ""
      } y liberamos el hueco para otra persona. Cancelar a última hora deja la silla vacía (${esc(d.price)}).</p>${
-       d.citaUrl ? `<div style="margin:22px 0 0">${boton(d.citaUrl, "Ver o cancelar mi cita")}</div>` : ""
+       d.citaUrl ? `<div style="margin:22px 0 0">${boton(d.citaUrl, textoBotonCita(d))}</div>` : ""
      }`,
     marcaDe(d as BookingEmailData),
     `${d.when} · ${d.serviceName}`

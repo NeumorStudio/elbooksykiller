@@ -32,6 +32,13 @@ a los 7 días sin uso.
 Todos llaman a `https://reservas.neumorstudio.com/api/cron/<nombre>` con la
 cabecera `Authorization: Bearer <CRON_SECRET>`.
 
+**`recordatorios` roza la ventana de cancelación.** Sale entre 50 y 70 minutos
+antes de la cita y el margen para cancelar desde el enlace es de 1 hora
+(`lib/cancelacion.ts`), así que en la misma tanda hay citas que aún se pueden
+cancelar y citas que ya no. Por eso el botón del correo lo decide cada cita:
+«Ver o cancelar mi cita» o «Ver mi cita». Si se toca la cadencia del cron o el
+margen, mirar los dos a la vez.
+
 **`autocompletar` es el que más se echa de menos si falla:** es quien pone las
 citas en `completed`, y de ese estado dependen los sellos de fidelidad y los
 segmentos de la newsletter (`racha`, `enfriándose`, `nuevos`). Si una campaña
