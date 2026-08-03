@@ -4,6 +4,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { domainStatus } from "@/lib/vercel";
 import QRCode from "qrcode";
 import {
+  guardarApertura,
   guardarGoogleUrl,
   setCustomDomain,
   removeCustomDomain,
@@ -28,7 +29,7 @@ export default async function WebsitePage() {
   // 0010) rompe la inferencia de supabase-js: se tipa la fila a mano.
   const { data: salonRaw } = await supabase
     .from("salons")
-    .select("id, slug, custom_domain, logo_url" + (f.resenas ? ", google_review_url" : ""))
+    .select("id, slug, custom_domain, logo_url, opens_at" + (f.resenas ? ", google_review_url" : ""))
     .eq("owner_id", user!.id)
     .limit(1)
     .maybeSingle();
@@ -37,6 +38,7 @@ export default async function WebsitePage() {
     slug: string;
     custom_domain: string | null;
     logo_url: string | null;
+    opens_at: string | null;
     google_review_url?: string | null;
   } | null;
 
@@ -285,6 +287,41 @@ export default async function WebsitePage() {
           </div>
         </ActionForm>
       )}
+
+      <ActionForm action={guardarApertura} className="panel p-6 flex flex-col gap-4">
+        <div>
+          <h2 className="font-semibold">Fecha de apertura</h2>
+          <p className="text-sm text-muted mt-1 text-pretty">
+            Si aún no has abierto, ponla aquí: tu web anuncia «Abrimos el…» y
+            no deja coger cita para antes de ese día — pero sí para después,
+            así que el cartel de la calle ya puede llevar el QR. El aviso
+            desaparece solo el día que abres.{" "}
+            <b>Si ya estás abierto, déjalo vacío.</b>
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 items-end">
+          <div>
+            <label htmlFor="opens-at" className="label">Abro el día</label>
+            <input
+              id="opens-at"
+              name="opens_at"
+              type="date"
+              defaultValue={salon.opens_at ?? ""}
+              className="field"
+            />
+          </div>
+          <SubmitButton className="btn-primary" pendingText="Guardando…">
+            Guardar
+          </SubmitButton>
+        </div>
+        {salon.opens_at && (
+          <p className="text-sm text-muted text-pretty">
+            Ojo si la retrasas: las citas que ya te hayan cogido para días
+            anteriores <b>siguen en tu agenda</b>. Esto solo cambia lo que se
+            puede reservar de aquí en adelante.
+          </p>
+        )}
+      </ActionForm>
 
       <div className="panel p-6 flex flex-col gap-4">
         <div>

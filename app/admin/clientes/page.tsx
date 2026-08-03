@@ -50,7 +50,9 @@ export default async function ClientesPage() {
         .from("customers")
         // Las columnas de faltas solo existen tras la migración 0014.
         .select("id, name, phone, email, marketing_opt_in" +
-          (f.penalizaciones ? ", no_show_strikes, blocked_until, banned" : ""))
+          (f.penalizaciones ? ", no_show_strikes, blocked_until, banned" : "") +
+          // Solo tras la migración 0026.
+          (f.cancelaciones ? ", late_cancellations" : ""))
         .eq("salon_id", salon.id),
       supabase
         .from("bookings")
@@ -80,6 +82,7 @@ export default async function ClientesPage() {
   const clientes = (clientesRaw ?? []) as unknown as {
     id: string; name: string; phone: string; email: string | null; marketing_opt_in: boolean;
     no_show_strikes?: number; blocked_until?: string | null; banned?: boolean;
+    late_cancellations?: number;
   }[];
   const estados = estadosPorCliente(
     (visitasRaw ?? []) as { customer_id: string; starts_at: string }[]
@@ -303,6 +306,7 @@ export default async function ClientesPage() {
             const premiado =
               !!programa?.active && req > 0 && c.sellosN >= req;
             const faltas = c.no_show_strikes ?? 0;
+            const tardias = c.late_cancellations ?? 0;
             const bloqueadoHasta =
               c.blocked_until && new Date(c.blocked_until) > new Date()
                 ? new Date(c.blocked_until).toLocaleDateString("es-ES", { day: "numeric", month: "short" })
@@ -340,6 +344,15 @@ export default async function ClientesPage() {
                         {c.ficha.cadenciaDias &&
                           ` · cada ~${c.ficha.cadenciaDias} días`}
                       </>
+                    )}
+                    {/* Dato, no castigo: cancelar dentro de plazo es legítimo,
+                        pero hacerlo siempre a última hora deja huecos que ya
+                        no se llenan y hasta ahora no lo veía nadie. */}
+                    {!!tardias && (
+                      <span title="Canceló con menos de 2 horas de margen">
+                        {" · "}
+                        {tardias} {tardias === 1 ? "cancelación" : "cancelaciones"} a última hora
+                      </span>
                     )}
                   </p>
                 </div>

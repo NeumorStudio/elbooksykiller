@@ -302,18 +302,72 @@ export function cancellationHtml(d: Omit<BookingEmailData, "customerPhone" | "pr
   );
 }
 
-export function reminderHtml(
-  d: Omit<BookingEmailData, "customerPhone"> & { salonAddress: string | null }
-) {
+/**
+ * Su cita se ha movido de hora.
+ *
+ * Se manda cuando el salón la cambia de sitio, casi siempre después de que
+ * el propio cliente lo pida por teléfono. Por eso el tono no es de disculpa
+ * sino de confirmación — y lleva la hora vieja tachada al lado de la nueva,
+ * porque lo primero que hace quien lo recibe es comprobar que le han
+ * entendido bien.
+ */
+export function bookingMovedHtml(d: {
+  customerName: string;
+  salonName: string;
+  salonSlug?: string;
+  salonPhone: string | null;
+  serviceName: string;
+  antes: string;
+  ahora: string;
+  citaUrl?: string;
+}) {
   return wrap(
-    "En 1 hora tienes tu cita",
+    "Tu cita cambia de hora",
+    `<p style="margin:0 0 16px">Hola ${esc(d.customerName)}: hemos movido tu cita de <b>${esc(d.serviceName)}</b>.</p>
+     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+       ${row("Antes", `<s style="color:${C.muted}">${esc(d.antes)}</s>`)}
+       ${row("Ahora", `<b style="color:${C.oro}">${esc(d.ahora)}</b>`)}
+     </table>
+     <p style="margin:20px 0 0">Si esta hora no te va bien${
+       d.salonPhone
+         ? `, llámanos al <a href="${telAttr(d.salonPhone)}" style="color:${C.oro}">${esc(d.salonPhone)}</a> y buscamos otra`
+         : ", dínoslo y buscamos otra"
+     }.</p>${
+       d.citaUrl ? `<div style="margin:22px 0 0">${boton(d.citaUrl, "Ver mi cita")}</div>` : ""
+     }`,
+    { salonName: d.salonName, salonSlug: d.salonSlug, salonPhone: d.salonPhone },
+    `Ahora: ${d.ahora}`
+  );
+}
+
+/**
+ * El recordatorio, en sus dos momentos.
+ *
+ * No cambia solo la hora: cambia lo que se le puede pedir al cliente. La
+ * víspera todavía puede soltar la cita él mismo y el hueco se vende, así que
+ * el correo lleva al botón; una hora antes eso ya no existe, y lo único útil
+ * es el teléfono del salón.
+ */
+export function reminderHtml(
+  d: Omit<BookingEmailData, "customerPhone"> & {
+    salonAddress: string | null;
+    vispera?: boolean;
+  }
+) {
+  const telefono = d.salonPhone
+    ? ` al <a href="${telAttr(d.salonPhone)}" style="color:${C.oro}">${esc(d.salonPhone)}</a>`
+    : "";
+  return wrap(
+    d.vispera ? "Mañana tienes tu cita" : "En 1 hora tienes tu cita",
     `<p style="margin:0 0 16px">Hola ${esc(d.customerName)}, te recordamos tu cita:</p>
      <table role="presentation" cellpadding="0" cellspacing="0" border="0">${row("Cuándo", esc(d.when))}${row("Servicio", esc(d.serviceName))}${row("Con", esc(d.employeeName))}${
        d.salonAddress ? row("Dónde", esc(d.salonAddress)) : ""
      }</table>
-     <p style="margin:20px 0 0">Si no puedes venir, avísanos cuanto antes${
-       d.salonPhone ? ` al <a href="${telAttr(d.salonPhone)}" style="color:${C.oro}">${esc(d.salonPhone)}</a>` : ""
-     } y liberamos el hueco para otra persona. Cancelar a última hora deja la silla vacía (${esc(d.price)}).</p>${
+     <p style="margin:20px 0 0">${
+       d.vispera
+         ? `Si no puedes venir, suéltala hoy${telefono ? ` o llámanos${telefono}` : ""}: con un día de margen el hueco se lo queda otra persona. Mañana ya no da tiempo.`
+         : `Si no puedes venir, avísanos cuanto antes${telefono} y liberamos el hueco para otra persona. Cancelar a última hora deja la silla vacía (${esc(d.price)}).`
+     }</p>${
        d.citaUrl ? `<div style="margin:22px 0 0">${boton(d.citaUrl, textoBotonCita(d))}</div>` : ""
      }`,
     marcaDe(d as BookingEmailData),

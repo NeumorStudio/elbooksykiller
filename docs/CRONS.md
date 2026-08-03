@@ -24,7 +24,7 @@ a los 7 días sin uso.
 
 | Job | Cuándo | Qué hace |
 |---|---|---|
-| `recordatorios` | `*/10 * * * *` | Recordatorio 1 h antes de la cita |
+| `recordatorios` | `*/10 * * * *` | Dos avisos por cita: la víspera (~24 h) y 1 h antes |
 | `autocompletar` | `30 * * * *` | Marca `completed` lo ya pasado → dispara los sellos |
 | `resenas` | `45 * * * *` | Pide valoración 2-3 h tras el servicio |
 | `newsletter` | `*/15 * * * *` | Despacha las campañas encoladas, en tandas de 60 |
@@ -32,12 +32,27 @@ a los 7 días sin uso.
 Todos llaman a `https://reservas.neumorstudio.com/api/cron/<nombre>` con la
 cabecera `Authorization: Bearer <CRON_SECRET>`.
 
-**`recordatorios` roza la ventana de cancelación.** Sale entre 50 y 70 minutos
-antes de la cita y el margen para cancelar desde el enlace es de 1 hora
-(`lib/cancelacion.ts`), así que en la misma tanda hay citas que aún se pueden
-cancelar y citas que ya no. Por eso el botón del correo lo decide cada cita:
-«Ver o cancelar mi cita» o «Ver mi cita». Si se toca la cadencia del cron o el
-margen, mirar los dos a la vez.
+**`recordatorios` manda dos avisos por cita y no hay que dar de alta nada nuevo
+en `pg_cron`:** el mismo endpoint recorre las dos ventanas en cada pasada.
+
+| Aviso | Cuándo sale | Para qué |
+|---|---|---|
+| `vispera` | 23 h 50 – 24 h 10 antes | Que suelte la cita mientras el hueco aún se vende |
+| `hora` | 50 – 70 min antes | Que no se le olvide |
+
+**El de 1 h roza la ventana de cancelación.** El margen para cancelar desde el
+enlace es de 1 hora (`lib/cancelacion.ts`), así que en la misma tanda hay citas
+que aún se pueden cancelar y citas que ya no. Por eso el botón del correo lo
+decide cada cita: «Ver o cancelar mi cita» o «Ver mi cita». Si se toca la
+cadencia del cron o el margen, mirar los dos a la vez.
+
+**Quién ha recibido qué lo guarda la tabla `reminders`** (migración 0027), no
+Resend. Las ventanas son más anchas que el intervalo del cron a propósito —para
+que un tick perdido no deje a nadie sin aviso—, así que cada cita cae en dos o
+tres pasadas: insertar la fila es pedir el turno, y solo quien lo consigue
+envía. Antes esto lo tapaba la deduplicación de Resend, que **no cubría el
+push**: el móvil vibraba una vez por pasada. Al mover una cita se borra su fila,
+para que el aviso de la fecha nueva vuelva a salir.
 
 **`autocompletar` es el que más se echa de menos si falla:** es quien pone las
 citas en `completed`, y de ese estado dependen los sellos de fidelidad y los

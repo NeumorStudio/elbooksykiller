@@ -81,16 +81,24 @@ export async function guardarPenalizaciones(formData: FormData) {
  * real — RLS (owner_all_customers) limita el alcance a los clientes propios.
  */
 export async function perdonarCliente(formData: FormData) {
-  const { penalizaciones } = await features();
+  const { penalizaciones, cancelaciones } = await features();
   if (!penalizaciones) return { error: "Todavía no está activada." };
 
   const { supabase } = await db();
   const customerId = String(formData.get("customer_id") ?? "");
   if (!customerId) return { error: "Cliente inválido." };
 
+  // Perdón de verdad: si se le limpian las faltas y se le deja el contador
+  // de cancelaciones a última hora, el cliente sigue marcado en la ficha
+  // para siempre y el botón no ha perdonado nada.
   const { error } = await supabase
     .from("customers")
-    .update({ no_show_strikes: 0, blocked_until: null, banned: false })
+    .update({
+      no_show_strikes: 0,
+      blocked_until: null,
+      banned: false,
+      ...(cancelaciones ? { late_cancellations: 0 } : {}),
+    })
     .eq("id", customerId);
   if (error) return { error: "No se pudo perdonar. Inténtalo de nuevo." };
   revalidatePath("/admin/clientes");

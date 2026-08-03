@@ -94,14 +94,20 @@ fallan en silencio cuatro sitios**, no uno: `lib/notifications.ts:90` (aviso de 
   RLS y abierta a `anon`; se blindó en la `0024`. Si se recrea, hay que blindarla otra vez.
 - **`push_subscriptions` tiene RLS sin políticas a propósito**: falla cerrado y se accede por
   `service_role`. El linter lo marca como aviso; no es un fallo.
-- **Un salón `blocked` sigue filtrando su nombre en el `<title>`.** El cuerpo sí da «no
-  encontrado» —sin formulario ni servicios—, pero `generateMetadata` corre aparte de la página y no
-  comprueba `blocked`. Cosmético, pero engaña al verificar: mirar el cuerpo, no el título.
-- **Un slug inexistente devuelve HTTP 200, no 404.** `app/[slug]/page.tsx:123` llama a
-  `notFound()`, pero la respuesta sale con 200 igual (comprobado el 30-07-2026 con
-  `x-vercel-cache: MISS`, así que no es caché). Sospecha: `htmlLimitedBots: /.*/` cambia el modo de
-  render y el estado ya no se puede fijar. Malo para SEO —Google indexa URLs basura como válidas— y
-  pendiente de arreglar con cuidado, porque esa opción es la que hace instalable la PWA.
+- **Un slug inexistente devuelve HTTP 200, no 404 — y se queda así a propósito.** La causa no era
+  `htmlLimitedBots`, como se sospechaba: es el `loading.tsx` de `[slug]`. Al renderizarse ese
+  fallback la respuesta ya ha empezado a enviarse, y Next no puede cambiar las cabeceras después
+  («the status code of the response cannot be updated», su propia documentación de streaming).
+  Comprobado el 03-08-2026 quitando ese fichero: entonces sí sale 404. Se mantiene el 200 porque
+  Next añade `<meta name="robots" content="noindex">` al streamear un 404 —verificado en
+  producción—, así que Google **no** lo indexa: lo etiquetará como *soft 404*. El precio de
+  arreglarlo era perder el esqueleto de carga de la pantalla más visitada, o meter una consulta en
+  el proxy por cada visita. Si algún día hace falta el 404 de verdad (analítica, cumplimiento), esas
+  son las dos vías.
+- **Al leer `salons` con la sesión anónima, ojo con las columnas.** `anon` solo tiene SELECT sobre
+  las públicas (la 0016 lo recortó columna a columna): pedir `blocked`, `modules`, `owner_id` o
+  `stripe_account_id` no devuelve la fila sin ese campo, **falla la consulta entera** y el salón
+  parece no existir. Para eso está `supabaseAdmin()`.
 - El dominio bueno del salón piloto es `payevillalobos.neumorstudio.com`. El de
   `elbooksykiller.vercel.app` **no es de este proyecto** y da 404 para ese salón.
 

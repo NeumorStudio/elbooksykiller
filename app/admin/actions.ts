@@ -306,6 +306,145 @@ export async function setBookingStatus(formData: FormData) {
   revalidatePath("/admin");
 }
 
+/**
+ * Cambiar una cita de día o de hora.
+ *
+ * Faltaba, y era el hueco más grande del panel: la única forma de mover a
+ * alguien era cancelar y crear otra cita. Eso le manda al cliente un correo
+ * de «tu cita se ha cancelado» —que es exactamente lo contrario de lo que
+ * ha pasado—, le rompe el enlace que tenía guardado y le deja sin
+ * recordatorio. Y es la llamada más habitual que recibe un salón: «no llego
+ * a las seis, ¿me lo pasas a las ocho?».
+ *
+ * Aquí se cambia la fila, así que el token del cliente sigue valiendo, su
+ * enlace enseña la hora nueva y el .ics se regenera solo.
+ *
+ * No se valida contra el horario de apertura, igual que al crear a mano: el
+ * dueño manda sobre su agenda —una cita a las 21:30 por un favor es asunto
+ * suyo—. Lo que sí protege la base es el solape, que no es una opinión.
+ */
+export async function moverCita(formData: FormData) {
+  const { supabase } = await db();
+  const id = String(formData.get("id") ?? "");
+  const fecha = String(formData.get("fecha") ?? "");
+  const hora = String(formData.get("hora") ?? "");
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^\d{2}:\d{2}$/.test(hora))
+    return { error: "Revisa la fecha y la hora." };
+
+  // RLS: si la cita no es de un salón suyo, esto no devuelve nada.
+  const { data: b } = await supabase
+    .from("bookings")
+    .select(
+      "id, status, starts_at, customer_name, customer_email, customer_id, public_token, " +
+        "services(name, duration_min), salons(name, slug, phone, timezone)"
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (!b) return { error: "Esa cita no existe." };
+
+  const cita = b as unknown as {
+    id: string; status: string; starts_at: string; customer_name: string;
+    customer_email: string | null; customer_id: string | null;
+    public_token?: string;
+    services: { name: string; duration_min: number };
+    salons: { name: string; slug: string; phone: string | null; timezone: string };
+  };
+
+  // Mover una cita cancelada o ya cerrada no significa nada: si el cliente
+  // vuelve, es una cita nueva.
+  if (!["confirmed", "pending_payment"].includes(cita.status))
+    return { error: "Solo se pueden mover las citas activas." };
+
+  const { zonedTimeUtc } = await import("@/lib/tz");
+  const inicio = zonedTimeUtc(fecha, hora, cita.salons.timezone);
+  const fin = new Date(
+    new Date(inicio).getTime() + cita.services.duration_min * 60000
+  ).toISOString();
+
+  if (new Date(inicio).getTime() === new Date(cita.starts_at).getTime())
+    return { error: "Esa es la hora que ya tenía." };
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({ starts_at: inicio, ends_at: fin })
+    .eq("id", id);
+  if (error) {
+    return {
+      error: error.message.includes("no_overlap")
+        ? "Ese profesional ya tiene una cita a esa hora."
+        : "No se pudo mover la cita. Inténtalo de nuevo.",
+    };
+  }
+
+  /**
+   * Los recordatorios ya mandados dejan de valer.
+   *
+   * Si la cita era mañana y ya se le avisó la víspera, al moverla a la
+   * semana que viene ese turno tiene que soltarse: si no, el cliente se
+   * queda sin el aviso de su fecha nueva. Borrar la fila es volver a la
+   * casilla de salida.
+   */
+  const { recordatorios } = await (await import("@/lib/features")).features();
+  if (recordatorios) {
+    // Con service role: la tabla de turnos no tiene políticas a propósito
+    // (misma decisión que push_subscriptions), así que la sesión del dueño
+    // no la ve.
+    const { supabaseAdmin } = await import("@/lib/supabase/server");
+    await supabaseAdmin().from("reminders").delete().eq("booking_id", id);
+  }
+
+  // Avisar al cliente: mover su cita sin decírselo es plantarle a él.
+  const cuando = new Date(inicio).toLocaleString("es-ES", {
+    weekday: "long", day: "numeric", month: "long",
+    hour: "2-digit", minute: "2-digit", timeZone: cita.salons.timezone,
+  });
+  const antes = new Date(cita.starts_at).toLocaleString("es-ES", {
+    weekday: "long", day: "numeric", month: "long",
+    hour: "2-digit", minute: "2-digit", timeZone: cita.salons.timezone,
+  });
+  const citaUrl = cita.public_token
+    ? `${(await import("@/lib/urls")).baseUrl()}/cita/${cita.public_token}`
+    : undefined;
+
+  // Push primero, correo si no llegó: la misma escalera que el recordatorio,
+  // por la cuota de 100 correos al día.
+  let avisado = false;
+  if (cita.customer_id) {
+    const { enviarPush } = await import("@/lib/push");
+    const entregados = await enviarPush(cita.customer_id, {
+      titulo: `Tu cita en ${cita.salons.name} ha cambiado de hora`,
+      cuerpo: `Ahora es el ${cuando}. Toca para verla.`,
+      url: citaUrl ?? `${(await import("@/lib/urls")).baseUrl()}/${cita.salons.slug}`,
+      tag: `movida-${id}`,
+    });
+    avisado = entregados > 0;
+  }
+  if (!avisado && cita.customer_email) {
+    const { bookingMovedHtml } = await import("@/lib/email");
+    await sendEmail({
+      to: cita.customer_email,
+      subject: `Tu cita en ${cita.salons.name} cambia al ${cuando}`,
+      html: bookingMovedHtml({
+        customerName: cita.customer_name,
+        salonName: cita.salons.name,
+        salonSlug: cita.salons.slug,
+        salonPhone: cita.salons.phone,
+        serviceName: cita.services.name,
+        antes,
+        ahora: cuando,
+        citaUrl,
+      }),
+      // Cada movimiento es un aviso distinto: la clave lleva la hora nueva,
+      // porque mover dos veces la misma cita son dos correos legítimos.
+      idempotencyKey: `booking-moved/${id}/${inicio}`,
+      fromName: cita.salons.name,
+    });
+  }
+
+  revalidatePath("/admin");
+}
+
 export async function cancelBooking(formData: FormData) {
   const { supabase } = await db();
   const id = String(formData.get("id"));
@@ -319,9 +458,16 @@ export async function cancelBooking(formData: FormData) {
     .eq("id", id)
     .maybeSingle();
 
+  // Marcada como del salón: estas nunca cuentan como cancelación tardía del
+  // cliente (ver migración 0026).
+  const { cancelaciones } = await (await import("@/lib/features")).features();
   const { error } = await supabase
     .from("bookings")
-    .update({ status: "cancelled" })
+    .update(
+      cancelaciones
+        ? { status: "cancelled", cancelled_by: "salon" }
+        : { status: "cancelled" }
+    )
     .eq("id", id);
 
   // Si el cliente había pagado, devolverle el dinero. Antes se cancelaba la
@@ -571,6 +717,42 @@ export async function guardarGoogleUrl(formData: FormData) {
     .eq("owner_id", user.id);
   if (error) return { error: "No se pudo guardar. Inténtalo de nuevo." };
   revalidatePath("/admin/website");
+}
+
+/**
+ * Fecha de apertura del salón.
+ *
+ * Hasta ahora `opens_at` solo se podía tocar con un UPDATE a mano en la
+ * base: la web decía «Abrimos el 7 de agosto» y si la inauguración se movía,
+ * el cartel seguía mintiendo hasta que alguien entraba a la base. Es el dato
+ * que más cambia justo antes de abrir y el único sin sitio en el panel.
+ *
+ * Vacío = ya está abierto, que es el estado normal de un salón en marcha.
+ * No se rechazan fechas pasadas: una fecha ya cumplida se comporta como
+ * vacía —la web deja de anunciarla sola— y prohibirlas obligaría a limpiar
+ * el campo a mano el día después de abrir.
+ */
+export async function guardarApertura(formData: FormData) {
+  const { supabase, user } = await db();
+  const fecha = String(formData.get("opens_at") ?? "").trim();
+
+  if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(fecha))
+    return { error: "Revisa la fecha." };
+  // Date la acepta como UTC, que aquí da igual: solo se comprueba que exista
+  // (un 31 de febrero se cuela por el patrón pero no por esto).
+  if (fecha && Number.isNaN(new Date(`${fecha}T12:00:00Z`).getTime()))
+    return { error: "Esa fecha no existe." };
+
+  const { error } = await supabase
+    .from("salons")
+    .update({ opens_at: fecha || null })
+    .eq("owner_id", user.id);
+  if (error) return { error: "No se pudo guardar. Inténtalo de nuevo." };
+
+  revalidatePath("/admin/website");
+  // La web pública lee esta fecha en cada visita, pero la del salón se
+  // revalida igual por si el aviso está en caché de router en otra pestaña.
+  revalidatePath("/[slug]", "page");
 }
 
 export async function setCustomDomain(formData: FormData) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { cancelBooking, setBookingStatus, addBooking, type AltaOk } from "./actions";
+import { cancelBooking, setBookingStatus, addBooking, moverCita, type AltaOk } from "./actions";
 import ConfirmSubmit from "./confirm-submit";
 import ActionForm from "./action-form";
 import SubmitButton from "./submit-button";
@@ -628,6 +628,47 @@ function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
             )
           )}
         </dl>
+
+        {/* Mover: solo mientras la cita esté por venir. Cambiar de hora una
+            cita pasada no es mover nada, es reescribir el historial. */}
+        {!c.pasada && (
+          <ActionForm
+            action={moverCita}
+            className="mt-5 border-t border-line-subtle pt-4 flex flex-col gap-2"
+          >
+            <input type="hidden" name="id" value={c.id} />
+            <p className="label">Mover la cita</p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex-1 min-w-32">
+                <label htmlFor={`mv-fecha-${c.id}`} className="sr-only">Nueva fecha</label>
+                <input
+                  id={`mv-fecha-${c.id}`}
+                  name="fecha"
+                  type="date"
+                  defaultValue={c.dia}
+                  className="field"
+                />
+              </div>
+              <div className="w-28">
+                <label htmlFor={`mv-hora-${c.id}`} className="sr-only">Nueva hora</label>
+                <input
+                  id={`mv-hora-${c.id}`}
+                  name="hora"
+                  type="time"
+                  step={1800}
+                  defaultValue={c.hora}
+                  className="field"
+                />
+              </div>
+              <SubmitButton className="btn-quiet" pendingText="Moviendo…">
+                Mover
+              </SubmitButton>
+            </div>
+            <p className="text-xs text-muted text-pretty">
+              Se avisa al cliente del cambio y su enlace sigue valiendo.
+            </p>
+          </ActionForm>
+        )}
 
         {/* Acciones: cerrar el ciclo solo cuando la hora ya pasó. */}
         <div className="mt-5 flex flex-col gap-2">

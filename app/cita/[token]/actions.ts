@@ -81,7 +81,7 @@ export async function guardarPush(
 }
 
 export async function cancelarCita(token: string): Promise<{ error?: string }> {
-  const { clientes } = await features();
+  const { clientes, cancelaciones } = await features();
   if (!clientes) return { error: "No disponible todavía." };
 
   const admin = supabaseAdmin();
@@ -112,9 +112,17 @@ export async function cancelarCita(token: string): Promise<{ error?: string }> {
       error: `Queda menos de ${MARGEN_CANCELACION_TEXTO}: llama al salón para cancelar.`,
     };
 
+  // `cancelled_by` es lo que distingue «se rajó el cliente» de «cerramos ese
+  // día»: sin él, el recuento de cancelaciones tardías le colgaría al cliente
+  // las del propio salón. La columna no existe antes de la 0026, así que se
+  // manda solo cuando la hay — mismo patrón que el resto del esquema nuevo.
   const { error } = await admin
     .from("bookings")
-    .update({ status: "cancelled" })
+    .update(
+      cancelaciones
+        ? { status: "cancelled", cancelled_by: "customer" }
+        : { status: "cancelled" }
+    )
     .eq("id", b.id)
     .in("status", ["confirmed", "pending_payment"]);
   if (error) return { error: "No se pudo cancelar. Inténtalo de nuevo." };

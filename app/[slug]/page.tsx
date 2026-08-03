@@ -1,4 +1,4 @@
-import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import LinkCargando from "@/app/link-cargando";
@@ -64,13 +64,39 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const supabase = await supabaseServer();
-  const { data: salon } = await supabase
+  /**
+   * Con service role, no con la sesión anónima.
+   *
+   * `blocked` no está entre las columnas que `anon` puede leer —la migración
+   * 0016 recortó el SELECT columna a columna, porque la clave anónima viaja
+   * en el navegador—, así que pedirla con la sesión pública no devuelve la
+   * fila recortada: falla la consulta entera y el salón parece no existir.
+   */
+  const { data: salon } = await supabaseAdmin()
     .from("salons")
-    .select("name, address, custom_domain")
+    .select("name, address, custom_domain, blocked")
     .eq("slug", slug)
     .maybeSingle();
-  if (!salon) return {};
+
+  /**
+   * Un salón bloqueado se trata como uno inexistente también aquí.
+   *
+   * El cuerpo de la página ya decía "no encontrado" —sin formulario ni
+   * servicios—, pero el <title> seguía enseñando su nombre: generateMetadata
+   * corre por su cuenta y no miraba `blocked`. Se veía al compartir el enlace
+   * por WhatsApp, que lee el título y la descripción.
+   *
+   * Lo que NO arregla esto es el código de estado: sigue siendo 200. Con un
+   * `loading.tsx` en el segmento, la respuesta empieza a enviarse en cuanto la
+   * página suspende, y las cabeceras ya han salido cuando se descubre que el
+   * salón no existe («the status code of the response cannot be updated», dice
+   * la documentación de streaming de Next). Comprobado: quitando ese
+   * `loading.tsx` el 404 sale bien, pero se pierde el esqueleto de carga en la
+   * pantalla más visitada del proyecto. Se queda el 200 a sabiendas, porque
+   * Next añade `<meta name="robots" content="noindex">` al streamear un 404 y
+   * eso es lo que impide que Google lo indexe.
+   */
+  if (!salon || salon.blocked) notFound();
   const description = `Reserva tu cita en ${salon.name}${salon.address ? ` — ${salon.address}` : ""}. Elige servicio, día y hora en un minuto.`;
 
   /**
