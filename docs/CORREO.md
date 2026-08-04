@@ -8,7 +8,29 @@ claves — solo enviar.
 |---|---|
 | Dominio | `neumorstudio.com`, verificado, región `eu-west-1` |
 | Remitente | `EMAIL_FROM=Reservas <citas@neumorstudio.com>` |
-| Plan | Free: **100 correos al día** |
+| Plan | Free: **100 correos al día**, y la cuenta es compartida con otros proyectos |
+
+## Qué va por correo y qué por notificación
+
+No hay ningún aviso que salga por los dos canales: `enviarPush()` devuelve
+cuántos han llegado, y el correo solo se manda si son cero.
+
+| Aviso | Para | Canal |
+|---|---|---|
+| Cita confirmada | Cliente | **Correo siempre** — es el comprobante y lleva el enlace permanente; además, al reservar aún no está suscrito a nada |
+| Cancelada por el salón | Cliente | **Correo siempre** — es el aviso con más consecuencias, tiene que poder releerse |
+| Newsletter | Cliente | **Correo siempre** — marketing por notificación quema el permiso |
+| Recordatorio víspera | Cliente | push → correo |
+| Recordatorio 1 h | Cliente | push, y correo **solo si no hubo víspera** |
+| Valoración, falta, cita movida | Cliente | push → correo |
+| Reserva nueva, cancelación, nota baja | Dueño | push → correo |
+
+El de 1 h no gasta correo cuando ya se avisó el día antes: a esa hora nadie
+mira la bandeja de entrada y ni siquiera queda margen para cancelar. Quien
+reservó el mismo día sí lo recibe, porque es su único aviso.
+
+Con la agenda llena de un salón (18 huecos), esto son ~54 correos al día en
+vez de 90 — y bajan a ~36 en cuanto el dueño activa sus avisos en el móvil.
 
 Sin `RESEND_API_KEY` los envíos **se saltan en silencio** y solo queda un `console.warn`
 (`lib/email.ts`). En local eso es lo normal; en producción sería un fallo invisible.
