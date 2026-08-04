@@ -77,11 +77,13 @@ export async function guardarPenalizaciones(formData: FormData) {
 }
 
 /**
- * Añade un premio al catálogo de la tarjeta.
+ * Añade un escalón a la tarjeta.
  *
- * El catálogo es lo que permite tener varias cosas a la vez —el corte gratis
- * a las 9 visitas y una gomina a las 5— y que las cambie el dueño sin
- * llamarnos. Cada premio cuesta sus sellos y el cliente elige.
+ * `stamps` es **la visita en la que toca**, no un precio: el premio se
+ * entrega al llegar a esa visita y el contador no se reinicia. Así el
+ * segundo premio es para quien sigue viniendo después del primero —«el
+ * corte gratis en la 9, el gel en la 15»— y no una alternativa barata que
+ * se lleva el que acaba de empezar.
  */
 export async function addPremio(formData: FormData) {
   const { premios } = await features();
@@ -97,17 +99,17 @@ export async function addPremio(formData: FormData) {
   if (!salon) return { error: "Primero crea tu peluquería." };
 
   const nombre = String(formData.get("name") ?? "").trim();
-  const sellos = Number(formData.get("stamps") ?? 0);
+  const visita = Number(formData.get("stamps") ?? 0);
   if (nombre.length < 2) return { error: "Pon el nombre del premio." };
-  if (!Number.isInteger(sellos) || sellos < 1 || sellos > 100)
-    return { error: "Las visitas tienen que ser un número entre 1 y 100." };
+  if (!Number.isInteger(visita) || visita < 1 || visita > 100)
+    return { error: "La visita tiene que ser un número entre 1 y 100." };
 
   const { error } = await supabase.from("loyalty_rewards").insert({
     salon_id: salon.id,
     name: nombre,
-    stamps: sellos,
-    // Los baratos primero: es el orden en que los va a mirar el cliente.
-    sort_order: sellos,
+    stamps: visita,
+    // En orden de escalera: es como lo va a leer el cliente.
+    sort_order: visita,
   });
   if (error) return { error: "No se pudo añadir. Inténtalo de nuevo." };
   revalidatePath("/admin/clientes");
@@ -176,23 +178,26 @@ export async function canjearPremio(formData: FormData) {
   if (!customerId) return { error: "Cliente inválido." };
   const rewardId = String(formData.get("reward_id") ?? "");
 
-  // Con catálogo se canjea el premio ELEGIDO; sin él (migración 0029 aún sin
-  // aplicar) sigue valiendo la función vieja, que canjea el premio único.
+  // Con la escalera se entrega el premio ELEGIDO y el contador de visitas no
+  // baja; sin ella (migración 0031 aún sin aplicar) sigue valiendo la vieja,
+  // que consumía sellos.
   const { error } =
     premios && rewardId
-      ? await supabase.rpc("canjear_premio_v2", {
+      ? await supabase.rpc("entregar_premio", {
           p_customer: customerId,
           p_reward: rewardId,
         })
       : await supabase.rpc("canjear_premio", { p_customer: customerId });
   if (error) {
     const msg = error.message.includes("not_enough_stamps")
-      ? "Aún no tiene sellos suficientes."
-      : error.message.includes("program_inactive")
-        ? "La tarjeta está desactivada."
-        : error.message.includes("reward_not_found")
-          ? "Ese premio ya no está disponible."
-          : "No se pudo canjear. Inténtalo de nuevo.";
+      ? "Todavía no ha llegado a esa visita."
+      : error.message.includes("already_redeemed")
+        ? "Ese premio ya se lo llevó."
+        : error.message.includes("program_inactive")
+          ? "La tarjeta está desactivada."
+          : error.message.includes("reward_not_found")
+            ? "Ese premio ya no está disponible."
+            : "No se pudo entregar. Inténtalo de nuevo.";
     return { error: msg };
   }
   revalidatePath("/admin/clientes");

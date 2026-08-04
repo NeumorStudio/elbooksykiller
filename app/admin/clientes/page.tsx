@@ -103,6 +103,9 @@ export default async function ClientesPage() {
   const listaPremios = (premiosRaw ?? []) as unknown as {
     id: string; name: string; stamps: number;
   }[];
+  /** El escalón que viene después de las visitas que ya lleva. */
+  const proximoEscalon = (visitas: number) =>
+    listaPremios.find((p) => p.stamps > visitas)?.stamps ?? null;
   const clientes = (clientesRaw ?? []) as unknown as {
     id: string; name: string; phone: string; email: string | null; marketing_opt_in: boolean;
     no_show_strikes?: number; blocked_until?: string | null; banned?: boolean;
@@ -112,16 +115,39 @@ export default async function ClientesPage() {
     (visitasRaw ?? []) as { customer_id: string; starts_at: string }[]
   );
 
-  // Sellos disponibles por cliente, en una sola consulta.
+  /**
+   * Visitas por cliente y premios ya entregados.
+   *
+   * Con la escalera se cuentan las visitas de TODA la vida —sin filtrar por
+   * `redemption_id`—, porque el contador no se reinicia al dar un premio: el
+   * gel de la visita 15 es para quien siguió viniendo después del corte
+   * gratis de la 9, no para quien empieza de cero otra vez.
+   */
   const sellos = new Map<string, number>();
+  const yaEntregados = new Map<string, Set<string>>();
   if (f.fidelizacion && programa?.active && clientes.length) {
-    const { data: stamps } = await supabase
+    const consulta = supabase
       .from("loyalty_stamps")
       .select("customer_id")
-      .eq("salon_id", salon.id)
-      .is("redemption_id", null);
+      .eq("salon_id", salon.id);
+    // Sin escalera (0031 sin aplicar) manda el modelo viejo: solo cuentan
+    // los sellos que aún no se han gastado.
+    const { data: stamps } = await (f.premios
+      ? consulta
+      : consulta.is("redemption_id", null));
     for (const s of stamps ?? []) {
       sellos.set(s.customer_id, (sellos.get(s.customer_id) ?? 0) + 1);
+    }
+    if (f.premios) {
+      const { data: canjes } = await supabase
+        .from("loyalty_redemptions")
+        .select("customer_id, reward_id")
+        .eq("salon_id", salon.id)
+        .not("reward_id", "is", null);
+      for (const c of (canjes ?? []) as unknown as { customer_id: string; reward_id: string }[]) {
+        if (!yaEntregados.has(c.customer_id)) yaEntregados.set(c.customer_id, new Set());
+        yaEntregados.get(c.customer_id)!.add(c.reward_id);
+      }
     }
   }
 
@@ -262,10 +288,11 @@ export default async function ClientesPage() {
           <div>
             <h2 className="font-semibold">Premios</h2>
             <p className="text-sm text-muted mt-1 text-pretty">
-              Cada visita atendida da un sello. Aquí decides qué puede
-              llevarse con ellos, y cuántos cuesta cada cosa. Puedes tener
-              varios: un corte gratis a las 9 visitas y un producto a las 5,
-              por ejemplo.
+              Una escalera: cada premio se entrega al llegar a su visita, y el
+              contador <b>no vuelve a empezar</b>. Así el segundo premio es
+              para quien sigue viniendo después del primero — por ejemplo el
+              décimo corte gratis <b>en la visita 9</b>, y un gel{" "}
+              <b>en la 15</b>.
             </p>
           </div>
 
@@ -282,7 +309,7 @@ export default async function ClientesPage() {
                   <span className="flex-1 min-w-0">
                     <span className="font-medium block truncate">{p.name}</span>
                     <span className="text-sm text-muted">
-                      con {p.stamps} {p.stamps === 1 ? "visita" : "visitas"}
+                      al llegar a la visita {p.stamps}
                     </span>
                   </span>
                   <ActionForm action={deletePremio}>
@@ -312,7 +339,7 @@ export default async function ClientesPage() {
               />
             </div>
             <div>
-              <label htmlFor="pr-sellos" className="label">Visitas</label>
+              <label htmlFor="pr-sellos" className="label">En la visita</label>
               <input
                 id="pr-sellos"
                 name="stamps"
@@ -487,7 +514,13 @@ export default async function ClientesPage() {
                       premiado ? "font-semibold text-brand" : "text-muted"
                     }`}
                   >
-                    {Math.min(c.sellosN, req)}/{req}
+                    {/* Con escalera: las visitas que lleva y el escalón que
+                        viene. Sin ella, los sellos sobre el premio único. */}
+                    {listaPremios.length > 0
+                      ? `${c.sellosN}${
+                          proximoEscalon(c.sellosN) ? `/${proximoEscalon(c.sellosN)}` : ""
+                        }`
+                      : `${Math.min(c.sellosN, req)}/${req}`}
                   </span>
                 )}
                 {/* Con catálogo, un botón por premio que ya se pueda pagar:
@@ -495,14 +528,19 @@ export default async function ClientesPage() {
                     elige. Sin catálogo, el botón único de siempre. */}
                 {listaPremios.length > 0
                   ? listaPremios
-                      .filter((p) => c.sellosN >= p.stamps)
+                      // Escalones alcanzados y todavía sin entregar.
+                      .filter(
+                        (p) =>
+                          c.sellosN >= p.stamps &&
+                          !yaEntregados.get(c.id)?.has(p.id)
+                      )
                       .map((p) => (
                         <ActionForm key={p.id} action={canjearPremio}>
                           <input type="hidden" name="customer_id" value={c.id} />
                           <input type="hidden" name="reward_id" value={p.id} />
                           <ConfirmSubmit
                             className="btn-primary shrink-0 text-sm"
-                            message={`¿Canjear "${p.name}" de ${c.name}? Se consumen ${p.stamps} sellos.`}
+                            message={`¿Darle "${p.name}" a ${c.name}? Le tocaba en la visita ${p.stamps} y va por la ${c.sellosN}.`}
                           >
                             {p.name}
                           </ConfirmSubmit>

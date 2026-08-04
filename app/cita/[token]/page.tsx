@@ -111,6 +111,7 @@ export default async function CitaPage({
   // ── Tarjeta de sellos ────────────────────────────────────────────────
   let tarjeta: { tiene: number; requiere: number; premio: string } | null = null;
   let premiosTarjeta: { id: string; name: string; stamps: number }[] = [];
+  let entregados = new Set<string>();
   if (f.fidelizacion && b.customer_id) {
     const { data: prog } = await admin
       .from("loyalty_programs")
@@ -118,11 +119,19 @@ export default async function CitaPage({
       .eq("salon_id", salon.id)
       .maybeSingle();
     if (prog?.active) {
-      const { count } = await admin
+      /**
+       * Con la escalera se cuentan las visitas de toda la vida; sin ella,
+       * los sellos que aún no se han gastado. La diferencia importa: en la
+       * escalera el contador no vuelve a cero al llevarse un premio, y de
+       * eso depende que el gel de la visita 15 llegue a existir.
+       */
+      const consulta = admin
         .from("loyalty_stamps")
         .select("id", { count: "exact", head: true })
-        .eq("customer_id", b.customer_id)
-        .is("redemption_id", null);
+        .eq("customer_id", b.customer_id);
+      const { count } = await (f.premios
+        ? consulta
+        : consulta.is("redemption_id", null));
       tarjeta = {
         tiene: count ?? 0,
         requiere: prog.required_visits,
@@ -147,11 +156,29 @@ export default async function CitaPage({
         premiosTarjeta = (rs ?? []) as unknown as {
           id: string; name: string; stamps: number;
         }[];
-        // Con catálogo, la barra de sellos mide hasta el premio más caro:
-        // es la meta que el cliente tiene delante.
-        if (premiosTarjeta.length) {
-          tarjeta.requiere = Math.max(...premiosTarjeta.map((p) => p.stamps));
-          tarjeta.premio = premiosTarjeta[premiosTarjeta.length - 1].name;
+        // Cuáles ya se llevó: «ya es tuyo» eternamente para un premio que
+        // recogió hace dos meses es engañoso, y acaba en discusión.
+        const { data: recogidos } = await admin
+          .from("loyalty_redemptions")
+          .select("reward_id")
+          .eq("customer_id", b.customer_id)
+          .not("reward_id", "is", null);
+        entregados = new Set(
+          (recogidos ?? []).map((r) => (r as { reward_id: string }).reward_id)
+        );
+        /**
+         * La barra mide hasta el PRÓXIMO escalón, no hasta el último.
+         *
+         * Con la escalera completa delante, alguien que va por la visita 2 y
+         * tiene el gel en la 15 vería una fila de quince huecos casi vacía:
+         * desmoraliza en vez de animar. Enseñando el siguiente —«2 de 9»— la
+         * meta siempre está cerca, y cuando lo pasa aparece el de después.
+         */
+        const siguiente = premiosTarjeta.find((p) => p.stamps > tarjeta!.tiene);
+        const meta = siguiente ?? premiosTarjeta[premiosTarjeta.length - 1];
+        if (meta) {
+          tarjeta.requiere = meta.stamps;
+          tarjeta.premio = meta.name;
         }
       }
     }
@@ -388,7 +415,8 @@ export default async function CitaPage({
           {premiosTarjeta.length > 1 && (
             <ul className="mt-4 flex flex-col gap-1.5 text-sm">
               {premiosTarjeta.map((p) => {
-                const listo = tarjeta!.tiene >= p.stamps;
+                const recogido = entregados.has(p.id);
+                const listo = !recogido && tarjeta!.tiene >= p.stamps;
                 return (
                   <li
                     key={p.id}
@@ -399,11 +427,14 @@ export default async function CitaPage({
                     <span className="truncate">
                       {listo && <span aria-hidden>★ </span>}
                       {p.name}
+                      <span className="text-muted"> · visita {p.stamps}</span>
                     </span>
                     <span className="tabular-nums shrink-0">
-                      {listo
-                        ? "ya es tuyo"
-                        : `te faltan ${p.stamps - tarjeta!.tiene}`}
+                      {recogido
+                        ? "ya lo tienes"
+                        : listo
+                          ? "pídelo en tu visita"
+                          : `te faltan ${p.stamps - tarjeta!.tiene}`}
                     </span>
                   </li>
                 );
