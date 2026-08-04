@@ -74,7 +74,8 @@ export async function generateMetadata({
    */
   const { data: salon, error } = await supabaseAdmin()
     .from("salons")
-    .select("name, address, custom_domain, blocked")
+    // `logo_url` no se pinta aquí: sirve para versionar el icono, más abajo.
+    .select("name, address, custom_domain, blocked, logo_url")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -126,6 +127,26 @@ export async function generateMetadata({
     ? `https://${salon.custom_domain}`
     : `${baseUrl()}/${slug}`;
 
+  /**
+   * Sello de versión del icono.
+   *
+   * El icono se cachea un día en el CDN y hasta una semana sirviendo el
+   * viejo mientras revalida — bien para el coste, fatal cuando el salón
+   * cambia de logo o de nombre: la pestaña se queda con el anterior sin que
+   * nadie entienda por qué. Pasó en pruebas, con la inicial de un nombre que
+   * ya no existía.
+   *
+   * Metiendo el logo y el nombre en la URL, cambiar cualquiera de los dos
+   * cambia la dirección, y una dirección nueva no tiene caché que valga. Es
+   * un número corto, no un hash criptográfico: aquí solo hace falta que sea
+   * distinto cuando cambia la fuente.
+   */
+  const vIcono = ((s: string) => {
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  })(`${salon.logo_url ?? ""}|${salon.name}`);
+
   return {
     title: `${salon.name} — Reserva tu cita`,
     description,
@@ -149,10 +170,10 @@ export async function generateMetadata({
      */
     icons: {
       icon: [
-        { url: `/${slug}/pwa-icon?size=32`, sizes: "32x32", type: "image/png" },
-        { url: `/${slug}/pwa-icon?size=192`, sizes: "192x192", type: "image/png" },
+        { url: `/${slug}/pwa-icon?size=32&v=${vIcono}`, sizes: "32x32", type: "image/png" },
+        { url: `/${slug}/pwa-icon?size=192&v=${vIcono}`, sizes: "192x192", type: "image/png" },
       ],
-      apple: `/${slug}/pwa-icon?size=180`,
+      apple: `/${slug}/pwa-icon?size=180&v=${vIcono}`,
     },
   };
 }
