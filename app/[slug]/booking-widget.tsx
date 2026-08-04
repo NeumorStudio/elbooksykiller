@@ -149,6 +149,9 @@ export default function BookingWidget({
   const [cesta, setCesta] = useState<Record<string, boolean>>({});
   const [marketing, setMarketing] = useState(false); // sin premarcar (LSSI-CE)
   const [citaUrl, setCitaUrl] = useState<string | null>(null);
+  // Se congela al confirmar: el campo se vacía al reiniciar el formulario y
+  // la pantalla de confirmación tiene que seguir sabiendo si hubo correo.
+  const [sinEmail, setSinEmail] = useState(false);
   const [omitidos, setOmitidos] = useState<string[]>([]);
   const [refresh, setRefresh] = useState(0);
   const [restored, setRestored] = useState<null | {
@@ -359,6 +362,7 @@ export default function BookingWidget({
       window.location.href = result.checkoutUrl; // pago en Stripe
     } else {
       setCitaUrl(result.citaUrl ?? null);
+      setSinEmail(!email.trim());
       setOmitidos(result.omitidos ?? []);
       try {
         sessionStorage.setItem(
@@ -465,8 +469,30 @@ export default function BookingWidget({
          * del correo, que es cuota compartida y finita.
          */}
         {claveVapid && citaUrl?.includes("/cita/") && (
-          <div className="mt-6 flex justify-center">
-            <Avisos token={citaUrl.split("/cita/")[1]} claveVapid={claveVapid} />
+          /**
+           * Sin email, el aviso en el móvil no es un extra: es lo único.
+           *
+           * Quien deja su correo ya tiene confirmación, recordatorio y el
+           * enlace guardado en la bandeja. Quien no lo deja —que en el salón
+           * piloto es la mayoría— se queda sin ningún canal, y hasta ahora
+           * eso no se le decía en ninguna parte. Aquí el bloque se enmarca,
+           * lo explica, y el permiso se pide solo, encadenado al clic de
+           * confirmar que acaba de hacer: un botón menos entre él y el único
+           * aviso que va a recibir.
+           */
+          <div className={`mt-6 ${sinEmail ? "neu-in rounded-2xl px-5 py-4 text-left" : "flex justify-center"}`}>
+            {sinEmail && (
+              <p className="mb-3 text-sm text-pretty">
+                <b className="text-brand">No nos has dejado email</b>, así que
+                el aviso en el móvil es la única forma que tenemos de
+                recordarte la cita. Actívalo y te avisamos el día antes.
+              </p>
+            )}
+            <Avisos
+              token={citaUrl.split("/cita/")[1]}
+              claveVapid={claveVapid}
+              autoActivar={sinEmail}
+            />
           </div>
         )}
         {(() => {

@@ -15,6 +15,7 @@ type Row = {
   ends_at: string;
   employee_id: string;
   customer_id?: string | null;
+  public_token?: string | null;
   customer_name: string;
   customer_phone: string;
   customer_email: string | null;
@@ -98,7 +99,9 @@ export default async function AdminHome() {
         .from("bookings")
         .select(
           "id, starts_at, ends_at, employee_id, customer_name, customer_phone, customer_email, payment_status" +
-            (f.clientes ? ", customer_id" : "") +
+            // public_token sale de la 0006 igual que customer_id: sin esa
+            // migración no existe y pedirlo rompería la consulta entera.
+            (f.clientes ? ", customer_id, public_token" : "") +
             ", services(name, price_cents), employees(name)"
         )
         .eq("salon_id", salon.id)
@@ -204,6 +207,7 @@ export default async function AdminHome() {
       customer_name: b.customer_name,
       customer_phone: b.customer_phone,
       customer_email: b.customer_email,
+      public_token: b.public_token ?? null,
       payment_status: b.payment_status,
       servicio: b.services?.name ?? "",
       profesional: b.employees?.name ?? "",

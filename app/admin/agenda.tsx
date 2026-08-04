@@ -5,10 +5,12 @@ import { cancelBooking, setBookingStatus, addBooking, moverCita, type AltaOk } f
 import ConfirmSubmit from "./confirm-submit";
 import ActionForm from "./action-form";
 import SubmitButton from "./submit-button";
-import { telHref } from "@/lib/tel";
+import { telHref, normalizarTel } from "@/lib/tel";
 
 export type Cita = {
   id: string;
+  /** Enlace público de la cita: existe desde la migración 0006. */
+  public_token?: string | null;
   dia: string; // YYYY-MM-DD ya en la zona del salón
   iniMin: number; // minutos desde medianoche, zona del salón
   finMin: number;
@@ -29,6 +31,26 @@ export type Cita = {
 
 const fmtPrecio = (cents: number) =>
   (cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
+
+/**
+ * El chat de WhatsApp con la cita ya escrita.
+ *
+ * `wa.me` exige el número en internacional y sin signos. Se usa el mismo
+ * normalizador que la base para no inventar un criterio distinto: si el
+ * teléfono no vale —el «—» de un cliente de paso, o un número a medias—
+ * devuelve null y el botón no se pinta, que es mejor que abrir un chat con
+ * un número inventado.
+ */
+function waLink(c: Cita): string | null {
+  const tel = normalizarTel(c.customer_phone);
+  if (!tel || !c.public_token) return null;
+  const enlace = `${window.location.origin}/cita/${c.public_token}`;
+  const texto =
+    `Hola ${c.customer_name}, te confirmo tu cita: ${fechaLarga(c.dia)} a las ${c.hora}` +
+    (c.servicio ? ` (${c.servicio})` : "") +
+    `.\n\nAquí puedes verla, activar el aviso en el móvil o cancelarla si te surge algo: ${enlace}`;
+  return `https://wa.me/${tel.replace("+", "")}?text=${encodeURIComponent(texto)}`;
+}
 
 export type Profesional = {
   id: string;
@@ -637,6 +659,28 @@ function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
             )
           )}
         </dl>
+
+        {/* ── Mandarle su cita por WhatsApp ──────────────────────────────
+            La cita que apunta el peluquero nace con su enlace igual que una
+            reserva online, pero hasta ahora no había forma de que le llegara
+            al cliente: el panel no pedía email y no se mandaba nada. Era un
+            callejón sin salida — el cliente no podía ver su cita, ni
+            cancelarla él, ni activar el aviso en el móvil.
+
+            WhatsApp lo resuelve sin API, sin cuota y sin coste: lo manda el
+            propio peluquero desde su móvil, que es como ya habla con ellos.
+            Con el enlace en su chat, ese cliente entra en el circuito
+            completo aunque no haya dado un correo en su vida. */}
+        {!c.pasada && c.public_token && waLink(c) && (
+          <a
+            href={waLink(c)!}
+            target="_blank"
+            rel="noopener"
+            className="btn-quiet mt-5 w-full text-center"
+          >
+            Enviar su cita por WhatsApp
+          </a>
+        )}
 
         {/* Mover: solo mientras la cita esté por venir. Cambiar de hora una
             cita pasada no es mover nada, es reescribir el historial. */}

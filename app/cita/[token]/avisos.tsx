@@ -14,14 +14,18 @@ import { guardarPush } from "./actions";
 export default function Avisos({
   token,
   claveVapid,
+  autoActivar = false,
 }: {
   token: string;
   claveVapid: string;
+  /** Solo para quien reservó sin email: ahí esto es el único canal. */
+  autoActivar?: boolean;
 }) {
   return (
     <AvisosPush
       claveVapid={claveVapid}
       guardar={(sub) => guardarPush(token, sub)}
+      autoActivar={autoActivar}
       textoAyuda="Te avisamos el día antes y una hora antes de tu cita. Nada más."
       textoActivo="Te avisaremos en este móvil antes de tu cita."
     />

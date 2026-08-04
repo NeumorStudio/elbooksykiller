@@ -29,12 +29,26 @@ export default function AvisosPush({
   textoBoton = "Avisarme en el móvil",
   textoAyuda,
   textoActivo,
+  autoActivar = false,
 }: {
   claveVapid: string;
   guardar: (sub: Suscripcion) => Promise<{ error?: string }>;
   textoBoton?: string;
   textoAyuda: string;
   textoActivo: string;
+  /**
+   * Lanza la petición de permiso sola, sin esperar a que pulse el botón.
+   *
+   * Solo tiene sentido para quien no ha dejado email: ahí el aviso en el
+   * móvil no es un extra, es el único canal que queda, y hacerle pulsar un
+   * botón más es perder a la mitad. Se encadena al clic de confirmar la
+   * reserva, que es el gesto que los navegadores piden para dejar preguntar.
+   *
+   * Para quien SÍ dio su correo no se usa a propósito: si dice que no, el
+   * navegador no vuelve a preguntar nunca más en este dominio, y habríamos
+   * quemado el canal de todas sus citas futuras para nada.
+   */
+  autoActivar?: boolean;
 }) {
   const [estado, setEstado] = useState<
     "cargando" | "no-soportado" | "instalar" | "listo" | "activo" | "denegado" | "yendo"
@@ -62,7 +76,15 @@ export default function AvisosPush({
         // del email no lo tiene, así que el botón no aparecía nunca.
         const reg = await navigator.serviceWorker.getRegistration();
         const ya = reg ? await reg.pushManager.getSubscription() : null;
-        if (vivo) setEstado(ya ? "activo" : "listo");
+        if (!vivo) return;
+        if (ya) {
+          setEstado("activo");
+          return;
+        }
+        setEstado("listo");
+        // El permiso ya concedido en una visita anterior no vuelve a
+        // preguntar: se suscribe directamente, sin diálogo ni botón.
+        if (autoActivar || Notification.permission === "granted") activar();
       } catch {
         if (vivo) setEstado("listo");
       }
@@ -70,6 +92,10 @@ export default function AvisosPush({
     return () => {
       vivo = false;
     };
+    // Solo al montar: `activar` no cambia entre renders de forma relevante y
+    // reintentar la petición de permiso en cada uno sería justo lo contrario
+    // de lo que hace falta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function activar() {
