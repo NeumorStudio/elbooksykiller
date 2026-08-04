@@ -145,7 +145,44 @@ de que falle el build.
 
 ---
 
-## 7. Documentos vecinos
+## 7. Qué se movió el 4 de agosto de 2026
+
+Una tanda grande, toda en producción y con el piloto ya cogiendo citas. Por si
+te encuentras algo que ayer no estaba:
+
+**Migraciones nuevas — de la 0026 a la 0031.** Todas aditivas, ninguna toca
+datos existentes:
+
+| | Qué añade |
+|---|---|
+| `0026` | Quién canceló y cuándo, y el recuento de cancelaciones a última hora |
+| `0027` | `reminders`: qué aviso se ha mandado ya de cada cita |
+| `0028` | El push puede ser de un cliente **o** de una cuenta (el dueño) |
+| `0029` | `loyalty_rewards`: varios premios por salón |
+| `0030` | Las políticas de dueño pasan a `TO authenticated` — arregla un fallo real |
+| `0031` | Los premios son escalones por visitas acumuladas, no monedas que se gastan |
+
+**Lo que cambió de comportamiento:**
+
+- Cancelar desde el enlace: el margen baja a **1 hora** y vive en `lib/cancelacion.ts`.
+- **Dos recordatorios** por cita (la víspera y una hora antes) en el mismo cron.
+- El **autocompletado** espera 12 horas en vez de 3, y la agenda ya no esconde
+  las citas cerradas: se pueden marcar y corregir cuando haga falta.
+- Se puede **mover una cita** sin cancelarla, y mandarla **por WhatsApp** al
+  cliente desde el panel.
+- El dueño puede recibir sus avisos **en el móvil**; si los activa, dejan de
+  llegarle por correo.
+- Los **productos ya se ven en la web** del salón (los rompía la política de la
+  0030) y admiten foto.
+- Cada salón lleva **su logo en la pestaña** del navegador.
+
+**Lo que quedó pendiente y está apuntado en `CLAUDE.md`:** el tope de 4 citas
+futuras por teléfono aplicándose al panel, el `sessionStorage` de la
+confirmación, y el nombre del producto.
+
+---
+
+## 8. Documentos vecinos
 
 - `docs/CRONS.md` — los cuatro crons y sus frecuencias.
 - `docs/CORREO.md` — Resend: qué clave usa cada entorno y por qué son de solo envío.

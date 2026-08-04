@@ -4,6 +4,13 @@ SaaS de reservas para peluquerías y barberías. Cada salón tiene su web públi
 (`/[slug]`, o su propio dominio si lo trae) y un panel de gestión en `/admin`:
 agenda, servicios, equipo, clientes, fidelización y newsletter.
 
+> **El nombre está en revisión.** «Salonio» aparece en el código, en el panel y
+> en el pie de la web de cada salón, y la idea es que el producto se presente
+> como lo que es en el catálogo de NeumorStudio: el sistema de **Reservas y
+> citas**. Decidido a medias el 04-08-2026: en la web del cliente final no debe
+> ir ninguna marca —«tu casa es tuya»—, y la firma de NeumorStudio va en el
+> panel del dueño, la portada y lo legal. Pendiente de ejecutar.
+
 La web **es** de la peluquería, no un marketplace: sin comisiones por cita y sin
 marca ajena delante del cliente.
 

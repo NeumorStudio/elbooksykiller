@@ -25,7 +25,7 @@ a los 7 días sin uso.
 | Job | Cuándo | Qué hace |
 |---|---|---|
 | `recordatorios` | `*/10 * * * *` | Dos avisos por cita: la víspera (~24 h) y 1 h antes |
-| `autocompletar` | `30 * * * *` | Marca `completed` lo ya pasado → dispara los sellos |
+| `autocompletar` | `30 * * * *` | Cierra como `completed` lo que acabó hace **12 h** → dispara los sellos |
 | `resenas` | `45 * * * *` | Pide valoración 2-3 h tras el servicio |
 | `newsletter` | `*/15 * * * *` | Despacha las campañas encoladas, en tandas de 60 |
 
@@ -58,6 +58,14 @@ para que el aviso de la fecha nueva vuelva a salir.
 citas en `completed`, y de ese estado dependen los sellos de fidelidad y los
 segmentos de la newsletter (`racha`, `enfriándose`, `nuevos`). Si una campaña
 dice que no hay destinatarios, mira aquí antes que en el panel.
+
+**Y su margen son 12 horas, no 3.** Con tres, una cita de la mañana quedaba
+cerrada a media tarde y —como la agenda solo cargaba las confirmadas—
+desaparecía de la pantalla llevándose los botones de «vino / no vino». La
+ventana real para marcar una falta era media tarde, y por eso el contador de
+no presentados marcaba siempre cero. Con doce, el día se cierra por la noche.
+La agenda además ya no las esconde, así que corregir sigue siendo posible
+después: esto solo decide cuándo se da por buena una cita que nadie ha tocado.
 
 ## Cómo mirar si van
 
