@@ -50,8 +50,9 @@ export async function GET(
   // Solo los tamaños que pide el manifest. Con el rango 64–1024 libre había
   // 961 claves de caché distintas, cada una con descarga + sharp + Satori:
   // un bucle de curl agotaba la cuota de funciones.
+  // 32 es el de la pestaña del navegador; los otros tres, los del manifest.
   const pedido = Number(new URL(req.url).searchParams.get("size"));
-  const size = [180, 192, 512].includes(pedido) ? pedido : 512;
+  const size = [32, 180, 192, 512].includes(pedido) ? pedido : 512;
 
   const anon = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

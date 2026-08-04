@@ -133,7 +133,27 @@ export async function generateMetadata({
     openGraph: { title: salon.name, description, url: canonical },
     manifest: `/${slug}/manifest.webmanifest`,
     appleWebApp: { capable: true, title: salon.name, statusBarStyle: "black-translucent" },
-    icons: { apple: `/${slug}/pwa-icon?size=180` },
+    /**
+     * El icono de la pestaña, además del de iPhone.
+     *
+     * Declarar `icons` cancela el que Next añade solo (el `icon.svg` de la
+     * plataforma), así que al poner únicamente el de Apple la página se
+     * quedaba SIN icono de navegador. Y sin él, el navegador va a buscar
+     * `/favicon.ico` por su cuenta… que en este proyecto cae en la ruta
+     * `/[slug]` y devuelve HTML con 200. El navegador recibe algo que no
+     * puede pintar y enseña su icono genérico — en Vercel, el suyo.
+     *
+     * Con esto cada salón lleva SU logo en la pestaña, en los marcadores y
+     * en el historial, que es lo que un cliente reconoce entre veinte
+     * pestañas abiertas.
+     */
+    icons: {
+      icon: [
+        { url: `/${slug}/pwa-icon?size=32`, sizes: "32x32", type: "image/png" },
+        { url: `/${slug}/pwa-icon?size=192`, sizes: "192x192", type: "image/png" },
+      ],
+      apple: `/${slug}/pwa-icon?size=180`,
+    },
   };
 }
 
