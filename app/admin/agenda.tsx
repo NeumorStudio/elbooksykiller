@@ -43,6 +43,23 @@ const fmtPrecio = (cents: number) =>
  * devuelve null y el botón no se pinta, que es mejor que abrir un chat con
  * un número inventado.
  */
+/**
+ * El mismo WhatsApp, pero para la cita que se acaba de crear.
+ *
+ * Va aparte de `waLink` porque el alta devuelve otra forma —no hay una fila
+ * de agenda todavía— y porque aquí el teléfono ya viene normalizado del
+ * servidor.
+ */
+function waLinkAlta(u: AltaOk): string | null {
+  if (!u.telefono || !u.public_token) return null;
+  const enlace = `${window.location.origin}/cita/${u.public_token}`;
+  const texto =
+    `Hola ${u.nombre}, te confirmo tu cita: ${fechaLarga(u.fecha)} a las ${u.hora}` +
+    (u.servicio ? ` (${u.servicio})` : "") +
+    `.\n\nAquí puedes verla, activar el aviso en el móvil o cancelarla si te surge algo: ${enlace}`;
+  return `https://wa.me/${u.telefono.replace("+", "")}?text=${encodeURIComponent(texto)}`;
+}
+
 function waLink(c: Cita): string | null {
   const tel = normalizarTel(c.customer_phone);
   if (!tel || !c.public_token) return null;
@@ -475,10 +492,34 @@ export default function Agenda({
                   Guardada la cita de <b>{ultima.nombre}</b> a las {ultima.hora}
                   {ultima.fin ? `, termina a las ${ultima.fin}` : ""}.
                 </p>
+                {/* Mandarle su cita en el acto: la persona todavía está
+                    delante o al teléfono, y es el momento en que decir «te
+                    lo mando por WhatsApp» cuesta cero. Buscarla después en el
+                    calendario es un paso que no se da. */}
+                {waLinkAlta(ultima) && (
+                  <a
+                    href={waLinkAlta(ultima)!}
+                    target="_blank"
+                    rel="noopener"
+                    className="btn-primary mt-3 w-full text-center"
+                  >
+                    Enviarle su cita por WhatsApp
+                  </a>
+                )}
                 {ultima.fin && (
-                  <button type="button" onClick={encadenar} className="btn-primary mt-3 w-full">
+                  <button
+                    type="button"
+                    onClick={encadenar}
+                    className={`${waLinkAlta(ultima) ? "btn-quiet" : "btn-primary"} mt-2 w-full`}
+                  >
                     + Otra cita seguida, a las {ultima.fin}
                   </button>
+                )}
+                {!waLinkAlta(ultima) && ultima.telefono === null && (
+                  <p className="mt-2 text-xs text-muted text-pretty">
+                    Sin teléfono no se le puede mandar la cita ni contarle las
+                    visitas de la tarjeta.
+                  </p>
                 )}
                 <button
                   type="button"

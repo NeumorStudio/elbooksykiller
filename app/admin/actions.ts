@@ -554,6 +554,14 @@ export type AltaOk = {
   fin: string | null;
   fecha: string;
   employee_id: string;
+  /**
+   * Enlace y teléfono de la cita recién creada, para poder mandársela por
+   * WhatsApp sin ir a buscarla al calendario. Nulos si el teléfono no vale
+   * —entonces no hay a quién escribir— o si aún no existe `public_token`.
+   */
+  public_token?: string | null;
+  telefono?: string | null;
+  servicio?: string | null;
 };
 
 export async function addBooking(
@@ -597,7 +605,8 @@ export async function addBooking(
 
   const { data: servicio } = await supabase
     .from("services")
-    .select("duration_min")
+    // El nombre viaja de vuelta para el mensaje de WhatsApp.
+    .select("duration_min, name")
     .eq("id", serviceId)
     .eq("salon_id", salon.id)
     .maybeSingle();
@@ -609,17 +618,23 @@ export async function addBooking(
   const inicio = zonedTimeUtc(fecha, hora, salon.timezone);
   const fin = new Date(new Date(inicio).getTime() + servicio.duration_min * 60000).toISOString();
 
-  const { error } = await supabase.from("bookings").insert({
-    salon_id: salon.id,
-    employee_id: employeeId,
-    service_id: serviceId,
-    customer_name: nombre,
-    // El cliente de mostrador puede no dar teléfono; la columna es NOT NULL.
-    customer_phone: telefono || "—",
-    starts_at: inicio,
-    ends_at: fin,
-    status: "confirmed",
-  });
+  // Se pide el token de vuelta para poder ofrecer el WhatsApp en el acto,
+  // sin buscar la cita en el calendario: la persona sigue delante.
+  const { data: creada, error } = await supabase
+    .from("bookings")
+    .insert({
+      salon_id: salon.id,
+      employee_id: employeeId,
+      service_id: serviceId,
+      customer_name: nombre,
+      // El cliente de mostrador puede no dar teléfono; la columna es NOT NULL.
+      customer_phone: telefono || "—",
+      starts_at: inicio,
+      ends_at: fin,
+      status: "confirmed",
+    })
+    .select("public_token")
+    .maybeSingle();
 
   if (error) {
     return {
@@ -654,6 +669,11 @@ export async function addBooking(
       fin: finDia === fecha ? finHora : null,
       fecha,
       employee_id: employeeId,
+      public_token: (creada as { public_token?: string } | null)?.public_token ?? null,
+      // Ya validado arriba; se devuelve normalizado porque es lo que quiere
+      // wa.me y así el panel no repite la conversión.
+      telefono: telefono ? normalizarTel(telefono) : null,
+      servicio: servicio.name ?? null,
     },
   };
 }
