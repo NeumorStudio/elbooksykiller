@@ -20,6 +20,7 @@ type Row = {
   customer_phone: string;
   customer_email: string | null;
   payment_status: string;
+  status: string;
   services: { name: string; price_cents: number } | null;
   employees: { name: string } | null;
 };
@@ -98,7 +99,7 @@ export default async function AdminHome() {
       supabase
         .from("bookings")
         .select(
-          "id, starts_at, ends_at, employee_id, customer_name, customer_phone, customer_email, payment_status" +
+          "id, starts_at, ends_at, employee_id, customer_name, customer_phone, customer_email, payment_status, status" +
             // public_token sale de la 0006 igual que customer_id: sin esa
             // migración no existe y pedirlo rompería la consulta entera.
             (f.clientes ? ", customer_id, public_token" : "") +
@@ -110,7 +111,22 @@ export default async function AdminHome() {
         // lejana ("en tres semanas, un sábado"), no solo lo que viene ya.
         .gte("starts_at", monthStart)
         .lt("starts_at", new Date(now.getTime() + 90 * 86400000).toISOString())
-        .eq("status", "confirmed")
+        /**
+         * También las ya cerradas, no solo las confirmadas.
+         *
+         * Antes la agenda pedía únicamente `confirmed`, y como el cron marca
+         * «completada» sola unas horas después de la cita, esa cita
+         * DESAPARECÍA de la pantalla — con ella, los botones de «atendida» y
+         * «no vino». La ventana real para decir que alguien no vino era de
+         * unas horas, y pasada esa tarde ya no había forma de arreglarlo
+         * desde ningún sitio del panel. De ahí que el contador de no
+         * presentados marcara siempre cero y que las faltas no llegaran a
+         * dispararse nunca.
+         *
+         * Las canceladas siguen fuera: esas ya no ocupan hueco ni hay nada
+         * que marcar en ellas.
+         */
+        .in("status", ["confirmed", "completed", "no_show"])
         .order("starts_at")
         .limit(400),
       supabase
@@ -209,6 +225,7 @@ export default async function AdminHome() {
       customer_email: b.customer_email,
       public_token: b.public_token ?? null,
       payment_status: b.payment_status,
+      status: b.status,
       servicio: b.services?.name ?? "",
       profesional: b.employees?.name ?? "",
       precioCents: b.services?.price_cents ?? 0,

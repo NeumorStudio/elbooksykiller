@@ -77,6 +77,64 @@ export async function guardarPenalizaciones(formData: FormData) {
 }
 
 /**
+ * Añade un premio al catálogo de la tarjeta.
+ *
+ * El catálogo es lo que permite tener varias cosas a la vez —el corte gratis
+ * a las 9 visitas y una gomina a las 5— y que las cambie el dueño sin
+ * llamarnos. Cada premio cuesta sus sellos y el cliente elige.
+ */
+export async function addPremio(formData: FormData) {
+  const { premios } = await features();
+  if (!premios) return { error: "Todavía no está activada." };
+
+  const { supabase, user } = await db();
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("id")
+    .eq("owner_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!salon) return { error: "Primero crea tu peluquería." };
+
+  const nombre = String(formData.get("name") ?? "").trim();
+  const sellos = Number(formData.get("stamps") ?? 0);
+  if (nombre.length < 2) return { error: "Pon el nombre del premio." };
+  if (!Number.isInteger(sellos) || sellos < 1 || sellos > 100)
+    return { error: "Las visitas tienen que ser un número entre 1 y 100." };
+
+  const { error } = await supabase.from("loyalty_rewards").insert({
+    salon_id: salon.id,
+    name: nombre,
+    stamps: sellos,
+    // Los baratos primero: es el orden en que los va a mirar el cliente.
+    sort_order: sellos,
+  });
+  if (error) return { error: "No se pudo añadir. Inténtalo de nuevo." };
+  revalidatePath("/admin/clientes");
+}
+
+/**
+ * Retira un premio.
+ *
+ * Se borra de verdad, no se desactiva: un premio retirado no tiene historia
+ * que conservar — lo que se llevó cada cliente está copiado en su canje, con
+ * el nombre que tenía ese día.
+ */
+export async function deletePremio(formData: FormData) {
+  const { premios } = await features();
+  if (!premios) return { error: "Todavía no está activada." };
+
+  const { supabase } = await db();
+  // RLS acota al dueño: un id ajeno borra cero filas.
+  const { error } = await supabase
+    .from("loyalty_rewards")
+    .delete()
+    .eq("id", String(formData.get("id") ?? ""));
+  if (error) return { error: "No se pudo quitar. Inténtalo de nuevo." };
+  revalidatePath("/admin/clientes");
+}
+
+/**
  * Perdón total: faltas a cero y castigos fuera. Para cuando la excusa era
  * real — RLS (owner_all_customers) limita el alcance a los clientes propios.
  */
@@ -110,20 +168,31 @@ export async function perdonarCliente(formData: FormData) {
  * transacción (FIFO sobre los sellos más antiguos).
  */
 export async function canjearPremio(formData: FormData) {
-  const { fidelizacion } = await features();
+  const { fidelizacion, premios } = await features();
   if (!fidelizacion) return { error: "Todavía no está activada." };
 
   const { supabase } = await db();
   const customerId = String(formData.get("customer_id") ?? "");
   if (!customerId) return { error: "Cliente inválido." };
+  const rewardId = String(formData.get("reward_id") ?? "");
 
-  const { error } = await supabase.rpc("canjear_premio", { p_customer: customerId });
+  // Con catálogo se canjea el premio ELEGIDO; sin él (migración 0029 aún sin
+  // aplicar) sigue valiendo la función vieja, que canjea el premio único.
+  const { error } =
+    premios && rewardId
+      ? await supabase.rpc("canjear_premio_v2", {
+          p_customer: customerId,
+          p_reward: rewardId,
+        })
+      : await supabase.rpc("canjear_premio", { p_customer: customerId });
   if (error) {
     const msg = error.message.includes("not_enough_stamps")
       ? "Aún no tiene sellos suficientes."
       : error.message.includes("program_inactive")
-        ? "El programa está desactivado."
-        : "No se pudo canjear. Inténtalo de nuevo.";
+        ? "La tarjeta está desactivada."
+        : error.message.includes("reward_not_found")
+          ? "Ese premio ya no está disponible."
+          : "No se pudo canjear. Inténtalo de nuevo.";
     return { error: msg };
   }
   revalidatePath("/admin/clientes");

@@ -54,6 +54,8 @@ type Producto = {
   name: string;
   description: string | null;
   price_cents: number;
+  /** URL pública ya montada en el servidor; null si no tiene foto. */
+  imagen?: string | null;
 };
 
 const fmtPrice = (cents: number) =>
@@ -971,6 +973,19 @@ export default function BookingWidget({
                         className={`chip shrink-0 flex-col items-start gap-1 px-4 py-3 h-auto min-w-[8.5rem] max-w-[11rem] text-left
                           ${on ? "chip-on" : ""}`}
                       >
+                        {/* Un bote de cera se reconoce por el envase, no por
+                            su nombre. Sin foto, el hueco no se reserva: la
+                            fila de productos sigue midiendo lo mismo. */}
+                        {p.imagen && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={p.imagen}
+                            alt=""
+                            width={160}
+                            height={96}
+                            className="mb-1 h-24 w-full rounded-lg object-cover bg-surface-2"
+                          />
+                        )}
                         <span className="text-sm font-medium leading-tight">
                           {on && <span aria-hidden>✓ </span>}
                           {p.name}

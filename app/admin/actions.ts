@@ -723,8 +723,25 @@ export async function guardarGoogleUrl(formData: FormData) {
 
   const { supabase, user } = await db();
   const url = String(formData.get("google_review_url") ?? "").trim();
-  if (url && !/^https:\/\/(g\.page|maps\.app\.goo\.gl|search\.google\.com|www\.google\.[a-z.]+)\//i.test(url))
-    return { error: "Pega el enlace de tu ficha de Google (empieza por https://g.page o maps.app.goo.gl)." };
+  /**
+   * Se aceptan todas las formas en que Google reparte el mismo sitio.
+   *
+   * Antes solo entraban `g.page` y compañía, y el enlace que da hoy el botón
+   * de compartir de una ficha —`share.google/...`— se rechazaba: el dueño
+   * pega lo que Google le ha dado, la web le dice que está mal, y acaba
+   * dejándolo vacío. Que la lista la marque Google, no nosotros.
+   *
+   * Lo ideal sigue siendo el de «pedir reseñas» (`g.page/r/…`), que abre
+   * directamente el cuadro de escribir; los demás llevan a la ficha y hay
+   * que buscar el botón. Eso se explica en la pantalla, no se impone aquí.
+   */
+  if (
+    url &&
+    !/^https:\/\/(g\.page|g\.co|share\.google|maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.[a-z.]+|search\.google\.com|www\.google\.[a-z.]+)\//i.test(url)
+  )
+    return {
+      error: "Pega un enlace de Google (g.page, share.google, maps.app.goo.gl…).",
+    };
 
   const { error } = await supabase
     .from("salons")

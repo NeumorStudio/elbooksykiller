@@ -175,15 +175,28 @@ export default async function SalonPage({
   // exactamente como hoy.
   const f = await features();
   const productos = f.productos && moduloActivo(estadoModulos, "productos")
-    ? ((
-        await supabase
-          .from("products")
-          .select("id, name, description, price_cents")
-          .eq("salon_id", salon.id)
-          .eq("active", true)
-          .order("sort_order")
-          .order("name")
-      ).data ?? [])
+    ? (
+        (
+          await supabase
+            .from("products")
+            .select("id, name, description, price_cents, image_path")
+            .eq("salon_id", salon.id)
+            .eq("active", true)
+            .order("sort_order")
+            .order("name")
+        ).data ?? []
+      ).map((p) => {
+        const fila = p as { image_path: string | null };
+        return {
+          ...p,
+          // La URL se arma aquí y no en el widget: `getPublicUrl` solo
+          // construye texto, pero el widget es cliente y no tiene por qué
+          // saber cómo se guardan los ficheros.
+          imagen: fila.image_path
+            ? supabase.storage.from("logos").getPublicUrl(fila.image_path).data.publicUrl
+            : null,
+        };
+      })
     : [];
 
   // Si quien mira tiene sesión, su ficha de este salón rellena el formulario.

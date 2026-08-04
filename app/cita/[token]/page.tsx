@@ -8,6 +8,7 @@ import { telHref } from "@/lib/tel";
 import { mapaUrl } from "@/lib/mapa";
 import CancelarBoton from "./cancelar-boton";
 import Avisos from "./avisos";
+import GuardarEmail from "./guardar-email";
 import Valorar from "./valorar";
 
 /**
@@ -89,8 +90,27 @@ export default async function CitaPage({
       ).data ?? [])
     : [];
 
+  /**
+   * ¿Su ficha tiene correo?
+   *
+   * Si no lo tiene, este enlace es su única puerta: sin correo no puede
+   * reclamar su historial al entrar en el perfil, por muchas visitas que
+   * lleve. Se le ofrece dejarlo aquí, donde el token ya demuestra que la
+   * cita es suya.
+   */
+  let fichaSinEmail = false;
+  if (f.clientes && b.customer_id) {
+    const { data: ficha } = await admin
+      .from("customers")
+      .select("email")
+      .eq("id", b.customer_id)
+      .maybeSingle();
+    fichaSinEmail = !!ficha && !ficha.email;
+  }
+
   // ── Tarjeta de sellos ────────────────────────────────────────────────
   let tarjeta: { tiene: number; requiere: number; premio: string } | null = null;
+  let premiosTarjeta: { id: string; name: string; stamps: number }[] = [];
   if (f.fidelizacion && b.customer_id) {
     const { data: prog } = await admin
       .from("loyalty_programs")
@@ -108,6 +128,32 @@ export default async function CitaPage({
         requiere: prog.required_visits,
         premio: prog.reward,
       };
+
+      /**
+       * El catálogo, si el salón lo tiene.
+       *
+       * Con varios premios la pregunta del cliente deja de ser «¿cuánto me
+       * falta?» y pasa a ser «¿qué me puedo llevar YA?». Por eso se listan
+       * todos con su precio en sellos y se marca lo que ya está pagado: es
+       * lo que le hace volver antes.
+       */
+      if (f.premios) {
+        const { data: rs } = await admin
+          .from("loyalty_rewards")
+          .select("id, name, stamps")
+          .eq("salon_id", salon.id)
+          .eq("active", true)
+          .order("stamps");
+        premiosTarjeta = (rs ?? []) as unknown as {
+          id: string; name: string; stamps: number;
+        }[];
+        // Con catálogo, la barra de sellos mide hasta el premio más caro:
+        // es la meta que el cliente tiene delante.
+        if (premiosTarjeta.length) {
+          tarjeta.requiere = Math.max(...premiosTarjeta.map((p) => p.stamps));
+          tarjeta.premio = premiosTarjeta[premiosTarjeta.length - 1].name;
+        }
+      }
     }
   }
 
@@ -265,6 +311,7 @@ export default async function CitaPage({
               claveVapid={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY}
             />
           )}
+          {fichaSinEmail && <GuardarEmail token={token} />}
           {margen ? (
             <CancelarBoton token={token} pagada={b.payment_status === "paid"} />
           ) : (
@@ -334,6 +381,35 @@ export default async function CitaPage({
               </>
             )}
           </p>
+
+          {/* El catálogo, con lo que ya puede pedir marcado. La pregunta que
+              se hace el cliente no es cuánto le falta, sino qué se puede
+              llevar hoy. */}
+          {premiosTarjeta.length > 1 && (
+            <ul className="mt-4 flex flex-col gap-1.5 text-sm">
+              {premiosTarjeta.map((p) => {
+                const listo = tarjeta!.tiene >= p.stamps;
+                return (
+                  <li
+                    key={p.id}
+                    className={`flex items-center justify-between gap-3 rounded-lg px-3 py-2 ${
+                      listo ? "bg-brand/10 text-ink" : "text-muted"
+                    }`}
+                  >
+                    <span className="truncate">
+                      {listo && <span aria-hidden>★ </span>}
+                      {p.name}
+                    </span>
+                    <span className="tabular-nums shrink-0">
+                      {listo
+                        ? "ya es tuyo"
+                        : `te faltan ${p.stamps - tarjeta!.tiene}`}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
       )}
 

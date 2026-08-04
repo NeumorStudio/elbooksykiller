@@ -16,6 +16,8 @@ export type Cita = {
   finMin: number;
   hora: string; // HH:MM
   pasada: boolean;
+  /** confirmed · completed · no_show */
+  status: string;
   employee_id: string;
   customer_name: string;
   customer_phone: string;
@@ -210,8 +212,54 @@ export default function Agenda({
   const citasDeHoy = porDia.get(hoy) ?? [];
   const proxima = citasDeHoy.find((c) => !c.pasada);
 
+  /**
+   * Citas que ya pasaron y siguen sin marcar.
+   *
+   * Es el cierre del día. Sin este recordatorio nadie marca nada —entre
+   * cliente y cliente no se abre el panel a hacer inventario—, y de ese
+   * marcado dependen los sellos de la tarjeta, las faltas y el contador de
+   * no presentados. Se ordenan de la más antigua a la más reciente: se
+   * empieza a cerrar por lo que más tiempo lleva abierto.
+   */
+  const sinMarcar = useMemo(
+    () =>
+      citas
+        .filter((c) => c.pasada && c.status === "confirmed")
+        .sort((a, b) => (a.dia + a.hora).localeCompare(b.dia + b.hora)),
+    [citas]
+  );
+
   return (
     <section aria-label="Agenda" className="flex flex-col gap-6">
+      {/* ── Cierre del día ────────────────────────────────────────────
+          Lo primero de todo y con el color de la marca: de esas dos
+          preguntas —vino o no vino— dependen los sellos de la tarjeta, las
+          faltas y las estadísticas. Si no se marca, la tarjeta regala cortes
+          por visitas que no ocurrieron. */}
+      {sinMarcar.length > 0 && (
+        <button
+          onClick={() => {
+            const c = sinMarcar[0];
+            setSel(c.dia);
+            setDetalle(c);
+          }}
+          className="tarjeta flex items-center gap-3 p-4 text-left hover:bg-surface-2 transition-colors"
+        >
+          <span aria-hidden className="text-2xl">●</span>
+          <span className="flex-1">
+            <span className="font-medium block">
+              {sinMarcar.length === 1
+                ? "Tienes 1 cita sin marcar"
+                : `Tienes ${sinMarcar.length} citas sin marcar`}
+            </span>
+            <span className="text-sm text-muted">
+              Di si vinieron o no: de eso salen los sellos y las estadísticas.
+            </span>
+          </span>
+          <span aria-hidden className="text-muted">›</span>
+        </button>
+      )}
+
       {/* En tablet apaisada y escritorio, "hoy" y el mes caben uno al lado
           del otro: se ve quién viene ahora y dónde queda sitio sin hacer
           scroll. Por debajo de lg siguen apilados. */}
@@ -556,6 +604,19 @@ function FilaCita({
             {b.customer_phone}
             {b.profesional && ` · con ${b.profesional}`}
           </p>
+          {/* El estado, solo cuando la cita ya pasó: en una futura no
+              significa nada y sería ruido en la línea más leída del panel. */}
+          {b.pasada && (
+            <p className="text-sm">
+              {b.status === "completed" ? (
+                <span className="text-ok">✓ Atendida</span>
+              ) : b.status === "no_show" ? (
+                <span className="text-danger">✕ No vino</span>
+              ) : (
+                <span className="text-brand">● Sin marcar</span>
+              )}
+            </p>
+          )}
         </div>
         <span aria-hidden className="shrink-0 text-muted">›</span>
       </button>
@@ -723,26 +784,44 @@ function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
           </ActionForm>
         )}
 
-        {/* Acciones: cerrar el ciclo solo cuando la hora ya pasó. */}
+        {/* ── Asistencia ───────────────────────────────────────────────
+            Los botones siguen apareciendo cuando la cita ya está cerrada, y
+            no es un descuido: equivocarse marcando es lo normal con prisa, y
+            hasta ahora corregirlo era imposible — la cita desaparecía de la
+            agenda en cuanto se cerraba. Aquí se ve en qué estado está y se
+            cambia las veces que haga falta. */}
         <div className="mt-5 flex flex-col gap-2">
           {c.pasada && (
-            <div className="flex gap-2">
-              <form action={setBookingStatus} className="flex-1">
-                <input type="hidden" name="id" value={c.id} />
-                <input type="hidden" name="status" value="completed" />
-                <button className="btn-quiet w-full text-ok">✓ Atendida</button>
-              </form>
-              <form action={setBookingStatus} className="flex-1">
-                <input type="hidden" name="id" value={c.id} />
-                <input type="hidden" name="status" value="no_show" />
-                <ConfirmSubmit
-                  className="btn-quiet w-full text-danger"
-                  message={`¿${c.customer_name} no se presentó?`}
-                >
-                  ✕ No vino
-                </ConfirmSubmit>
-              </form>
-            </div>
+            <>
+              <p className="label">
+                {c.status === "completed"
+                  ? "Marcada como atendida"
+                  : c.status === "no_show"
+                    ? "Marcada como no presentado"
+                    : "¿Vino?"}
+              </p>
+              <div className="flex gap-2">
+                <form action={setBookingStatus} className="flex-1">
+                  <input type="hidden" name="id" value={c.id} />
+                  <input type="hidden" name="status" value="completed" />
+                  <button
+                    className={`btn-quiet w-full ${c.status === "completed" ? "text-ok ring-1 ring-ok/40" : "text-ok"}`}
+                  >
+                    ✓ Atendida
+                  </button>
+                </form>
+                <form action={setBookingStatus} className="flex-1">
+                  <input type="hidden" name="id" value={c.id} />
+                  <input type="hidden" name="status" value="no_show" />
+                  <ConfirmSubmit
+                    className={`btn-quiet w-full ${c.status === "no_show" ? "text-danger ring-1 ring-danger/40" : "text-danger"}`}
+                    message={`¿${c.customer_name} no se presentó?`}
+                  >
+                    ✕ No vino
+                  </ConfirmSubmit>
+                </form>
+              </div>
+            </>
           )}
           <form action={cancelBooking}>
             <input type="hidden" name="id" value={c.id} />

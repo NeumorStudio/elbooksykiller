@@ -1,7 +1,14 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
 import { estadosPorCliente, type Estado } from "../rachas";
-import { guardarPrograma, canjearPremio, guardarPenalizaciones, perdonarCliente } from "./actions";
+import {
+  guardarPrograma,
+  canjearPremio,
+  guardarPenalizaciones,
+  perdonarCliente,
+  addPremio,
+  deletePremio,
+} from "./actions";
 import ActionForm from "../action-form";
 import SubmitButton from "../submit-button";
 import ConfirmSubmit from "../confirm-submit";
@@ -44,8 +51,13 @@ export default async function ClientesPage() {
     );
   }
 
-  const [{ data: clientesRaw }, { data: visitasRaw }, { data: programa }, { data: castigosRaw }] =
-    await Promise.all([
+  const [
+    { data: clientesRaw },
+    { data: visitasRaw },
+    { data: programa },
+    { data: castigosRaw },
+    { data: premiosRaw },
+  ] = await Promise.all([
       supabase
         .from("customers")
         // Las columnas de faltas solo existen tras la migración 0014.
@@ -74,11 +86,23 @@ export default async function ClientesPage() {
             .eq("salon_id", salon.id)
             .maybeSingle()
         : Promise.resolve({ data: null }),
+      // El catálogo de premios (migración 0029).
+      f.premios
+        ? supabase
+            .from("loyalty_rewards")
+            .select("id, name, stamps")
+            .eq("salon_id", salon.id)
+            .eq("active", true)
+            .order("stamps")
+        : Promise.resolve({ data: [] }),
     ]);
 
   const castigos = castigosRaw as {
     active: boolean; block_after: number; block_days: number; ban_after: number;
   } | null;
+  const listaPremios = (premiosRaw ?? []) as unknown as {
+    id: string; name: string; stamps: number;
+  }[];
   const clientes = (clientesRaw ?? []) as unknown as {
     id: string; name: string; phone: string; email: string | null; marketing_opt_in: boolean;
     no_show_strikes?: number; blocked_until?: string | null; banned?: boolean;
@@ -225,6 +249,86 @@ export default async function ClientesPage() {
             Guardar programa
           </SubmitButton>
         </ActionForm>
+      )}
+
+      {/* ── Premios de la tarjeta ──────────────────────────────────────
+          El catálogo: varios premios a la vez, cada uno con su precio en
+          visitas. El cliente elige — con 5 se lleva el bote, con 9 el corte.
+          Y quien ya gastó las 9 vuelve a acumular, así que el «segundo
+          premio para los que ya tuvieron el corte» sale solo del contador,
+          sin llevar escalones ni niveles. */}
+      {f.premios && programa?.active && (
+        <section className="panel p-6 flex flex-col gap-4">
+          <div>
+            <h2 className="font-semibold">Premios</h2>
+            <p className="text-sm text-muted mt-1 text-pretty">
+              Cada visita atendida da un sello. Aquí decides qué puede
+              llevarse con ellos, y cuántos cuesta cada cosa. Puedes tener
+              varios: un corte gratis a las 9 visitas y un producto a las 5,
+              por ejemplo.
+            </p>
+          </div>
+
+          {listaPremios.length > 0 && (
+            <ul className="flex flex-col gap-2">
+              {listaPremios.map((p) => (
+                <li
+                  key={p.id}
+                  className="flex items-center gap-3 rounded-lg neu-in px-4 py-2.5"
+                >
+                  <span className="font-display text-xl tabular-nums text-brand w-10 shrink-0">
+                    {p.stamps}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="font-medium block truncate">{p.name}</span>
+                    <span className="text-sm text-muted">
+                      con {p.stamps} {p.stamps === 1 ? "visita" : "visitas"}
+                    </span>
+                  </span>
+                  <ActionForm action={deletePremio}>
+                    <input type="hidden" name="id" value={p.id} />
+                    <ConfirmSubmit
+                      className="btn-quiet border-0 text-sm text-muted hover:text-danger px-2"
+                      message={`¿Quitar "${p.name}"? Los premios ya canjeados no se tocan.`}
+                    >
+                      Quitar
+                    </ConfirmSubmit>
+                  </ActionForm>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <ActionForm action={addPremio} className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-40">
+              <label htmlFor="pr-nombre" className="label">Premio</label>
+              <input
+                id="pr-nombre"
+                name="name"
+                required
+                minLength={2}
+                placeholder="Corte gratis, gomina…"
+                className="field"
+              />
+            </div>
+            <div>
+              <label htmlFor="pr-sellos" className="label">Visitas</label>
+              <input
+                id="pr-sellos"
+                name="stamps"
+                type="number"
+                min={1}
+                max={100}
+                defaultValue={9}
+                required
+                className="field w-24"
+              />
+            </div>
+            <SubmitButton className="btn-quiet" pendingText="Añadiendo…">
+              Añadir
+            </SubmitButton>
+          </ActionForm>
+        </section>
       )}
 
       {/* ── Penalizaciones por faltas ──────────────────────────────── */}
@@ -386,17 +490,35 @@ export default async function ClientesPage() {
                     {Math.min(c.sellosN, req)}/{req}
                   </span>
                 )}
-                {premiado && (
-                  <ActionForm action={canjearPremio}>
-                    <input type="hidden" name="customer_id" value={c.id} />
-                    <ConfirmSubmit
-                      className="btn-primary shrink-0 text-sm"
-                      message={`¿Canjear "${programa!.reward}" de ${c.name}? Se consumen ${req} sellos.`}
-                    >
-                      Canjear
-                    </ConfirmSubmit>
-                  </ActionForm>
-                )}
+                {/* Con catálogo, un botón por premio que ya se pueda pagar:
+                    el que tiene 12 sellos ve «Corte gratis» y «Gomina» y
+                    elige. Sin catálogo, el botón único de siempre. */}
+                {listaPremios.length > 0
+                  ? listaPremios
+                      .filter((p) => c.sellosN >= p.stamps)
+                      .map((p) => (
+                        <ActionForm key={p.id} action={canjearPremio}>
+                          <input type="hidden" name="customer_id" value={c.id} />
+                          <input type="hidden" name="reward_id" value={p.id} />
+                          <ConfirmSubmit
+                            className="btn-primary shrink-0 text-sm"
+                            message={`¿Canjear "${p.name}" de ${c.name}? Se consumen ${p.stamps} sellos.`}
+                          >
+                            {p.name}
+                          </ConfirmSubmit>
+                        </ActionForm>
+                      ))
+                  : premiado && (
+                      <ActionForm action={canjearPremio}>
+                        <input type="hidden" name="customer_id" value={c.id} />
+                        <ConfirmSubmit
+                          className="btn-primary shrink-0 text-sm"
+                          message={`¿Canjear "${programa!.reward}" de ${c.name}? Se consumen ${req} sellos.`}
+                        >
+                          Canjear
+                        </ConfirmSubmit>
+                      </ActionForm>
+                    )}
               </li>
             );
           })}

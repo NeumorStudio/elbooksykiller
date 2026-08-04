@@ -281,7 +281,10 @@ export default async function WebsitePage() {
             <p className="text-sm text-muted mt-1 text-pretty">
               Tras cada visita pedimos una valoración privada, y después
               ofrecemos tu ficha de Google a todo el mundo por igual. Pega
-              aquí el enlace de tu ficha.
+              aquí el enlace de tu ficha — vale el que te dé el botón de
+              compartir. <b>Mejor todavía</b> el de «Pedir reseñas» de tu
+              ficha de empresa: ese abre directamente el cuadro de escribir
+              la valoración, sin que el cliente tenga que buscarlo.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 items-end">

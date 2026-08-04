@@ -3,21 +3,21 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 
 /**
  * Autocompleta las citas que ya pasaron: `confirmed` con el fin hace más de
- * 3 horas pasa a `completed`.
+ * 12 horas pasa a `completed`.
  *
  * Es la bisagra de la fidelización: el sello se gana al completar, y en un
  * día de faena el dueño no marca nada. Sin esto, el cliente cuenta 6 cortes,
  * la app dice 3, y la discusión es en el mostrador — peor que no tener
- * tarjeta. Con esto, el botón "no vino" pasa a ser una corrección con
- * ventana (el trigger de la migración 0007 retira el sello si aún no se
- * canjeó), no un requisito.
+ * tarjeta.
+ *
+ * Pero el automatismo no debe ganarle la mano a la persona: marcar «no vino»
+ * es lo que sostiene las faltas y las estadísticas, y con tres horas de
+ * margen la cita se cerraba sola a media tarde. Doce horas cierran el día
+ * por la noche, que es cuando se cierra un día de verdad.
  *
  * Funciona sobre el esquema base: 'completed' existe desde el día uno. Con
  * la migración 0007 aplicada, el mismo UPDATE dispara el sello — sin ella,
  * solo arregla el KPI de "no presentados" que siempre marcaba 0.
- *
- * Las 3 horas de margen dejan hueco para marcar "no vino" a mano antes de
- * que el autocompletado dé el sello por bueno.
  */
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -39,7 +39,22 @@ export async function GET(req: Request) {
     .from("bookings")
     .update({ status: "completed" })
     .eq("status", "confirmed")
-    .lt("ends_at", new Date(Date.now() - 3 * 3600_000).toISOString())
+    /**
+     * Doce horas, no tres.
+     *
+     * Con tres, una cita de la mañana quedaba cerrada a media tarde — y como
+     * la agenda solo enseñaba las confirmadas, desaparecía de la pantalla
+     * llevándose los botones de «vino / no vino». La ventana real para
+     * marcar una falta era una tarde, y por eso el contador de no
+     * presentados marcaba siempre cero.
+     *
+     * Con doce, lo del día se cierra por la noche y lo de la tarde a la
+     * mañana siguiente: da margen a cerrar el día con calma. La agenda
+     * además ya no las esconde, así que corregir sigue siendo posible
+     * después; esto solo decide cuándo se da por buena una cita que nadie
+     * ha tocado.
+     */
+    .lt("ends_at", new Date(Date.now() - 12 * 3600_000).toISOString())
     .gt("ends_at", new Date(Date.now() - 7 * 86400_000).toISOString())
     .select("id");
 

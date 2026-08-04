@@ -11,6 +11,7 @@ import { estadoSalon, moduloActivo } from "@/lib/modulos";
 const eur = (cents: number) =>
   (cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 
+
 /**
  * Productos del salón: lo que el cliente puede apartar junto a su cita.
  * El "borrado" es lógico (active=false): puede tener reservas históricas.
@@ -46,7 +47,7 @@ export default async function ProductosPage() {
   const [{ data: productos }, { data: apartadosRaw }] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, description, price_cents, stock")
+      .select("id, name, description, price_cents, stock, image_path")
       .eq("salon_id", salon.id)
       .eq("active", true)
       .order("sort_order")
@@ -106,6 +107,18 @@ export default async function ProductosPage() {
             return (
               <li key={p.id} className="tarjeta p-4">
                 <div className="flex items-start justify-between gap-4">
+                  {/* La foto manda en la venta: un bote de cera se reconoce
+                      por el envase, no por su nombre. */}
+                  {p.image_path && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={supabase.storage.from("logos").getPublicUrl(p.image_path).data.publicUrl}
+                      alt=""
+                      width={64}
+                      height={64}
+                      className="h-16 w-16 shrink-0 rounded-lg object-cover bg-surface-2"
+                    />
+                  )}
                   <div className="min-w-0">
                     <p className="font-medium">{p.name}</p>
                     {p.description && (
@@ -156,6 +169,21 @@ export default async function ProductosPage() {
                       min="0"
                       defaultValue={p.stock ?? ""}
                       className="field w-28"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor={`fo-${p.id}`} className="label">
+                      Foto{" "}
+                      <span className="font-normal">
+                        {p.image_path ? "(cambiar)" : "(opcional)"}
+                      </span>
+                    </label>
+                    <input
+                      id={`fo-${p.id}`}
+                      name="foto"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="field text-sm file:mr-2 file:rounded file:border-0 file:bg-surface-2 file:px-2 file:py-1"
                     />
                   </div>
                   <SubmitButton className="btn-quiet text-sm" pendingText="Guardando…">
@@ -212,6 +240,22 @@ export default async function ProductosPage() {
             </label>
             <input id="np-stock" name="stock" type="number" min="0" className="field" />
           </div>
+        </div>
+        <div>
+          <label htmlFor="np-foto" className="label">
+            Foto <span className="font-normal">(opcional, PNG o JPG hasta 3 MB)</span>
+          </label>
+          <input
+            id="np-foto"
+            name="foto"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="field file:mr-3 file:rounded file:border-0 file:bg-surface-2 file:px-3 file:py-1.5"
+          />
+          <p className="text-xs text-muted mt-1.5 text-pretty">
+            Con foto se vende bastante más: el cliente reconoce el bote, no el
+            nombre.
+          </p>
         </div>
         <SubmitButton className="btn-primary self-start" pendingText="Añadiendo…">
           Añadir producto

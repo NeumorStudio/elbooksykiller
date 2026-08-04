@@ -80,6 +80,91 @@ export async function guardarPush(
   return {};
 }
 
+/**
+ * Deja su correo en la ficha para poder reclamar el historial más tarde.
+ *
+ * Quien reserva solo con el teléfono acumula visitas y sellos en una ficha
+ * sin correo, y luego **no hay forma de que la reclame**: entra en su perfil
+ * por enlace mágico, el sistema busca fichas con ese email y no encuentra
+ * ninguna. Y atarla por teléfono está prohibido a propósito desde la 0015 —
+ * escribir un número en un formulario no demuestra que sea tuyo.
+ *
+ * Esta es la puerta legítima. El token de la cita ya prueba que la reserva
+ * es suya (con él se cancela y se atan los avisos del móvil); guardar aquí
+ * el correo y verificarlo después con el enlace mágico encadena las dos
+ * pruebas que hacen falta: que la cita es suya y que el correo es suyo.
+ *
+ * Dos candados: no se pisa un correo ya puesto —esa regla es la que sostiene
+ * toda la seguridad del perfil— y no se admite uno que ya use otra ficha del
+ * mismo salón, o acabaría viendo las citas de otro.
+ */
+export async function guardarEmailCliente(
+  token: string,
+  email: string
+): Promise<{ error?: string; ok?: boolean }> {
+  const { clientes } = await features();
+  if (!clientes) return { error: "No disponible todavía." };
+  if (!UUID_RE.test(token)) return { error: "Enlace no válido." };
+
+  const limpio = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(limpio))
+    return { error: "Revisa el correo." };
+
+  const admin = supabaseAdmin();
+  const { data: b } = await admin
+    .from("bookings")
+    .select("customer_id, salon_id")
+    .eq("public_token", token)
+    .maybeSingle();
+  const cita = b as { customer_id: string | null; salon_id: string } | null;
+  if (!cita?.customer_id) return { error: "Esta cita no está ligada a una ficha." };
+
+  const { data: ficha } = await admin
+    .from("customers")
+    .select("email")
+    .eq("id", cita.customer_id)
+    .maybeSingle();
+  if (!ficha) return { error: "Esta cita no está ligada a una ficha." };
+  // Ya tenía uno: no se toca. Si es el mismo, para el cliente es un éxito.
+  if (ficha.email) {
+    return ficha.email.trim().toLowerCase() === limpio
+      ? { ok: true }
+      : { error: "Esta ficha ya tiene otro correo. Díselo al salón para cambiarlo." };
+  }
+
+  // `_` y `%` son comodines en ilike: sin escapar, juan_perez@x.com chocaría
+  // con juanXperez@x.com y bloquearía un correo legítimo.
+  const patron = limpio.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const { data: ocupado } = await admin
+    .from("customers")
+    .select("id")
+    .eq("salon_id", cita.salon_id)
+    .ilike("email", patron)
+    .maybeSingle();
+  if (ocupado) return { error: "Ese correo ya está en otra ficha de este salón." };
+
+  const { error } = await admin
+    .from("customers")
+    .update({ email: limpio })
+    .eq("id", cita.customer_id)
+    .is("email", null); // carrera: si alguien lo puso mientras tanto, manda el suyo
+  if (error) {
+    console.error("guardarEmailCliente:", error.message);
+    return { error: "No se pudo guardar. Inténtalo de nuevo." };
+  }
+
+  /**
+   * A propósito SIN revalidar.
+   *
+   * Revalidando, el servidor vuelve a pintar la página; como la ficha ya
+   * tiene correo, el bloque entero desaparece del árbol y el cliente ve
+   * esfumarse el formulario sin que nada le confirme que ha ido bien.
+   * Dejando la página como está, el componente enseña su «✓ Correo
+   * guardado», y en la siguiente visita ya no aparecerá porque el dato está.
+   */
+  return { ok: true };
+}
+
 export async function cancelarCita(token: string): Promise<{ error?: string }> {
   const { clientes, cancelaciones } = await features();
   if (!clientes) return { error: "No disponible todavía." };
