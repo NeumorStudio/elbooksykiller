@@ -72,11 +72,24 @@ export async function generateMetadata({
    * en el navegador—, así que pedirla con la sesión pública no devuelve la
    * fila recortada: falla la consulta entera y el salón parece no existir.
    */
-  const { data: salon } = await supabaseAdmin()
+  const { data: salon, error } = await supabaseAdmin()
     .from("salons")
     .select("name, address, custom_domain, blocked")
     .eq("slug", slug)
     .maybeSingle();
+
+  /**
+   * Un fallo de la consulta NO es un salón inexistente.
+   *
+   * `maybeSingle()` devuelve `data: null` en los dos casos: cuando no hay
+   * fila y cuando la petición se cayó. Si se tratan igual, un timeout de la
+   * base convierte la web de un salón que está cogiendo citas en un «no
+   * encontrado» — y el cliente que iba a reservar se va. Ante la duda se
+   * sigue adelante con metadata neutra: el cuerpo de la página hace su propia
+   * consulta y ya decide él. Un <title> genérico durante un hipo de la base
+   * es infinitamente más barato que una web caída.
+   */
+  if (error) return {};
 
   /**
    * Un salón bloqueado se trata como uno inexistente también aquí.
