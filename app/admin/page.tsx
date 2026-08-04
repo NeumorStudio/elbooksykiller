@@ -28,14 +28,29 @@ type Row = {
 export default async function AdminHome() {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
-  // El superadmin no gestiona una peluquería: directo a su panel.
-  if (esSuperadmin(user?.email)) redirect("/admin/super");
+
+  /**
+   * El superadmin va a su panel… salvo que él mismo tenga peluquería.
+   *
+   * Antes el rebote era incondicional, y eso rompía «Entrar como» cuando el
+   * salón de destino era suyo: se canjeaba la sesión del dueño, se volvía a
+   * /admin, y de ahí otra vez a /admin/super. Desde fuera parecía que el
+   * botón no hacía nada. Pasa en cuanto un operador se da de alta un salón
+   * para probar, que es exactamente lo que hay en la base de pruebas.
+   *
+   * Con salón propio se le enseña su agenda, que es lo que ha pedido; el
+   * enlace a Superadmin sigue en la barra de arriba para volver.
+   */
   const { data: salon } = await supabase
     .from("salons")
     .select("*")
     .eq("owner_id", user!.id)
     .limit(1)
     .maybeSingle();
+
+  // Superadmin sin peluquería propia: su sitio es el panel de plataforma, no
+  // el onboarding de «crea tu salón».
+  if (!salon && esSuperadmin(user?.email)) redirect("/admin/super");
 
   // Cerrar el agujero: en cuanto hay clientes con cuenta, un cliente que
   // aterrice en /admin no debe ver el onboarding de "crea tu peluquería".
