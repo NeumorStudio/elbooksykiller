@@ -150,8 +150,25 @@ export async function cancelarCita(token: string): Promise<{ error?: string }> {
     }
   }
 
-  // El dueño se entera al momento: un hueco liberado a tiempo se rellena.
-  const to = await ownerEmail(b.salons.owner_id);
+  /**
+   * El dueño se entera al momento: un hueco liberado a tiempo se rellena.
+   *
+   * Y aquí «al momento» es literal — de todos sus avisos, este es el que más
+   * depende de la inmediatez: entre cliente y cliente no se mira el correo,
+   * pero una notificación sí se ve, y con ella todavía da tiempo a llamar a
+   * alguien. Por eso push primero y correo solo si no llegó.
+   */
+  const { enviarPushDueno } = await import("@/lib/push");
+  const alMovil = await enviarPushDueno(b.salons.owner_id, {
+    titulo: `Cancelación: ${b.services.name}`,
+    cuerpo: `${b.customer_name} · ${fmtWhen(b.starts_at, b.salons.timezone)}. El hueco queda libre.`,
+    url: `${(await import("@/lib/urls")).baseUrl()}/admin`,
+    tag: `cancel-${b.id}`,
+    // Un día: si se pierde, no hay correo detrás.
+    ttl: 86400,
+  });
+
+  const to = alMovil ? null : await ownerEmail(b.salons.owner_id);
   if (to) {
     await sendEmail({
       to,
@@ -217,7 +234,16 @@ export async function valorar(token: string, rating: number): Promise<{ error?: 
 
   // Nota baja → el dueño lo sabe hoy, no cuando lo lea en Google.
   if (rating <= 3) {
-    const to = await ownerEmail(b.salons.owner_id);
+    const { enviarPushDueno } = await import("@/lib/push");
+    const alMovil = await enviarPushDueno(b.salons.owner_id, {
+      titulo: `Valoración de ${rating}/5`,
+      cuerpo: `${b.customer_name} · ${b.services.name}. Toca para ver la ficha.`,
+      url: `${(await import("@/lib/urls")).baseUrl()}/admin/clientes`,
+      tag: `nota-${b.id}`,
+    // Un día: si se pierde, no hay correo detrás.
+    ttl: 86400,
+    });
+    const to = alMovil ? null : await ownerEmail(b.salons.owner_id);
     if (to) {
       await sendEmail({
         to,

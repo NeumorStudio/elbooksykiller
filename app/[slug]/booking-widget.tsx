@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { bookAppointment } from "./actions";
+import Avisos from "@/app/cita/[token]/avisos";
 import { telHref, normalizarTel } from "@/lib/tel";
 
 type Service = {
@@ -109,6 +110,7 @@ export default function BookingWidget({
   conCuenta = false,
   cliente = null,
   abreEl = null,
+  claveVapid = null,
 }: {
   slug: string;
   timezone: string;
@@ -123,6 +125,8 @@ export default function BookingWidget({
   cliente?: { name: string; phone: string; email: string } | null;
   /** Día de apertura (YYYY-MM-DD) si el salón aún no ha abierto. */
   abreEl?: string | null;
+  /** Sin clave VAPID no hay avisos que ofrecer: el bloque no se pinta. */
+  claveVapid?: string | null;
 }) {
   const [service, setService] = useState<Service | null>(null);
   // Servicios de quien viene contigo: el niño, la pareja. Cada uno es su
@@ -444,6 +448,26 @@ export default function BookingWidget({
           <a href={citaUrl} className="btn-primary mt-6 inline-flex">
             Ver o cancelar mi cita
           </a>
+        )}
+
+        {/**
+         * El aviso en el móvil se ofrece AQUÍ, no solo en la página de la cita.
+         *
+         * Vivía únicamente en /cita/[token], a la que se llega desde el enlace
+         * del correo de confirmación: el cliente tenía que reservar, esperar el
+         * correo, abrirlo y pulsar para que se le ofreciera. Cada paso pierde
+         * gente, y en producción se veía — una sola suscripción en toda la base.
+         *
+         * Este es el momento bueno: acaba de reservar y entiende para qué sirve
+         * un recordatorio, que es justo la condición para que conceda el permiso
+         * (pedirlo al entrar en la web es la forma más rápida de que lo deniegue
+         * para siempre). Y cada cliente que lo activa se lleva sus avisos fuera
+         * del correo, que es cuota compartida y finita.
+         */}
+        {claveVapid && citaUrl?.includes("/cita/") && (
+          <div className="mt-6 flex justify-center">
+            <Avisos token={citaUrl.split("/cita/")[1]} claveVapid={claveVapid} />
+          </div>
         )}
         {(() => {
           const links = calLinks(`${service!.name} en ${salonName}`, slot, service!.duration_min);

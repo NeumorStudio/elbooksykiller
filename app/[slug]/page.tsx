@@ -490,6 +490,7 @@ export default async function SalonPage({
           conCuenta={f.clientes}
           cliente={cliente}
           abreEl={abreEl}
+          claveVapid={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null}
         />
       )}
 

@@ -91,16 +91,36 @@ export async function notifyBookingConfirmed(bookingId: string) {
         })
       );
     }
-    const { data: ownerRes } = await admin.auth.admin.getUserById(salon.owner_id);
-    if (ownerRes?.user?.email) {
-      sends.push(
-        sendEmail({
-          to: ownerRes.user.email,
-          subject: `Nueva reserva: ${d.serviceName} — ${d.when}`,
-          html: ownerNotificationHtml(d),
-          idempotencyKey: `booking-owner/${bookingId}`,
-        })
-      );
+    /**
+     * Al dueño, push primero.
+     *
+     * Es el aviso que más rápido tiene que llegarle —una reserva nueva le
+     * cambia el hueco de la agenda— y el que más cuota gasta: uno por cada
+     * cita, siempre al mismo señor. Si tiene el panel instalado y los avisos
+     * activados, esto no toca el correo.
+     */
+    const { enviarPushDueno } = await import("@/lib/push");
+    const alMovil = await enviarPushDueno(salon.owner_id, {
+      titulo: `Nueva reserva: ${d.serviceName}`,
+      cuerpo: `${d.customerName} · ${d.when}`,
+      url: `${(await import("@/lib/urls")).baseUrl()}/admin`,
+      tag: `reserva-${bookingId}`,
+    // Un día: si se pierde, no hay correo detrás.
+    ttl: 86400,
+    });
+
+    if (!alMovil) {
+      const { data: ownerRes } = await admin.auth.admin.getUserById(salon.owner_id);
+      if (ownerRes?.user?.email) {
+        sends.push(
+          sendEmail({
+            to: ownerRes.user.email,
+            subject: `Nueva reserva: ${d.serviceName} — ${d.when}`,
+            html: ownerNotificationHtml(d),
+            idempotencyKey: `booking-owner/${bookingId}`,
+          })
+        );
+      }
     }
     await Promise.all(sends);
   } catch (e) {

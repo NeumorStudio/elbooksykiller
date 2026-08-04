@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendEmail, cancellationHtml } from "@/lib/email";
 import { aplicarFalta, redimirFalta } from "@/lib/penalizaciones";
+import { normalizarTel } from "@/lib/tel";
 import { sesionAdmin } from "@/lib/sesion-admin";
 
 // Comprueba sesión y que el salón no esté bloqueado por el superadmin.
@@ -580,6 +581,20 @@ export async function addBooking(
     return { error: "Revisa la fecha y la hora." };
   if (nombre.length < 2) return { error: "Pon el nombre del cliente." };
 
+  /**
+   * El teléfono sigue siendo opcional, pero si se escribe tiene que valer.
+   *
+   * Es lo que crea la ficha del cliente —el trigger de la 0006 la saca del
+   * teléfono normalizado—, y con ella vienen la tarjeta de fidelidad, los
+   * recordatorios y los avisos en el móvil. Un número mal escrito no falla:
+   * `normalizar_tel` devuelve null, la cita se guarda igual y el cliente se
+   * queda fuera de todo eso sin que nadie se entere. Pasó de verdad — en el
+   * salón piloto, cuatro de las primeras catorce citas tenían teléfono en
+   * pantalla y ninguna ficha detrás.
+   */
+  if (telefono && !normalizarTel(telefono))
+    return { error: "Ese teléfono no parece completo. Repásalo o déjalo vacío." };
+
   const { data: servicio } = await supabase
     .from("services")
     .select("duration_min")
@@ -938,6 +953,43 @@ export async function removeLogo() {
   if (path) await supabaseAdmin().storage.from("logos").remove([path]);
   await supabase.from("salons").update({ logo_url: null }).eq("id", salon.id);
   revalidatePath("/admin/website");
+}
+
+/**
+ * Ata este móvil a la cuenta del dueño para recibir sus avisos.
+ *
+ * La credencial es la sesión, no un token de cita: aquí no hay reserva que
+ * demuestre nada, y quien está dentro del panel es quien es. `onConflict` en
+ * endpoint para que volver a activarlo en el mismo móvil actualice en vez de
+ * duplicar — el navegador puede rotar las claves manteniendo el endpoint.
+ */
+export async function guardarPushDueno(
+  sub: { endpoint: string; keys: { p256dh: string; auth: string } }
+): Promise<{ error?: string }> {
+  const { user } = await db();
+  if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
+    return { error: "Suscripción incompleta." };
+  }
+
+  const { supabaseAdmin } = await import("@/lib/supabase/server");
+  const { error } = await supabaseAdmin().from("push_subscriptions").upsert(
+    {
+      user_id: user.id,
+      // El CHECK de la 0028 exige uno de los dos y solo uno: si este móvil
+      // estaba suscrito como cliente, pasa a ser del dueño.
+      customer_id: null,
+      endpoint: sub.endpoint,
+      p256dh: sub.keys.p256dh,
+      auth: sub.keys.auth,
+      fallos: 0,
+    },
+    { onConflict: "endpoint" }
+  );
+  if (error) {
+    console.error("guardarPushDueno:", error.message);
+    return { error: "No se pudo activar el aviso. Inténtalo de nuevo." };
+  }
+  return {};
 }
 
 export async function logout() {

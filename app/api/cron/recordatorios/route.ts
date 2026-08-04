@@ -113,7 +113,7 @@ export async function GET(req: Request) {
     return (data?.length ?? 0) > 0;
   };
 
-  const total = { enviados: 0, porPush: 0, omitidos: 0, repetidos: 0 };
+  const total = { enviados: 0, porPush: 0, omitidos: 0, repetidos: 0, yaAvisados: 0 };
 
   for (const aviso of AVISOS) {
     const desde = new Date(ahora + aviso.desdeMin * 60_000).toISOString();
@@ -205,6 +205,32 @@ export async function GET(req: Request) {
       if (!c.customer_email) {
         total.omitidos++;
         continue;
+      }
+
+      /**
+       * El de 1 h no gasta correo si ya se avisó la víspera.
+       *
+       * Un correo que llega sesenta minutos antes casi no se lee: nadie mira
+       * la bandeja de entrada camino del trabajo, y a esa hora ni siquiera
+       * queda margen para cancelar. Si ayer se le avisó, este correo es ruido
+       * caro — el plan de Resend son 100 al día y se comparte.
+       *
+       * Ojo con lo que NO hace: el push de arriba se manda igual, porque una
+       * notificación a una hora sí se ve y es gratis. Y quien reservó hoy
+       * mismo no recibió víspera, así que para él este correo es su único
+       * aviso y sale como siempre.
+       */
+      if (aviso.kind === "hora" && recordatorios) {
+        const { data: ayer } = await admin
+          .from("reminders")
+          .select("booking_id")
+          .eq("booking_id", c.id)
+          .eq("kind", "vispera")
+          .maybeSingle();
+        if (ayer) {
+          total.yaAvisados++;
+          continue;
+        }
       }
 
       await sendEmail({

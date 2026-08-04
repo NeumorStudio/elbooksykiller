@@ -32,6 +32,17 @@ export type Aviso = {
   url: string;
   icono?: string;
   tag?: string;
+  /**
+   * Cuánto aguanta el aviso en la cola del servicio de push si el móvil está
+   * apagado o sin cobertura, en segundos.
+   *
+   * Una hora para lo que caduca con la cita: un «tu cita es en 1 hora» que
+   * llega tres horas después miente. Pero los avisos del dueño no caducan
+   * igual — una reserva nueva sigue siendo verdad mañana, y si se pierde no
+   * hay correo detrás que lo salve, porque justamente se manda uno o el
+   * otro. Por eso los suyos van con un día entero.
+   */
+  ttl?: number;
 };
 
 /**
@@ -45,13 +56,33 @@ export type Aviso = {
  * cada hora es gastar tiempo del cron y ensuciar los registros.
  */
 export async function enviarPush(customerId: string, aviso: Aviso): Promise<number> {
+  return enviarA({ columna: "customer_id", valor: customerId }, aviso);
+}
+
+/**
+ * Lo mismo, pero a la cuenta del dueño del salón.
+ *
+ * Sus avisos —reserva nueva, cancelación, valoración baja— iban solo por
+ * correo, y son de los pocos que se leen con urgencia: un hueco que se
+ * libera a las diez de la mañana solo se rellena si se entera a las diez de
+ * la mañana. Además es un único destinatario con un único móvil, así que
+ * sacarlo del correo libera de golpe una parte grande de la cuota diaria.
+ */
+export async function enviarPushDueno(userId: string, aviso: Aviso): Promise<number> {
+  return enviarA({ columna: "user_id", valor: userId }, aviso);
+}
+
+async function enviarA(
+  destino: { columna: "customer_id" | "user_id"; valor: string },
+  aviso: Aviso
+): Promise<number> {
   if (!pushConfigurado()) return 0;
   try {
     const admin = supabaseAdmin();
     const { data: subs } = await admin
       .from("push_subscriptions")
       .select("id, endpoint, p256dh, auth")
-      .eq("customer_id", customerId);
+      .eq(destino.columna, destino.valor);
     if (!subs?.length) return 0;
 
     const payload = JSON.stringify(aviso);
@@ -64,8 +95,7 @@ export async function enviarPush(customerId: string, aviso: Aviso): Promise<numb
           await webpush.sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
             payload,
-            { TTL: 3600 } // caduca con la cita: un aviso de «en 1 hora» que
-            //               llega tres horas después miente.
+            { TTL: aviso.ttl ?? 3600 }
           );
           entregados++;
         } catch (e) {

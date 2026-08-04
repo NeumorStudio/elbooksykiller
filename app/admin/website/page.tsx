@@ -20,6 +20,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
 import Ayuda from "../ayuda";
 import { BotonInstalar } from "../instalar";
+import AvisosDueno from "../avisos-dueno";
 
 export default async function WebsitePage() {
   const supabase = await supabaseServer();
@@ -130,6 +131,20 @@ export default async function WebsitePage() {
           </p>
         </div>
         <BotonInstalar />
+
+        {/* Justo debajo de instalar, porque en iPhone el aviso SOLO existe
+            con el panel instalado: en ese orden, quien lo instala se
+            encuentra el botón con sentido. */}
+        {process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && (
+          <div className="border-t border-line-subtle pt-4">
+            <p className="text-sm text-muted mb-3 text-pretty">
+              Y que te avise sin abrirlo: una reserva nueva o una cancelación
+              te llega al momento, que es cuando aún se puede rellenar el
+              hueco. Además te ahorra correos.
+            </p>
+            <AvisosDueno claveVapid={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY} />
+          </div>
+        )}
       </div>
 
       <div className="panel p-6 flex flex-col gap-4">

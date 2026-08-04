@@ -470,6 +470,15 @@ export default function Agenda({
                   <input id="b-tel" name="customer_phone" type="tel" className="field" />
                 </div>
               </div>
+              {/* El teléfono no es burocracia: es lo que convierte la cita en
+                  un cliente con ficha. Sin decirlo, se deja vacío por ir
+                  rápido y ese cliente queda fuera de la tarjeta y de los
+                  recordatorios para siempre. */}
+              <p className="text-xs text-muted text-pretty -mt-1">
+                Con el teléfono, esta persona entra en tus <b>Clientes</b>: suma
+                tarjeta de fidelidad y puede recibir recordatorio de su cita. Sin
+                él, la cita solo vive en tu agenda.
+              </p>
               <SubmitButton className="btn-primary mt-1" pendingText="Guardando…">
                 Añadir cita
               </SubmitButton>
