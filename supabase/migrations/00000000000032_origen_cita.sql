@@ -88,22 +88,22 @@ language sql stable security definer set search_path = public as $$
   )
 $$;
 
--- ── Lo viejo: solo se marca lo que se puede DEMOSTRAR ──────────────────
+-- ── Lo viejo se queda sin marcar, a propósito ──────────────────────────
 --
--- `create_booking` rechaza cualquier teléfono con menos de 9 dígitos (esa
--- validación entró en la migración 0004). O sea que una cita con teléfono
--- corto NO PUDO nacer en la web: la escribió el dueño a mano, que va por
--- INSERT directo y se salta esa comprobación. El caso típico es el «—» que
--- pone el panel cuando el cliente de mostrador no da número
--- (`app/admin/actions.ts`, `telefono || "—"`).
+-- Aquí hubo un relleno del histórico y se quitó tras verlo en producción.
 --
--- No es una heurística: es que el otro camino es incapaz de producir eso.
+-- Se podía demostrar el origen de una parte: `create_booking` rechaza
+-- teléfonos de menos de 9 dígitos desde la 0004, así que una cita con
+-- teléfono corto no pudo nacer en la web; y el alta manual del panel nunca
+-- manda `customer_email` —su formulario ni tiene ese campo—, así que un
+-- email relleno solo puede venir de la web. Entre las dos reglas salían 30
+-- de 41.
 --
--- Del resto no hay señal. Una cita que el dueño apuntó CON un teléfono bueno
--- es indistinguible de una que pidió el cliente, así que se queda en NULL
--- —«no se sabe»— en vez de inventar un dato que luego se lea como cierto.
+-- El problema no era la fiabilidad, era cómo se leía: quedaban unas citas
+-- marcadas y otras en blanco sin que la diferencia significase nada para
+-- quien mira la agenda —el blanco parecía «web» por omisión, cuando quería
+-- decir «no consta»—. Un histórico a medias confunde más de lo que informa.
 --
--- En producción, a 9 de agosto de 2026: marca 21 de 41 y deja 20 en NULL.
-update bookings set source = 'panel'
-  where source is null
-    and length(regexp_replace(coalesce(customer_phone, ''), '\D', '', 'g')) < 9;
+-- Así que las anteriores a esta migración se quedan todas en NULL y la
+-- marca empieza a contar desde aquí, que es donde el trigger la pone bien
+-- siempre. En unas semanas el histórico sin marcar ya no lo mira nadie.
