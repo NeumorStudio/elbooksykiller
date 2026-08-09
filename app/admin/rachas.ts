@@ -57,8 +57,27 @@ export function estadosPorCliente(
 
     const desde = (ahora - ultima) / DIA;
     let estado: Estado;
-    if (desde > Math.max(cadencia * 2, 30) || desde > 180) estado = "perdido";
-    else if (desde > cadencia * 1.5) estado = "enfriandose";
+    // Sesenta días, no treinta: con el suelo de 21 de «enfriándose», treinta
+    // dejaba nueve días entre «hay que escribirle» y «se fue», y no da tiempo
+    // ni a mandar una campaña. Dos meses sin pisar la peluquería sí es haberse
+    // ido de verdad.
+    if (desde > Math.max(cadencia * 2, 60) || desde > 180) estado = "perdido";
+    /**
+     * El suelo de 21 días es tan necesario como el de 30 de «perdido».
+     *
+     * Sin él, la cadencia manda sola y con dos visitas seguidas se vuelve
+     * absurda: un cliente que vino dos veces el mismo día tiene cadencia de
+     * medio día, y a las dieciocho horas de cortarse el pelo ya aparecía
+     * «Enfriándose». Pasó en el piloto la semana de abrir, cuando por fuerza
+     * todas las cadencias eran de horas.
+     *
+     * Veintiuno porque una peluquería se pisa cada tres o cuatro semanas:
+     * antes de tres semanas nadie se ha enfriado por mucho que su cadencia
+     * medida diga otra cosa. Y queda muy por debajo de los 60 de «perdido»,
+     * que es el orden que tienen que guardar: hay casi seis semanas para
+     * intentar recuperarlo antes de darlo por ido.
+     */
+    else if (desde > Math.max(cadencia * 1.5, 21)) estado = "enfriandose";
     else if (n >= 3) estado = "racha";
     else estado = "nuevos";
 
