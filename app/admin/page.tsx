@@ -118,6 +118,9 @@ export default async function AdminHome() {
             // public_token sale de la 0006 igual que customer_id: sin esa
             // migración no existe y pedirlo rompería la consulta entera.
             (f.clientes ? ", customer_id, public_token" : "") +
+            // `source` sale de la 0032: mismo motivo, sin ella la consulta
+            // entera falla y la agenda se queda en blanco.
+            (f.origen ? ", source" : "") +
             ", services(name, price_cents), employees(name)"
         )
         .eq("salon_id", salon.id)
@@ -244,6 +247,7 @@ export default async function AdminHome() {
       servicio: b.services?.name ?? "",
       profesional: b.employees?.name ?? "",
       precioCents: b.services?.price_cents ?? 0,
+      origen: (b as { source?: "cliente" | "panel" | null }).source ?? null,
       sellos:
         programa && b.customer_id != null && sellosDe.has(b.customer_id)
           ? {

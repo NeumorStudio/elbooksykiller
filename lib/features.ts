@@ -21,6 +21,7 @@ export type Features = {
   cancelaciones: boolean;
   recordatorios: boolean;
   premios: boolean;
+  origen: boolean;
 };
 
 const APAGADO: Features = {
@@ -33,6 +34,7 @@ const APAGADO: Features = {
   cancelaciones: false,
   recordatorios: false,
   premios: false,
+  origen: false,
 };
 
 // cache() deduplica dentro de la misma petición; entre peticiones vuelve a

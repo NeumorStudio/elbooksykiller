@@ -29,7 +29,60 @@ export type Cita = {
   // Distintivo de fidelidad: el barbero ve que el siguiente va gratis
   // ANTES de cortar. null = sin programa o cliente sin sellos.
   sellos?: { tiene: number; requiere: number; premio: string } | null;
+  /**
+   * Quién dio de alta la cita (migración 0032). null en las anteriores a
+   * esa migración y undefined mientras no esté aplicada: en los dos casos
+   * no se pinta nada, que es mejor que pintar una suposición.
+   */
+  origen?: "cliente" | "panel" | null;
 };
+
+/**
+ * Lápiz en SVG y no el glifo ✎.
+ *
+ * El dingbat se dibuja en una esquina de su caja y con unas holguras que
+ * cambian según la fuente, así que centrarlo con flexbox centra la caja y
+ * deja la tinta torcida — distinto en cada dispositivo. Con el trazado
+ * propio la tinta está centrada por construcción y hereda el color del
+ * texto. La arroba no lo necesita: como carácter normal ya cae centrada.
+ */
+function IconoLapiz() {
+  return (
+    <svg
+      viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+      strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"
+      aria-hidden
+    >
+      {/* Cuerpo con la punta, y la banda metálica que lo hace legible a 12px */}
+      <path d="M17.7 3.6a2.1 2.1 0 0 1 3 3L9 18.3l-4 1 1-4z" />
+      <path d="M15.6 5.7l3 3" />
+    </svg>
+  );
+}
+
+/**
+ * De dónde salió la cita, en un icono.
+ *
+ * Nada de emoji: la línea ya lleva ✓ ✕ ★ ●, y un emoji de color ahí dentro
+ * canta. El título es lo que lo hace entendible sin leyenda — nadie tiene
+ * por qué adivinar qué significa una arroba.
+ */
+function Origen({ origen }: { origen?: Cita["origen"] }) {
+  if (!origen) return null;
+  const web = origen === "cliente";
+  return (
+    <span
+      title={web ? "La reservó el cliente por la web" : "La apuntaste tú a mano"}
+      className="ml-2 inline-flex h-5 w-5 shrink-0 items-center justify-center
+                 rounded-full neu-in text-[11px] leading-none text-muted align-middle"
+    >
+      {web ? <span aria-hidden>@</span> : <IconoLapiz />}
+      <span className="sr-only">
+        {web ? "Reservada por el cliente" : "Apuntada a mano"}
+      </span>
+    </span>
+  );
+}
 
 const fmtPrecio = (cents: number) =>
   (cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
@@ -626,6 +679,7 @@ function FilaCita({
         <div className="min-w-0 flex-1">
           <p className="font-medium truncate">
             {b.customer_name}
+            <Origen origen={b.origen} />
             {b.sellos && (
               <span
                 className={`ml-2 inline-block rounded-full px-2 py-0.5 text-xs tabular-nums align-middle ${
@@ -732,6 +786,20 @@ function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
           {dato("Cuándo", `${c.hora} · ${c.servicio}`)}
           {dato("Con", c.profesional || "—")}
           {dato("Precio", fmtPrecio(c.precioCents))}
+          {/* Aquí con todas las letras: en la lista el glifo basta porque se
+              lee de pasada, pero al abrir la cita ya no hay prisa. */}
+          {c.origen &&
+            dato(
+              "Origen",
+              c.origen === "cliente" ? (
+                "La reservó el cliente"
+              ) : (
+                <span className="inline-flex items-center gap-1.5">
+                  <IconoLapiz />
+                  La apuntaste a mano
+                </span>
+              )
+            )}
           {dato(
             "Teléfono",
             c.customer_phone && c.customer_phone !== "—" ? (
