@@ -7,7 +7,7 @@ llama **`salonio`**, y su dominio de producción es `reservas.neumorstudio.com`.
 
 ## Reparto de trabajo
 
-Edwin lleva el diseño y **también toca la parte técnica**; su compañero (`cmateos91`) lleva el
+Edwin lleva el diseño y **también toca la parte técnica**; su compañero (`cmate0s`) lleva el
 resto. El repo es compartido: avisar antes de tocar ramas compartidas y ofrecer rama + PR.
 
 ## Las dos ramas y las dos bases
