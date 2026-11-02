@@ -7,6 +7,7 @@ import ActionForm from "../action-form";
 import ConfirmSubmit from "../confirm-submit";
 import SubmitButton from "../submit-button";
 import { marcarMiCita } from "./actions";
+import AgendaEquipo from "./agenda-equipo";
 
 /**
  * La agenda del trabajador: sus citas de hoy y de las dos semanas que
@@ -58,6 +59,10 @@ export default async function MiAgenda() {
       </main>
     );
   }
+
+  // Con algún permiso del dueño (0034), la agenda completa con calendario.
+  // Sin ninguno, esta lista sencilla de sus citas, que es lo que necesita.
+  if (puesto.ver_agenda_equipo || puesto.apuntar_citas) return <AgendaEquipo puesto={puesto} />;
 
   const tz = puesto.timezone;
   const ahora = new Date();

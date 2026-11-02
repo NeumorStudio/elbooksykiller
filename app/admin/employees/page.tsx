@@ -8,7 +8,9 @@ import ActionForm from "../action-form";
 import ConfirmSubmit from "../confirm-submit";
 import Ayuda from "../ayuda";
 import EditorHorario from "./editor-horario";
-import { darAcceso, reenviarAcceso, quitarAcceso, renombrarEmpleado } from "./acceso-actions";
+import {
+  darAcceso, reenviarAcceso, quitarAcceso, renombrarEmpleado, guardarPermisos,
+} from "./acceso-actions";
 import { features } from "@/lib/features";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import {
@@ -44,22 +46,39 @@ export default async function EmployeesPage() {
 
   // Quién del equipo entra con su propia cuenta (0033). Con la migración sin
   // aplicar, ni se pregunta: pedir la tabla tumbaría la consulta.
-  type Acceso = { employee_id: string; email: string; last_invited_at: string | null; user_id: string };
+  type Acceso = {
+    employee_id: string; email: string; last_invited_at: string | null; user_id: string;
+    created_at: string; ver_agenda_equipo?: boolean; apuntar_citas?: boolean;
+  };
   const accesos = new Map<string, Acceso & { activo: boolean }>();
-  if ((await features()).trabajadores) {
+  const f = await features();
+  if (f.trabajadores) {
     const { data } = await supabase
       .from("employee_access")
-      .select("employee_id, email, last_invited_at, user_id")
+      .select(
+        "employee_id, email, last_invited_at, user_id, created_at" +
+          // Las columnas de la 0034: sin ella, pedirlas tumbaría la consulta.
+          (f.permisos_equipo ? ", ver_agenda_equipo, apuntar_citas" : "")
+      )
       .in("employee_id", equipo.map((e) => e.id));
     // «Ya ha entrado» sale de Auth, que solo se lee con service role. Son
     // dos o tres personas por salón: una llamada por cabeza es poca cosa.
     const admin = supabaseAdmin();
-    for (const a of (data as Acceso[] | null) ?? []) {
+    for (const a of (data as unknown as Acceso[] | null) ?? []) {
       const { data: u } = await admin.auth.admin.getUserById(a.user_id);
-      accesos.set(a.employee_id, { ...a, activo: !!u?.user?.last_sign_in_at });
+      // Solo cuenta una entrada POSTERIOR a darle el acceso. Quien ya era
+      // cliente con cuenta (entró alguna vez a su perfil) traía una fecha
+      // de entrada de antes, y salía «ya ha entrado» sin haber abierto el
+      // enlace. Le pasó al primer trabajador del piloto.
+      const entro = u?.user?.last_sign_in_at;
+      accesos.set(a.employee_id, {
+        ...a,
+        activo: !!entro && Date.parse(entro) >= Date.parse(a.created_at),
+      });
     }
   }
-  const conAccesos = (await features()).trabajadores;
+  const conAccesos = f.trabajadores;
+  const conPermisos = f.permisos_equipo;
 
   const fmtDia = (iso: string) =>
     new Date(iso).toLocaleDateString("es-ES", {
@@ -178,8 +197,10 @@ export default async function EmployeesPage() {
                     <div>
                       <p className="font-medium">Acceso desde su móvil</p>
                       <p className="text-sm text-muted text-pretty mt-1">
-                        Verá solo sus citas y podrá marcar si el cliente vino. No verá la
-                        caja, ni a los clientes, ni las citas de los demás.
+                        Verá sus citas y podrá marcar si el cliente vino.
+                        {conPermisos
+                          ? " Después podrás dejarle ver la agenda de todos o apuntar citas. La caja, los clientes y los precios siguen siendo solo tuyos."
+                          : " No verá la caja, ni a los clientes, ni las citas de los demás."}
                       </p>
                     </div>
                     <div className="flex gap-2 items-end flex-wrap">
@@ -220,6 +241,52 @@ export default async function EmployeesPage() {
                       </p>
                     )}
                   </div>
+                  {/* ── Qué puede hacer (0034) ───────────────────────────
+                      La `key` remonta el formulario cuando cambian los
+                      valores guardados: si no, las casillas se quedarían
+                      como las dejó el navegador y no como están. */}
+                  {conPermisos && (
+                    <ActionForm
+                      key={`${a.ver_agenda_equipo}-${a.apuntar_citas}`}
+                      action={guardarPermisos}
+                      className="flex flex-col gap-3 border-t border-line pt-3"
+                    >
+                      <input type="hidden" name="employee_id" value={emp.id} />
+                      <p className="label">Qué puede hacer</p>
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="ver_agenda_equipo"
+                          defaultChecked={!!a.ver_agenda_equipo}
+                          className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
+                        />
+                        <span>
+                          <span className="font-medium">Ver la agenda de todo el equipo</span>
+                          <span className="block text-sm text-muted text-pretty">
+                            Las citas de los demás, para saber qué huecos quedan.
+                          </span>
+                        </span>
+                      </label>
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="apuntar_citas"
+                          defaultChecked={!!a.apuntar_citas}
+                          className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
+                        />
+                        <span>
+                          <span className="font-medium">Apuntar, mover y cancelar citas</span>
+                          <span className="block text-sm text-muted text-pretty">
+                            Las suyas, o las de todos si también ve la agenda del equipo.
+                            Las pagadas online solo las cancelas tú.
+                          </span>
+                        </span>
+                      </label>
+                      <SubmitButton className="btn-quiet self-start" pendingText="Guardando…">
+                        Guardar permisos
+                      </SubmitButton>
+                    </ActionForm>
+                  )}
                   <div className="flex gap-2 flex-wrap">
                     <ActionForm action={reenviarAcceso}>
                       <input type="hidden" name="employee_id" value={emp.id} />

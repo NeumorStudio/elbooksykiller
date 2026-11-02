@@ -132,6 +132,28 @@ export type Profesional = {
 
 export type Servicio = { id: string; name: string; duration_min: number };
 
+type Resultado = Promise<{ error?: string } | void>;
+
+/**
+ * La misma agenda, abierta por un trabajador (0034).
+ *
+ * Sin esto es la del dueño, tal cual. Con esto cambian tres cosas: las
+ * acciones van por las RPC del trabajador en vez de por la sesión del dueño,
+ * la asistencia solo se marca en sus propias citas, y si no tiene permiso
+ * para apuntar, los huecos se ven pero no se tocan. Qué citas y qué
+ * profesionales salen ya viene filtrado del servidor.
+ */
+export type ModoTrabajador = {
+  yo: string;
+  apuntar: boolean;
+  acciones: {
+    alta: (fd: FormData) => Promise<{ error?: string; ok?: AltaOk }>;
+    mover: (fd: FormData) => Resultado;
+    cancelar: (fd: FormData) => Resultado;
+    marcar: (fd: FormData) => Resultado;
+  };
+};
+
 const CABECERA = ["L", "M", "X", "J", "V", "S", "D"];
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -156,13 +178,17 @@ export default function Agenda({
   servicios,
   hoy,
   ahoraMin,
+  trabajador,
 }: {
   citas: Cita[];
   profesionales: Profesional[];
   servicios: Servicio[];
   hoy: string;
   ahoraMin: number; // minuto actual en la zona del salón
+  trabajador?: ModoTrabajador;
 }) {
+  const puedeApuntar = !trabajador || trabajador.apuntar;
+  const alta = trabajador?.acciones.alta ?? addBooking;
   const [sel, setSel] = useState(hoy);
   const [ancla, setAncla] = useState(() => {
     const [y, m] = hoy.split("-").map(Number);
@@ -294,9 +320,11 @@ export default function Agenda({
   const sinMarcar = useMemo(
     () =>
       citas
+        // El trabajador solo cierra lo suyo: las del compañero las marca él.
         .filter((c) => c.pasada && c.status === "confirmed")
+        .filter((c) => !trabajador || c.employee_id === trabajador.yo)
         .sort((a, b) => (a.dia + a.hora).localeCompare(b.dia + b.hora)),
-    [citas]
+    [citas, trabajador]
   );
 
   return (
@@ -415,9 +443,11 @@ export default function Agenda({
         {!rango ? (
           <p className="tarjeta p-5 text-center text-muted">
             Nadie del equipo trabaja este día.{" "}
-            <span className="block text-sm mt-1">
-              Los horarios se configuran en Equipo.
-            </span>
+            {!trabajador && (
+              <span className="block text-sm mt-1">
+                Los horarios se configuran en Equipo.
+              </span>
+            )}
           </p>
         ) : (
           <div className="tarjeta overflow-x-auto">
@@ -460,8 +490,24 @@ export default function Agenda({
                         />
                       ))}
 
-                      {/* Huecos libres: pulsables */}
-                      {libres.map((h) => (
+                      {/* Huecos libres: pulsables si se puede apuntar. Sin
+                          ese permiso se ven igual —para saber qué queda—
+                          pero no llevan a ningún formulario. */}
+                      {!puedeApuntar && libres.map((h) => (
+                        <div
+                          key={`${p.id}-${h.ini}`}
+                          className="absolute inset-x-1 rounded-lg border border-dashed border-line
+                            text-xs text-faint flex items-start justify-center pt-1"
+                          style={{
+                            top: (h.ini - rango.ini) * PX_MIN,
+                            height: (h.fin - h.ini) * PX_MIN - 2,
+                          }}
+                          title={`Libre ${hhmm(h.ini)}–${hhmm(h.fin)}`}
+                        >
+                          {`Libre ${hhmm(h.ini)}`}
+                        </div>
+                      ))}
+                      {puedeApuntar && libres.map((h) => (
                         <button
                           key={`${p.id}-${h.ini}`}
                           onClick={() => elegirHueco(hhmm(h.ini), p.id)}
@@ -520,12 +566,14 @@ export default function Agenda({
         )}
 
         <p className="mt-2 text-xs text-faint text-center">
-          Toca una cita para ver los datos del cliente, o un hueco para añadir.
+          {puedeApuntar
+            ? "Toca una cita para ver los datos del cliente, o un hueco para añadir."
+            : "Toca una cita para ver sus datos."}
         </p>
       </div>
 
       {/* ── 4. Alta manual, precargada desde el hueco ─────────────── */}
-      {servicios.length > 0 && profesionales.length > 0 && (
+      {puedeApuntar && servicios.length > 0 && profesionales.length > 0 && (
         <div ref={formRef}>
           <details className="tarjeta p-5" open={!!hueco || !!ultima}>
             <summary className="cursor-pointer select-none font-semibold marker:text-brand">
@@ -586,7 +634,7 @@ export default function Agenda({
 
             <ActionForm
               key={ronda}
-              action={addBooking}
+              action={alta}
               onSuccess={(ok) => {
                 setUltima(ok);
                 setRonda((r) => r + 1);
@@ -639,7 +687,8 @@ export default function Agenda({
                   rápido y ese cliente queda fuera de la tarjeta y de los
                   recordatorios para siempre. */}
               <p className="text-xs text-muted text-pretty -mt-1">
-                Con el teléfono, esta persona entra en tus <b>Clientes</b>: suma
+                Con el teléfono, esta persona entra en {trabajador ? "los" : "tus"}{" "}
+                <b>Clientes</b>{trabajador ? " del salón" : ""}: suma
                 tarjeta de fidelidad y puede recibir recordatorio de su cita. Sin
                 él, la cita solo vive en tu agenda.
               </p>
@@ -651,7 +700,9 @@ export default function Agenda({
         </div>
       )}
 
-      {detalle && <DetalleCita c={detalle} onClose={() => setDetalle(null)} />}
+      {detalle && (
+        <DetalleCita c={detalle} onClose={() => setDetalle(null)} trabajador={trabajador} />
+      )}
     </section>
   );
 }
@@ -696,8 +747,9 @@ function FilaCita({
           </p>
           <p className="truncate">{b.servicio}</p>
           <p className="text-sm text-muted truncate">
-            {b.customer_phone}
-            {b.profesional && ` · con ${b.profesional}`}
+            {[b.customer_phone, b.profesional && `con ${b.profesional}`]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
           {/* El estado, solo cuando la cita ya pasó: en una futura no
               significa nada y sería ruido en la línea más leída del panel. */}
@@ -726,7 +778,23 @@ function FilaCita({
  * claro abrir una ficha y actuar ahí que buscar el botón correcto en una
  * lista. Modal centrado, cerrable por fondo, Escape o la ✕.
  */
-function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
+function DetalleCita({
+  c,
+  onClose,
+  trabajador,
+}: {
+  c: Cita;
+  onClose: () => void;
+  trabajador?: ModoTrabajador;
+}) {
+  const puedeApuntar = !trabajador || trabajador.apuntar;
+  // La asistencia la marca quien atiende: el dueño todas, el trabajador las suyas.
+  const puedeMarcar = !trabajador || c.employee_id === trabajador.yo;
+  const mover = trabajador?.acciones.mover ?? moverCita;
+  const cancelar = trabajador?.acciones.cancelar ?? cancelBooking;
+  const marcar = trabajador
+    ? async (fd: FormData) => { await trabajador.acciones.marcar(fd); }
+    : setBookingStatus;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
@@ -796,11 +864,13 @@ function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
               ) : (
                 <span className="inline-flex items-center gap-1.5">
                   <IconoLapiz />
-                  La apuntaste a mano
+                  {trabajador ? "Apuntada a mano" : "La apuntaste a mano"}
                 </span>
               )
             )}
-          {dato(
+          {/* Al trabajador no le llega el teléfono de las citas de otros si
+              no puede gestionarlas: ahí no se pinta la fila entera. */}
+          {(!trabajador || c.customer_phone) && dato(
             "Teléfono",
             c.customer_phone && c.customer_phone !== "—" ? (
               <a href={telHref(c.customer_phone)} className="text-brand hover:underline">
@@ -810,7 +880,7 @@ function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
               <span className="text-muted">Sin teléfono</span>
             )
           )}
-          {dato(
+          {!trabajador && dato(
             "Email",
             c.customer_email ? (
               <a href={`mailto:${c.customer_email}`} className="text-brand hover:underline break-all">
@@ -854,9 +924,9 @@ function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
 
         {/* Mover: solo mientras la cita esté por venir. Cambiar de hora una
             cita pasada no es mover nada, es reescribir el historial. */}
-        {!c.pasada && (
+        {!c.pasada && puedeApuntar && (
           <ActionForm
-            action={moverCita}
+            action={mover}
             className="mt-5 border-t border-line-subtle pt-4 flex flex-col gap-2"
           >
             <input type="hidden" name="id" value={c.id} />
@@ -900,7 +970,7 @@ function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
             agenda en cuanto se cerraba. Aquí se ve en qué estado está y se
             cambia las veces que haga falta. */}
         <div className="mt-5 flex flex-col gap-2">
-          {c.pasada && (
+          {c.pasada && puedeMarcar && (
             <>
               <p className="label">
                 {c.status === "completed"
@@ -910,7 +980,7 @@ function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
                     : "¿Vino?"}
               </p>
               <div className="flex gap-2">
-                <form action={setBookingStatus} className="flex-1">
+                <form action={marcar} className="flex-1">
                   <input type="hidden" name="id" value={c.id} />
                   <input type="hidden" name="status" value="completed" />
                   <button
@@ -919,7 +989,7 @@ function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
                     ✓ Atendida
                   </button>
                 </form>
-                <form action={setBookingStatus} className="flex-1">
+                <form action={marcar} className="flex-1">
                   <input type="hidden" name="id" value={c.id} />
                   <input type="hidden" name="status" value="no_show" />
                   <ConfirmSubmit
@@ -932,17 +1002,27 @@ function DetalleCita({ c, onClose }: { c: Cita; onClose: () => void }) {
               </div>
             </>
           )}
-          <form action={cancelBooking}>
-            <input type="hidden" name="id" value={c.id} />
-            <ConfirmSubmit
-              className="btn-quiet w-full text-danger hover:bg-danger/10"
-              message={`¿Cancelar la cita de ${c.customer_name}? Si dejó su email, se le avisará automáticamente.${
-                c.payment_status === "paid" ? " Se le devolverá el pago." : ""
-              }`}
-            >
-              Cancelar cita
-            </ConfirmSubmit>
-          </form>
+          {/* El trabajador no cancela lo pagado online (devolver el dinero
+              lo decide el dueño) ni lo que ya ha empezado: eso se marca. */}
+          {trabajador && puedeApuntar && c.payment_status === "paid" && !c.pasada ? (
+            <p className="text-xs text-muted text-pretty text-center">
+              Pagada online: si hay que cancelarla, la cancela el dueño.
+            </p>
+          ) : (
+            puedeApuntar && (!trabajador || !c.pasada) && (
+              <ActionForm action={cancelar}>
+                <input type="hidden" name="id" value={c.id} />
+                <ConfirmSubmit
+                  className="btn-quiet w-full text-danger hover:bg-danger/10"
+                  message={`¿Cancelar la cita de ${c.customer_name}? Si dejó su email, se le avisará automáticamente.${
+                    c.payment_status === "paid" ? " Se le devolverá el pago." : ""
+                  }`}
+                >
+                  Cancelar cita
+                </ConfirmSubmit>
+              </ActionForm>
+            )
+          )}
         </div>
       </div>
     </div>

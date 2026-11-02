@@ -236,3 +236,30 @@ export async function renombrarEmpleado(formData: FormData) {
   revalidatePath("/admin/employees");
   revalidatePath("/admin");
 }
+
+/**
+ * Los dos permisos del trabajador (0034): ver la agenda de todos y apuntar,
+ * mover y cancelar citas. Los guarda service role, igual que el resto de
+ * `employee_access`, después de que la sesión del dueño confirme que la
+ * ficha es suya. Surten efecto en la siguiente pantalla que abra él: las
+ * RPC los leen en cada llamada.
+ */
+export async function guardarPermisos(formData: FormData) {
+  if (!(await features()).permisos_equipo) return { error: "Esta función aún no está activada." };
+  const ctx = await fichaPropia(String(formData.get("employee_id") ?? ""));
+  if (!ctx || !ctx.emp.active) return { error: "Esa persona no está en tu equipo." };
+
+  const { data, error } = await supabaseAdmin()
+    .from("employee_access")
+    .update({
+      ver_agenda_equipo: formData.get("ver_agenda_equipo") === "on",
+      apuntar_citas: formData.get("apuntar_citas") === "on",
+    })
+    .eq("employee_id", ctx.emp.id)
+    .select("employee_id");
+  if (error || !data?.length) {
+    if (error) console.error("guardarPermisos:", error.message);
+    return { error: "No se pudieron guardar los permisos. Inténtalo de nuevo." };
+  }
+  revalidatePath("/admin/employees");
+}
