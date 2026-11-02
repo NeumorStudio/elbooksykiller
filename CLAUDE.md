@@ -108,6 +108,24 @@ correo solo se manda si son cero. El reparto completo está en `docs/CORREO.md`,
 cancelación —que decide el texto de esos avisos— vive entera en `lib/cancelacion.ts`: si la
 cambias ahí, cambia sola en la action, en la página y en los correos.
 
+## Acceso de trabajadores (0033)
+
+Un profesional puede entrar desde su móvil y ver **solo sus citas**. No es un segundo dueño: la
+seguridad del dueño (`salons.owner_id = auth.uid()`) no se ha tocado, y el trabajador **no tiene
+ninguna política** sobre las tablas del salón. Lee y marca por tres RPC `security definer`
+(`mi_puesto`, `mis_citas`, `marcar_mi_cita`) que devuelven solo lo suyo y solo las columnas de la
+silla. `employee_access` une ficha y cuenta, y solo la escribe service role desde las actions de
+*Equipo*, que antes comprueban con la sesión del dueño que la ficha es suya.
+
+- El enlace del correo va a **`/admin/acceso`**, página nuestra (pública en el proxy), y el token
+  se canjea al enviar el formulario, no al abrir: los antivirus de correo abren los enlaces y lo
+  gastarían. Es un enlace de `recovery`, así que **caduca con el OTP de Supabase (1 h por defecto)**.
+- En el preview de dev el enlace usa `VERCEL_BRANCH_URL`, no `baseUrl()`, que apunta a prod.
+- Dar de baja la ficha o bloquear el salón apaga el acceso solo; «Quitar acceso» además borra la
+  cuenta si no es también de un cliente.
+- Pruebas de la base: `supabase/migrations/comprobar-0033.sql` en el editor SQL de **dev**. Acaba
+  en error a propósito para deshacerlo todo; el mensaje es el resultado.
+
 ## Trampas conocidas
 
 - **`.env.local` manda solo en tu máquina.** Lo desplegado usa las variables de Vercel y no lee

@@ -17,7 +17,11 @@ import { createClient } from "@supabase/supabase-js";
  * romper la instalación por no saber de quién es.
  */
 export async function GET(req: Request) {
-  const slug = new URL(req.url).searchParams.get("s");
+  const params = new URL(req.url).searchParams;
+  const slug = params.get("s");
+  // `t=1`: la agenda de un trabajador. Mismo logo del salón, pero sin
+  // «Panel Admin» — él no administra nada.
+  const trabajador = params.get("t") === "1";
 
   let nombre = "Salonio — mi agenda";
   let corto = "Salonio";
@@ -35,11 +39,11 @@ export async function GET(req: Request) {
       .eq("slug", slug)
       .maybeSingle();
     if (salon) {
-      nombre = `Panel Admin ${salon.name}`;
+      nombre = trabajador ? `Mi agenda · ${salon.name}` : `Panel Admin ${salon.name}`;
       // Bajo el icono no cabe el salón entero, y lo que hay que distinguir
       // ahí es el panel de la web de reservas — que va instalada al lado y
       // con el mismo logo.
-      corto = "Panel Admin";
+      corto = trabajador ? "Mi agenda" : "Panel Admin";
       // El logo del salón, no el genérico: el dueño reconoce su marca.
       iconos = `/${slug}/pwa-icon`;
     }

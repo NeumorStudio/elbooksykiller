@@ -8,6 +8,9 @@ import ActionForm from "../action-form";
 import ConfirmSubmit from "../confirm-submit";
 import Ayuda from "../ayuda";
 import EditorHorario from "./editor-horario";
+import { darAcceso, reenviarAcceso, quitarAcceso, renombrarEmpleado } from "./acceso-actions";
+import { features } from "@/lib/features";
+import { supabaseAdmin } from "@/lib/supabase/server";
 import {
   agruparHorario, diasCerrados, diasConSolape, estadoInicial, fmtMin, resumenDias,
   type Tramo,
@@ -38,6 +41,25 @@ export default async function EmployeesPage() {
   const deBaja = todos.filter((e) => !e.active);
   // Solo tiene sentido copiar de quien ya tiene algo que copiar.
   const conHorario = equipo.filter((e) => e.working_hours.length > 0);
+
+  // Quién del equipo entra con su propia cuenta (0033). Con la migración sin
+  // aplicar, ni se pregunta: pedir la tabla tumbaría la consulta.
+  type Acceso = { employee_id: string; email: string; last_invited_at: string | null; user_id: string };
+  const accesos = new Map<string, Acceso & { activo: boolean }>();
+  if ((await features()).trabajadores) {
+    const { data } = await supabase
+      .from("employee_access")
+      .select("employee_id, email, last_invited_at, user_id")
+      .in("employee_id", equipo.map((e) => e.id));
+    // «Ya ha entrado» sale de Auth, que solo se lee con service role. Son
+    // dos o tres personas por salón: una llamada por cabeza es poca cosa.
+    const admin = supabaseAdmin();
+    for (const a of (data as Acceso[] | null) ?? []) {
+      const { data: u } = await admin.auth.admin.getUserById(a.user_id);
+      accesos.set(a.employee_id, { ...a, activo: !!u?.user?.last_sign_in_at });
+    }
+  }
+  const conAccesos = (await features()).trabajadores;
 
   const fmtDia = (iso: string) =>
     new Date(iso).toLocaleDateString("es-ES", {
@@ -125,6 +147,99 @@ export default async function EmployeesPage() {
                 </ConfirmSubmit>
               </form>
             </div>
+
+            <details className="text-sm -mt-2">
+              <summary className="cursor-pointer text-muted hover:text-ink w-fit">Cambiar nombre</summary>
+              <ActionForm action={renombrarEmpleado} className="flex gap-2 items-end mt-3 flex-wrap">
+                <input type="hidden" name="employee_id" value={emp.id} />
+                <div className="flex-1 min-w-48">
+                  <label htmlFor={`nm-${emp.id}`} className="label">Nombre en la web de reservas</label>
+                  <input
+                    id={`nm-${emp.id}`}
+                    name="name"
+                    required
+                    minLength={2}
+                    maxLength={60}
+                    defaultValue={emp.name}
+                    className="field"
+                  />
+                </div>
+                <SubmitButton className="btn-quiet" pendingText="Guardando…">Guardar</SubmitButton>
+              </ActionForm>
+            </details>
+
+            {/* ── Acceso a su agenda desde el móvil (0033) ─────────────── */}
+            {conAccesos && (() => {
+              const a = accesos.get(emp.id);
+              if (!a) {
+                return (
+                  <ActionForm action={darAcceso} className="rounded-lg border border-line p-4 flex flex-col gap-3">
+                    <input type="hidden" name="employee_id" value={emp.id} />
+                    <div>
+                      <p className="font-medium">Acceso desde su móvil</p>
+                      <p className="text-sm text-muted text-pretty mt-1">
+                        Verá solo sus citas y podrá marcar si el cliente vino. No verá la
+                        caja, ni a los clientes, ni las citas de los demás.
+                      </p>
+                    </div>
+                    <div className="flex gap-2 items-end flex-wrap">
+                      <div className="flex-1 min-w-48">
+                        <label htmlFor={`ac-${emp.id}`} className="label">Su correo</label>
+                        <input
+                          id={`ac-${emp.id}`}
+                          name="email"
+                          type="email"
+                          required
+                          autoComplete="off"
+                          placeholder="nombre@gmail.com"
+                          className="field"
+                        />
+                      </div>
+                      <SubmitButton className="btn-quiet" pendingText="Enviando…">Darle acceso</SubmitButton>
+                    </div>
+                    <p className="text-xs text-muted text-pretty">
+                      Le llega un correo para elegir su contraseña. Tú no la ves nunca.
+                    </p>
+                  </ActionForm>
+                );
+              }
+              return (
+                <div className="rounded-lg border border-line p-4 flex flex-col gap-3">
+                  <div>
+                    <p className="font-medium">
+                      Entra desde su móvil{" "}
+                      <span className={a.activo ? "text-ok" : "text-muted"}>
+                        · {a.activo ? "ya ha entrado" : "pendiente de activar"}
+                      </span>
+                    </p>
+                    <p className="text-sm text-muted mt-1 break-all">{a.email}</p>
+                    {!a.activo && a.last_invited_at && (
+                      <p className="text-xs text-muted mt-1">
+                        Enlace enviado el {fmtDia(a.last_invited_at)}. Caduca a la hora: si no
+                        le dio tiempo, reenvíaselo.
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <ActionForm action={reenviarAcceso}>
+                      <input type="hidden" name="employee_id" value={emp.id} />
+                      <SubmitButton className="btn-quiet" pendingText="Enviando…">
+                        {a.activo ? "Mandarle enlace para cambiar contraseña" : "Reenviar enlace"}
+                      </SubmitButton>
+                    </ActionForm>
+                    <ActionForm action={quitarAcceso}>
+                      <input type="hidden" name="employee_id" value={emp.id} />
+                      <ConfirmSubmit
+                        className="btn-quiet text-danger"
+                        message={`¿Quitarle el acceso a ${emp.name}? Dejará de poder entrar. Sus citas no se tocan.`}
+                      >
+                        Quitar acceso
+                      </ConfirmSubmit>
+                    </ActionForm>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ── Horario, leído de un vistazo ────────────────────────── */}
             {grupos.length > 0 ? (

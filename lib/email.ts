@@ -459,3 +459,31 @@ export function newsletterHtml(d: {
     esc(d.body).split(/\n/)[0]?.slice(0, 120)
   );
 }
+
+/**
+ * Acceso de un trabajador a su agenda.
+ *
+ * El enlace lleva a /admin/acceso, una página nuestra, y no a la URL de
+ * Supabase: así no depende de la lista de URLs permitidas —la que tiene
+ * rotos los magic links de los clientes— y el token solo se canjea al
+ * enviar el formulario, no al abrir el correo. Los antivirus de correo
+ * abren los enlaces para inspeccionarlos; si el canje fuera en la carga,
+ * el enlace llegaría gastado.
+ */
+export function accesoTrabajadorHtml(d: {
+  nombre: string;
+  salonName: string;
+  salonSlug?: string;
+  salonPhone?: string | null;
+  enlace: string;
+}) {
+  return wrap(
+    "Tu agenda, en tu móvil",
+    `<p style="margin:0 0 14px">Hola ${esc(d.nombre)}: en <b>${esc(d.salonName)}</b> te han dado acceso a tu agenda.</p>
+     <p style="margin:0 0 20px">Verás tus citas del día y de las próximas semanas, y podrás marcar si el cliente vino. Para entrar, elige tu contraseña:</p>
+     ${boton(d.enlace, "Elegir mi contraseña")}
+     <p style="margin:20px 0 0;font-size:13px;color:${C.muted}">El enlace sirve una sola vez y caduca pronto. Si se te pasa, pide en el salón que te lo reenvíen.</p>`,
+    { salonName: d.salonName, salonSlug: d.salonSlug, salonPhone: d.salonPhone },
+    `Tu acceso a la agenda de ${d.salonName}`
+  );
+}

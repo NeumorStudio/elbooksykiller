@@ -7,6 +7,7 @@ import NavLinks from "./nav-links";
 import { esSuperadmin } from "@/lib/superadmin";
 import { estadoSalon, moduloActivo, MODULOS, type Modulo } from "@/lib/modulos";
 import { AvisoInstalar } from "./instalar";
+import { miPuesto } from "@/lib/puesto";
 
 /**
  * El salón de quien está dentro. `cache()` porque lo piden dos: el layout y
@@ -39,6 +40,25 @@ const miSalon = cache(async () => {
  */
 export async function generateMetadata() {
   const salon = await miSalon();
+
+  // Un trabajador también se instala su agenda en el móvil: con el logo de
+  // su salón, pero con un nombre que no diga «Panel Admin».
+  if (salon && !salon.slug) {
+    const puesto = await miPuesto();
+    if (puesto) {
+      const titulo = `Mi agenda · ${puesto.salon_name}`;
+      return {
+        title: titulo,
+        manifest: `/admin/manifest.webmanifest?s=${encodeURIComponent(puesto.salon_slug)}&t=1`,
+        appleWebApp: {
+          capable: true,
+          title: titulo,
+          statusBarStyle: "black-translucent" as const,
+        },
+        icons: { apple: `/${puesto.salon_slug}/pwa-icon?size=180` },
+      };
+    }
+  }
 
   /**
    * Sin salón —o sea, en la pantalla de login— NO se declara manifest.
@@ -90,6 +110,58 @@ export default async function AdminLayout({
     .maybeSingle();
 
   const esSuper = esSuperadmin(user.email);
+
+  // Trabajador: su propio panel, de una sola pantalla. Va aparte y antes que
+  // todo lo del dueño para que no vea ni el menú de la caja o los clientes.
+  // Lo que hay detrás de esas rutas ya se lo impide la base (no tiene
+  // ninguna política sobre las tablas del salón); esto es para que no las
+  // encuentre por el menú.
+  const puesto = !salon && !esSuper ? await miPuesto() : null;
+  if (puesto) {
+    if (puesto.blocked) {
+      return (
+        <div className="taller min-h-screen bg-bg text-ink flex items-center justify-center p-6">
+          <div className="panel max-w-md p-8 text-center">
+            <h1 className="font-display text-2xl font-semibold">Agenda desactivada</h1>
+            <p className="text-muted mt-3 text-pretty">
+              La agenda de {puesto.salon_name} está desactivada temporalmente.
+              Pregunta en el salón.
+            </p>
+            <form action={logout} className="mt-6">
+              <button className="btn-quiet">Salir</button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="taller min-h-screen bg-bg text-ink flex flex-col">
+        <nav className="border-b border-line bg-bg sticky top-0 z-10 print:hidden">
+          <div className="mx-auto max-w-4xl px-4 sm:px-5 h-14 flex items-center gap-1 whitespace-nowrap">
+            <span className="font-display text-lg font-semibold text-brand mr-4 truncate">
+              {puesto.salon_name}
+            </span>
+            <Link
+              href="/admin/mi-agenda"
+              className="px-3 min-h-11 inline-flex items-center rounded-lg text-sm font-medium hover:bg-surface"
+            >
+              Mi agenda
+            </Link>
+            <div className="ml-auto flex items-center gap-1">
+              <form action={logout}>
+                <button className="px-2 sm:px-3 py-2 rounded-lg text-sm text-muted hover:bg-surface">
+                  Salir
+                </button>
+              </form>
+            </div>
+          </div>
+        </nav>
+        <div className="mx-auto w-full max-w-4xl px-5 py-8 pb-28 flex-1">{children}</div>
+        <AvisoInstalar />
+      </div>
+    );
+  }
+
   const estado = salon ? await estadoSalon(salon.id) : null;
 
   // Salón bloqueado por el superadmin: panel entero en aviso. El superadmin

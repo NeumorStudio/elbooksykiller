@@ -72,7 +72,11 @@ export default async function proxy(request: NextRequest) {
   const publicoPWA =
     pathname === "/admin/manifest.webmanifest" || pathname === "/admin/pwa-icon";
 
-  if (!user && !isLogin && !publicoPWA) {
+  // Donde aterriza un trabajador desde su correo de acceso: todavía no tiene
+  // sesión, la consigue al enviar el formulario de esa página.
+  const isAcceso = pathname === "/admin/acceso";
+
+  if (!user && !isLogin && !publicoPWA && !isAcceso) {
     return NextResponse.redirect(new URL("/admin/login", request.url));
   }
   if (user && isLogin) {
