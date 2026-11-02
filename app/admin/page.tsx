@@ -8,6 +8,7 @@ import Agenda, { type Cita, type Profesional, type Servicio } from "./agenda";
 import Ayuda from "./ayuda";
 import { esSuperadmin } from "@/lib/superadmin";
 import { estadoSalon, moduloActivo } from "@/lib/modulos";
+import { miPuesto } from "@/lib/puesto";
 
 type Row = {
   id: string;
@@ -51,6 +52,9 @@ export default async function AdminHome() {
   // Superadmin sin peluquería propia: su sitio es el panel de plataforma, no
   // el onboarding de «crea tu salón».
   if (!salon && esSuperadmin(user?.email)) redirect("/admin/super");
+
+  // Trabajador con acceso: su sitio es su agenda, no la del dueño.
+  if (!salon && (await miPuesto())) redirect("/admin/mi-agenda");
 
   // Cerrar el agujero: en cuanto hay clientes con cuenta, un cliente que
   // aterrice en /admin no debe ver el onboarding de "crea tu peluquería".
