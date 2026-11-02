@@ -126,6 +126,27 @@ silla. `employee_access` une ficha y cuenta, y solo la escribe service role desd
 - Pruebas de la base: `supabase/migrations/comprobar-0033.sql` en el editor SQL de **dev**. Acaba
   en error a propósito para deshacerlo todo; el mensaje es el resultado.
 
+**Permisos (0034).** En *Equipo* el dueño enciende por ficha «Ver la agenda de todo el equipo»
+(`ver_agenda_equipo`) y «Apuntar, mover y cancelar citas» (`apuntar_citas`). Nacen apagados. Con
+alguno encendido, *Mi agenda* es la **misma `Agenda` del dueño** en modo trabajador (prop
+`trabajador`): acciones por las RPC `agenda_equipo`, `apuntar_cita`, `mover_cita_equipo` y
+`cancelar_cita_equipo`, que leen los permisos en cada llamada. Sin ninguno, la lista sencilla.
+- Apuntar a un compañero exige también ver la agenda del equipo. La asistencia la marca cada uno
+  en **sus** citas. Lo pagado online solo lo cancela el dueño (es devolver dinero).
+- Las citas que apunta un trabajador llevan `source = 'panel'` puesto a mano: el trigger de la
+  0032 solo reconoce al dueño.
+- Los avisos al cliente al mover o cancelar viven en `lib/avisos-cita.ts` y los usan el dueño y el
+  trabajador. Si cambias el texto o el canal, cambia para los dos.
+- Precios, servicios, caja, clientes, fidelización y newsletter **no tienen interruptor**: son del
+  dueño. Si algún día se pide un «segundo dueño», es otro diseño, no un permiso más.
+- Pruebas: `comprobar-0034.sql` en **dev**, mismo estilo que la de la 0033.
+- **Probar la UI del trabajador sin contraseña**: pedir magic link en `/perfil` del preview de dev
+  con un alias `+algo` del correo de Edwin, leer el enlace con Gmail y canjear su `token_hash`
+  (`pkce_…`) con `POST /auth/v1/verify` desde la propia página del preview, montando la cookie de
+  `@supabase/ssr`. El enlace del correo redirige a `localhost:3000` porque el preview no está en
+  la lista de redirecciones de dev. Para ver el panel del dueño, cambiar a mano el `owner_id` del
+  salón de pruebas a esa cuenta y **restaurarlo** después (el original es `peluquero.demo`).
+
 ## Trampas conocidas
 
 - **`.env.local` manda solo en tu máquina.** Lo desplegado usa las variables de Vercel y no lee
