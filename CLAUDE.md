@@ -149,6 +149,11 @@ alguno encendido, *Mi agenda* es la **misma `Agenda` del dueño** en modo trabaj
 
 ## Trampas conocidas
 
+- **En el editor SQL de Supabase, un `begin; … rollback;` deshace también lo que va ANTES en el
+  mismo script.** El script entero es una transacción implícita y el `begin` la convierte en
+  explícita, así que el `rollback` se lleva por delante el `update` de arriba aunque la lectura
+  de dentro diga que está hecho. Pasó el 02-11-2026 al encender los permisos de Darwin: parecían
+  activos y no lo estaban. Cambios de verdad, en su propia ejecución; comprobar con otra lectura.
 - **`.env.local` manda solo en tu máquina.** Lo desplegado usa las variables de Vercel y no lee
   ese fichero jamás. El interruptor `BD=dev`/`BD=prod` lo aplica `next.config.ts`, así que **solo
   vale bajo Next**. Sin el trío `SUPABASE_DEV_*` completo avisa y **cae a producción**.
