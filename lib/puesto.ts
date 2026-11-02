@@ -21,6 +21,12 @@ export type Puesto = {
   salon_slug: string;
   timezone: string;
   blocked: boolean;
+  /**
+   * Los dos interruptores del dueño (0034). `undefined` mientras esa
+   * migración no esté aplicada, que se lee igual que apagado.
+   */
+  ver_agenda_equipo?: boolean;
+  apuntar_citas?: boolean;
 };
 
 export const miPuesto = cache(async (): Promise<Puesto | null> => {
