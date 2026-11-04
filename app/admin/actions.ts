@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { moverCitaDelSalon } from "@/lib/mover-cita";
 import { cancelarCitaDelSalon } from "@/lib/cancelar-cita";
-import { aplicarFalta, redimirFalta } from "@/lib/penalizaciones";
+import { marcarAsistenciaDelSalon } from "@/lib/marcar-asistencia";
 import { normalizarTel } from "@/lib/tel";
 import { sesionAdmin } from "@/lib/sesion-admin";
 
@@ -291,20 +291,13 @@ export async function cerrarDia(formData: FormData) {
  */
 export async function setBookingStatus(formData: FormData) {
   const { supabase } = await db();
-  const id = String(formData.get("id"));
-  const status = String(formData.get("status"));
-  if (!["confirmed", "completed", "no_show"].includes(status)) return;
-  // .select() confirma que RLS dejó tocar la fila: la escalera de faltas va
-  // con service role y no debe dispararse con ids de citas ajenas.
-  const { data: tocada } = await supabase
-    .from("bookings")
-    .update({ status })
-    .eq("id", id)
-    .select("id")
-    .maybeSingle();
-  // Escalera de faltas: "no vino" suma falta, "atendida" redime una.
-  if (tocada && status === "no_show") await aplicarFalta(id);
-  else if (tocada && status === "completed") await redimirFalta(id);
+  // La lógica (marcar, escalera de faltas, redención) vive en
+  // lib/marcar-asistencia.ts: la comparte la app móvil del dueño.
+  await marcarAsistenciaDelSalon(
+    supabase,
+    String(formData.get("id")),
+    String(formData.get("status"))
+  );
   revalidatePath("/admin");
 }
 
