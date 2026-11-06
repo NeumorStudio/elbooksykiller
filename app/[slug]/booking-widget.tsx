@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase/client";
 import { bookAppointment } from "./actions";
 import Avisos from "@/app/cita/[token]/avisos";
 import { telHref, normalizarTel } from "@/lib/tel";
@@ -298,24 +297,23 @@ export default function BookingWidget({
     setSlots(null);
     setSlot("");
     let stale = false;
-    const sb = supabaseBrowser();
-    const consulta =
-      extras.length > 0
-        ? sb.rpc("available_slots_combo", {
-            p_employee: employee.id,
-            p_services: [service.id, ...extras.map((e) => e.id)],
-            p_day: day,
-          })
-        : sb.rpc("available_slots", {
-            p_employee: employee.id,
-            p_service: service.id,
-            p_day: day,
-          });
-    consulta
-      .then(({ data, error }) => {
-        if (stale) return;
-        if (error) setError("No se pudo cargar la disponibilidad. Inténtalo de nuevo.");
-        else setSlots((data as string[]) ?? []);
+    // Por /api/huecos y no directo a Supabase: los días de partido el navegador
+    // del cliente no llega a Cloudflare, y Supabase está detrás.
+    const consulta = new URLSearchParams({
+      empleado: employee.id,
+      servicios: [service.id, ...extras.map((e) => e.id)].join(","),
+      dia: day,
+    });
+    fetch(`/api/huecos?${consulta}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(String(res.status));
+        return (await res.json()) as string[];
+      })
+      .then((huecos) => {
+        if (!stale) setSlots(huecos);
+      })
+      .catch(() => {
+        if (!stale) setError("No se pudo cargar la disponibilidad. Inténtalo de nuevo.");
       });
     return () => {
       stale = true;

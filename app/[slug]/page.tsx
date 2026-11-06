@@ -11,6 +11,7 @@ import VideoFondo from "../video-fondo";
 import Carrusel from "./carrusel";
 import { confirmPaidSession } from "./actions";
 import { fotosDelSalon } from "./galeria";
+import { urlMedia } from "@/lib/media";
 import { telHref } from "@/lib/tel";
 import { mapaUrl } from "@/lib/mapa";
 import { features } from "@/lib/features";
@@ -234,7 +235,7 @@ export default async function SalonPage({
           // construye texto, pero el widget es cliente y no tiene por qué
           // saber cómo se guardan los ficheros.
           imagen: fila.image_path
-            ? supabase.storage.from("logos").getPublicUrl(fila.image_path).data.publicUrl
+            ? urlMedia(supabase.storage.from("logos").getPublicUrl(fila.image_path).data.publicUrl)
             : null,
         };
       })
@@ -406,7 +407,7 @@ export default async function SalonPage({
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={salon.logo_url}
+                  src={urlMedia(salon.logo_url)}
                   alt=""
                   width={512}
                   height={512}
@@ -636,7 +637,7 @@ export default async function SalonPage({
     {/* Fuera de <main>: es position:fixed, y cualquier transform/filter en
         un ancestro lo convertiría en su containing block — dejaría de
         estar fijo al viewport y se iría con el scroll. */}
-    <InstallPrompt slug={salon.slug} salonName={salon.name} logoUrl={salon.logo_url} />
+    <InstallPrompt slug={salon.slug} salonName={salon.name} logoUrl={salon.logo_url ? urlMedia(salon.logo_url) : null} />
     {/* Solo se pinta en standalone. Nunca coincide con InstallPrompt, que se
         oculta precisamente cuando la app ya está instalada. */}
     <BarraInferior slug={salon.slug} />

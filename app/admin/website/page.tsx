@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { supabaseServer } from "@/lib/supabase/server";
 import { domainStatus } from "@/lib/vercel";
+import { urlMedia } from "@/lib/media";
 import QRCode from "qrcode";
 import {
   guardarApertura,
@@ -54,7 +55,7 @@ export default async function WebsitePage() {
     .filter((f) => f.id)
     .map((f) => ({
       nombre: f.name,
-      url: admin.storage.from("logos").getPublicUrl(`${carpeta}/${f.name}`).data.publicUrl,
+      url: urlMedia(admin.storage.from("logos").getPublicUrl(`${carpeta}/${f.name}`).data.publicUrl),
     }));
 
   const h = await headers();
@@ -185,7 +186,7 @@ export default async function WebsitePage() {
           <div className="flex items-center gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={salon.logo_url}
+              src={urlMedia(salon.logo_url)}
               alt="Logo actual"
               className="h-16 w-16 rounded-xl object-contain bg-surface-2 border border-line p-1"
             />

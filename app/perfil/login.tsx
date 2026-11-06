@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { pedirEnlace } from "./actions";
 
 /**
  * Entrada del cliente por magic link (OTP por email). Sin contraseña: se
@@ -18,12 +19,7 @@ export default function PerfilLogin({
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
     setEstado("enviando");
-    const { error } = await supabaseBrowser().auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/perfil`,
-      },
-    });
+    const { error } = await pedirEnlace(email.trim()).catch(() => ({ error: true }));
     setEstado(error ? "error" : "enviado");
   }
 
@@ -33,6 +29,10 @@ export default function PerfilLogin({
    * Es bastante mejor que el magic link para el caso real —alguien en la
    * silla del salón, con el móvil en la mano— y además esquiva el fallo del
    * navegador interno de Instagram, que rompe los enlaces del correo.
+   *
+   * Es lo único que sigue yendo del navegador a Supabase, porque el proveedor
+   * tiene que redirigir allí. Un día de bloqueo de LaLiga falla, y para eso
+   * está el enlace por correo.
    */
   async function conProveedor(provider: "google" | "apple") {
     await supabaseBrowser().auth.signInWithOAuth({

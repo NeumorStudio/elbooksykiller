@@ -40,6 +40,19 @@ el sábado, 1 el lunes). Datos que conviene tener en la cabeza antes de tocar pr
 - **El programa de faltas está sin configurar.** Marcar «no vino» no tiene consecuencia hasta que
   lo active en *Clientes → Penalizaciones*.
 
+## El navegador no habla con Supabase
+
+Supabase está detrás de Cloudflare, y los días de partido los bloqueos de LaLiga cortan esas IPs en
+los operadores españoles. Vercel no está bloqueado, así que todo lo que el cliente necesita pasa por
+nuestro dominio:
+
+- Horas libres: `/api/huecos`. Nunca `supabaseBrowser().rpc(...)`.
+- Login del dueño y enlace del cliente: server actions.
+- Fotos del Storage: `urlMedia()` de `lib/media.ts`, que las sirve por `/media/*`.
+
+Lo único que sigue yendo directo es entrar con Google o Apple, porque el proveedor redirige allí.
+Las apps de Expo todavía llaman directo a Supabase.
+
 ## Reglas de prueba (no saltárselas)
 
 - **Probar en la base de dev**, no en prod. En local eso lo decide `BD=dev` en `.env.local`.

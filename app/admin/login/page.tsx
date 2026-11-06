@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { entrar } from "./actions";
 
 /**
  * Solo entrar. El registro se quitó junto con el alta de salón: las cuentas de
@@ -35,9 +35,14 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const { error } = await supabaseBrowser().auth.signInWithPassword({ email, password });
+    let error: string | undefined;
+    try {
+      ({ error } = await entrar(email, password));
+    } catch {
+      error = "red";
+    }
     setLoading(false);
-    if (error) setError(ERRORS[error.message] ?? "No se pudo entrar. Inténtalo de nuevo.");
+    if (error) setError(ERRORS[error] ?? "No se pudo entrar. Inténtalo de nuevo.");
     else {
       router.push("/admin");
       router.refresh();
