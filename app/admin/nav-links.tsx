@@ -35,6 +35,7 @@ const SECUNDARIOS = [
   ["/admin/payments", "Cobros"],
   ["/admin/stats", "Estadísticas"],
   ["/admin/website", "Mi web"],
+  ["/admin/plan", "Tu plan"],
 ] as const;
 
 export default function NavLinks({ ocultos = [] }: { ocultos?: string[] }) {

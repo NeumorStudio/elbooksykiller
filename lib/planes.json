@@ -1,0 +1,36 @@
+[
+  {
+    "id": "esencial",
+    "nombre": "Esencial",
+    "cuotaCent": 3900,
+    "altaCent": 9900,
+    "incluye": [
+      "Tu web de reservas, con tu marca",
+      "Agenda y equipo",
+      "Recordatorios por correo y al móvil",
+      "Soporte por WhatsApp"
+    ],
+    "pronto": []
+  },
+  {
+    "id": "crecimiento",
+    "nombre": "Crecimiento",
+    "cuotaCent": 6900,
+    "altaCent": 19900,
+    "incluye": [
+      "Todo lo de Esencial",
+      "Reseñas en Google",
+      "Tarjeta de fidelidad",
+      "Dominio propio"
+    ],
+    "pronto": ["Recordatorios por WhatsApp", "Informe mensual"]
+  },
+  {
+    "id": "agenda_llena",
+    "nombre": "Agenda llena",
+    "cuotaCent": 12900,
+    "altaCent": 29900,
+    "incluye": ["Todo lo de Crecimiento", "Perfil de Google gestionado por nosotros"],
+    "pronto": ["Campaña mensual a clientes que hace tiempo que no vienen"]
+  }
+]

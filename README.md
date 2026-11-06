@@ -51,6 +51,7 @@ Léete esto en este orden:
 | [`docs/ONBOARDING_DEV.md`](docs/ONBOARDING_DEV.md) | Las dos ramas, las dos bases y el flujo. **Empieza aquí.** |
 | [`CLAUDE.md`](CLAUDE.md) | Las trampas conocidas — incluidos dos scripts que escriben en producción ignorando `BD` |
 | [`docs/CRONS.md`](docs/CRONS.md) | Los cuatro crons, que corren en `pg_cron` y no en Vercel |
+| [`docs/COBROS.md`](docs/COBROS.md) | Cómo pagan los salones su cuota, y qué falta antes de cobrar de verdad |
 | [`docs/CORREO.md`](docs/CORREO.md) | Resend: una clave por entorno, y las dos son de solo envío |
 | [`DESIGN.md`](DESIGN.md) | Tokens, neumorfismo y las reglas de movimiento |
 | [`PRODUCT.md`](PRODUCT.md) | A quién sirve y contra qué se posiciona |
