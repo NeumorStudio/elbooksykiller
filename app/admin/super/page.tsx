@@ -4,6 +4,7 @@ import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
 import { esSuperadmin } from "@/lib/superadmin";
 import { MODULOS, POR_DEFECTO, type Modulo } from "@/lib/modulos";
 import { superBloquear, superGuardarModulos, superEntrarComo } from "./actions";
+import { ESTADOS, planPorId } from "@/lib/planes";
 import ActionForm from "../action-form";
 import SubmitButton from "../submit-button";
 import ConfirmSubmit from "../confirm-submit";
@@ -61,6 +62,10 @@ export default async function SuperPage() {
     )
   );
 
+  // Sin la migración 0036 esto devuelve vacío y la línea no se pinta.
+  const { data: suscripciones } = await admin.from("suscripciones").select("salon_id, plan, estado");
+  const planDe = new Map((suscripciones ?? []).map((s) => [s.salon_id, s]));
+
   const fecha = (iso: string) =>
     new Date(iso).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
 
@@ -105,6 +110,10 @@ export default async function SuperPage() {
                   {" · "}{emailDe.get(s.owner_id) ?? "—"}
                   {" · "}alta {fecha(s.created_at)}
                   {" · "}{citas.get(s.id)} {citas.get(s.id) === 1 ? "cita" : "citas"}
+                  {" · "}
+                  {planDe.get(s.id)
+                    ? `${planPorId(planDe.get(s.id)!.plan)?.nombre ?? planDe.get(s.id)!.plan}: ${ESTADOS[planDe.get(s.id)!.estado] ?? planDe.get(s.id)!.estado}`
+                    : "sin plan"}
                 </p>
               </div>
 

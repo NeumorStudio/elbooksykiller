@@ -24,6 +24,7 @@ export type Features = {
   origen: boolean;
   trabajadores: boolean;
   permisos_equipo: boolean;
+  suscripciones: boolean;
 };
 
 const APAGADO: Features = {
@@ -39,6 +40,7 @@ const APAGADO: Features = {
   origen: false,
   trabajadores: false,
   permisos_equipo: false,
+  suscripciones: false,
 };
 
 // cache() deduplica dentro de la misma petición; entre peticiones vuelve a
