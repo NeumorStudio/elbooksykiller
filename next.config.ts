@@ -68,6 +68,14 @@ const nextConfig: NextConfig = {
    * espera a la consulta del salón; la página ya la esperaba para pintarse.
    */
   htmlLimitedBots: /.*/,
+  // Fotos del Storage por nuestro dominio: ver lib/media.ts.
+  async rewrites() {
+    const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!supabase) return [];
+    return [
+      { source: "/media/:ruta+", destination: `${supabase}/storage/v1/object/public/:ruta+` },
+    ];
+  },
   async headers() {
     return [{ source: "/:path*", headers: CABECERAS }];
   },

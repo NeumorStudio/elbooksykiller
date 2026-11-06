@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { urlMedia } from "@/lib/media";
 
 /**
  * Fotos de trabajos del salón. Viven en el bucket `logos` bajo
@@ -22,6 +23,7 @@ export async function fotosDelSalon(salonId: string): Promise<string[]> {
   return data
     .filter((f) => f.id) // las carpetas vienen sin id
     .map(
-      (f) => admin.storage.from("logos").getPublicUrl(`${carpeta}/${f.name}`).data.publicUrl
+      (f) =>
+        urlMedia(admin.storage.from("logos").getPublicUrl(`${carpeta}/${f.name}`).data.publicUrl)
     );
 }

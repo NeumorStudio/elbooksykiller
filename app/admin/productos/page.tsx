@@ -1,5 +1,6 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { features } from "@/lib/features";
+import { urlMedia } from "@/lib/media";
 import { addProducto, updateProducto, deleteProducto } from "./actions";
 import ActionForm from "../action-form";
 import SubmitButton from "../submit-button";
@@ -112,7 +113,7 @@ export default async function ProductosPage() {
                   {p.image_path && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={supabase.storage.from("logos").getPublicUrl(p.image_path).data.publicUrl}
+                      src={urlMedia(supabase.storage.from("logos").getPublicUrl(p.image_path).data.publicUrl)}
                       alt=""
                       width={64}
                       height={64}
