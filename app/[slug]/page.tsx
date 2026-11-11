@@ -11,6 +11,7 @@ import VideoFondo from "../video-fondo";
 import Carrusel from "./carrusel";
 import { confirmPaidSession } from "./actions";
 import { fotosDelSalon } from "./galeria";
+import { fotosDelEquipo } from "@/lib/fotos-equipo";
 import { urlMedia } from "@/lib/media";
 import { telHref } from "@/lib/tel";
 import { mapaUrl } from "@/lib/mapa";
@@ -328,7 +329,11 @@ export default async function SalonPage({
     })
     .filter((d) => listaTramos.length > 0);
 
-  const fotos = await fotosDelSalon(salon.id);
+  // Las dos listas a la vez: son dos lecturas del Storage independientes.
+  const [fotos, fotosEquipo] = await Promise.all([
+    fotosDelSalon(salon.id),
+    fotosDelEquipo(salon.id),
+  ]);
 
   const mapa = salon.address
     ? mapaUrl(salon.address)
@@ -540,7 +545,11 @@ export default async function SalonPage({
           salonName={salon.name}
           salonPhone={salon.phone}
           services={services}
-          employees={employees}
+          employees={employees.map((e) => ({
+            id: e.id,
+            name: e.name,
+            foto: fotosEquipo[e.id] ?? null,
+          }))}
           productos={productos}
           conCuenta={f.clientes}
           cliente={cliente}

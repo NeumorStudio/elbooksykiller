@@ -765,24 +765,61 @@ export async function uploadFotos(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
-export async function removeFoto(formData: FormData) {
+/*
+  Ocultar una foto es moverla a la subcarpeta `ocultas/`. La web lista solo
+  los ficheros de la carpeta del salón y descarta las subcarpetas (vienen sin
+  id), así que deja de salir sin borrarla. Al mostrarla vuelve con su nombre
+  de siempre, y por tanto a su sitio en el orden.
+*/
+const OCULTAS = "ocultas";
+
+/** Salón del dueño con sesión y nombre de fichero limpio, o null. */
+async function fotoDelDueno(formData: FormData) {
   const { supabase, user } = await db();
   const nombre = String(formData.get("nombre") ?? "");
-  if (!nombre) return;
+  if (!nombre) return null;
   const { data: salon } = await supabase
     .from("salons")
     .select("id")
     .eq("owner_id", user.id)
     .limit(1)
     .maybeSingle();
-  if (!salon) return;
-  const { supabaseAdmin } = await import("@/lib/supabase/server");
+  if (!salon) return null;
   // Solo el nombre de fichero: evita que un path manipulado salga de la
   // carpeta del salón.
-  const seguro = nombre.split("/").pop()!;
+  return { carpeta: galeriaDe(salon.id), seguro: nombre.split("/").pop()! };
+}
+
+export async function removeFoto(formData: FormData) {
+  const ctx = await fotoDelDueno(formData);
+  if (!ctx) return;
+  const oculta = formData.get("oculta") === "1";
+  const { supabaseAdmin } = await import("@/lib/supabase/server");
   await supabaseAdmin()
     .storage.from("logos")
-    .remove([`${galeriaDe(salon.id)}/${seguro}`]);
+    .remove([`${ctx.carpeta}/${oculta ? `${OCULTAS}/` : ""}${ctx.seguro}`]);
+  revalidatePath("/admin/website");
+  revalidatePath("/", "layout");
+}
+
+export async function ocultarFoto(formData: FormData) {
+  const ctx = await fotoDelDueno(formData);
+  if (!ctx) return;
+  const { supabaseAdmin } = await import("@/lib/supabase/server");
+  await supabaseAdmin()
+    .storage.from("logos")
+    .move(`${ctx.carpeta}/${ctx.seguro}`, `${ctx.carpeta}/${OCULTAS}/${ctx.seguro}`);
+  revalidatePath("/admin/website");
+  revalidatePath("/", "layout");
+}
+
+export async function mostrarFoto(formData: FormData) {
+  const ctx = await fotoDelDueno(formData);
+  if (!ctx) return;
+  const { supabaseAdmin } = await import("@/lib/supabase/server");
+  await supabaseAdmin()
+    .storage.from("logos")
+    .move(`${ctx.carpeta}/${OCULTAS}/${ctx.seguro}`, `${ctx.carpeta}/${ctx.seguro}`);
   revalidatePath("/admin/website");
   revalidatePath("/", "layout");
 }

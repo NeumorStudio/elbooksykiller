@@ -6,6 +6,7 @@ import { sesionAdmin } from "@/lib/sesion-admin";
 import { features } from "@/lib/features";
 import { sendEmail, accesoTrabajadorHtml } from "@/lib/email";
 import { baseUrl } from "@/lib/urls";
+import { carpetaEquipo, idDeFichero } from "@/lib/fotos-equipo";
 
 /*
  * Dar, reenviar y quitar el acceso de un profesional a su agenda, y
@@ -262,4 +263,82 @@ export async function guardarPermisos(formData: FormData) {
     return { error: "No se pudieron guardar los permisos. Inténtalo de nuevo." };
   }
   revalidatePath("/admin/employees");
+}
+
+/*
+ * Foto del profesional (ver lib/fotos-equipo.ts). Sale en la web cuando el
+ * cliente elige con quién reservar: en una barbería se vuelve a por una
+ * persona, y una cara se reconoce antes que un nombre.
+ */
+const TIPOS_FOTO: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};
+
+/** Ficheros de foto que ya tiene esa persona, con su ruta completa. */
+async function fotosDe(salonId: string, employeeId: string) {
+  const carpeta = carpetaEquipo(salonId);
+  const { data } = await supabaseAdmin().storage.from("logos").list(carpeta, { limit: 100 });
+  return (data ?? [])
+    .filter((f) => f.id && idDeFichero(f.name) === employeeId)
+    .map((f) => `${carpeta}/${f.name}`);
+}
+
+export async function subirFotoEmpleado(formData: FormData) {
+  const ctx = await fichaPropia(String(formData.get("employee_id") ?? ""));
+  if (!ctx) return { error: "Esa persona no está en tu equipo." };
+  const foto = formData.get("foto");
+  if (!(foto instanceof File) || foto.size === 0) return { error: "Elige una foto." };
+  if (!TIPOS_FOTO[foto.type]) return { error: "La foto tiene que ser PNG, JPG o WebP." };
+  if (foto.size > 3 * 1024 * 1024) return { error: "La foto pasa de 3 MB." };
+
+  // Se ve en un círculo pequeño: subir la foto del móvil tal cual sería
+  // hacer que cada cliente se descargue varios MB para ver una cara.
+  // Cuadrada, recortada por lo que más llama la atención (casi siempre la
+  // cara) y girada según el EXIF, que es como la hacen los móviles.
+  let cuerpo: Buffer | File = foto;
+  let tipo = foto.type;
+  let ext = TIPOS_FOTO[foto.type];
+  try {
+    const sharp = (await import("sharp")).default;
+    cuerpo = await sharp(Buffer.from(await foto.arrayBuffer()))
+      .rotate()
+      .resize(320, 320, { fit: "cover", position: "attention" })
+      .webp({ quality: 82 })
+      .toBuffer();
+    tipo = "image/webp";
+    ext = "webp";
+  } catch (e) {
+    // Mejor la original que ninguna: pesa más, pero se ve.
+    console.error("subirFotoEmpleado/sharp:", e instanceof Error ? e.message : e);
+  }
+
+  const previas = await fotosDe(ctx.salon.id, ctx.emp.id);
+  const path = `${carpetaEquipo(ctx.salon.id)}/${ctx.emp.id}-${Date.now()}.${ext}`;
+  const { error } = await supabaseAdmin()
+    .storage.from("logos")
+    .upload(path, cuerpo, { contentType: tipo });
+  if (error) {
+    console.error("subirFotoEmpleado:", error.message);
+    return { error: "No se pudo subir la foto. Inténtalo de nuevo." };
+  }
+  // La anterior se borra DESPUÉS de subir la nueva: si algo falla a medias,
+  // nadie se queda sin foto.
+  if (previas.length) await supabaseAdmin().storage.from("logos").remove(previas);
+
+  revalidatePath("/admin/employees");
+  revalidatePath("/", "layout");
+}
+
+export async function quitarFotoEmpleado(formData: FormData) {
+  const ctx = await fichaPropia(String(formData.get("employee_id") ?? ""));
+  if (!ctx) return { error: "Esa persona no está en tu equipo." };
+  const previas = await fotosDe(ctx.salon.id, ctx.emp.id);
+  if (previas.length) {
+    const { error } = await supabaseAdmin().storage.from("logos").remove(previas);
+    if (error) return { error: "No se pudo quitar la foto. Inténtalo de nuevo." };
+  }
+  revalidatePath("/admin/employees");
+  revalidatePath("/", "layout");
 }

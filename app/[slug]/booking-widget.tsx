@@ -47,7 +47,8 @@ const esCorteCaballero = (s: Service) => /\b(caballero|hombre)\b/i.test(s.name);
  */
 const esCombinable = (s: Service) => esCorteInfantil(s) || esCorteCaballero(s);
 
-type Employee = { id: string; name: string };
+// `foto`: URL ya armada en el servidor (lib/fotos-equipo.ts), o null.
+type Employee = { id: string; name: string; foto?: string | null };
 type Producto = {
   id: string;
   name: string;
@@ -690,13 +691,28 @@ export default function BookingWidget({
                     ${on ? "border-brand bg-brand/10" : ""}`}
                   style={{ touchAction: "manipulation" }}
                 >
-                  <span
-                    aria-hidden
-                    className={`flex h-12 w-12 items-center justify-center rounded-full font-display text-xl
-                      ${on ? "bg-brand text-brand-ink" : "bg-surface-2 text-brand"}`}
-                  >
-                    {e.name.trim().charAt(0).toUpperCase()}
-                  </span>
+                  {/* Con foto, la cara; sin ella, la inicial de siempre. El
+                      anillo marca la elegida igual que el fondo dorado. */}
+                  {e.foto ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={e.foto}
+                      alt=""
+                      width={56}
+                      height={56}
+                      loading="lazy"
+                      className={`h-14 w-14 rounded-full object-cover
+                        ${on ? "ring-2 ring-brand ring-offset-2 ring-offset-surface" : "border border-line"}`}
+                    />
+                  ) : (
+                    <span
+                      aria-hidden
+                      className={`flex h-14 w-14 items-center justify-center rounded-full font-display text-xl
+                        ${on ? "bg-brand text-brand-ink" : "bg-surface-2 text-brand"}`}
+                    >
+                      {e.name.trim().charAt(0).toUpperCase()}
+                    </span>
+                  )}
                   <span className={`text-sm font-medium ${on ? "text-brand" : ""}`}>
                     {e.name}
                   </span>
