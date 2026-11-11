@@ -13,6 +13,8 @@ import {
   removeLogo,
   uploadFotos,
   removeFoto,
+  ocultarFoto,
+  mostrarFoto,
 } from "../actions";
 import SubmitButton from "../submit-button";
 import ActionForm from "../action-form";
@@ -56,6 +58,18 @@ export default async function WebsitePage() {
     .map((f) => ({
       nombre: f.name,
       url: urlMedia(admin.storage.from("logos").getPublicUrl(`${carpeta}/${f.name}`).data.publicUrl),
+    }));
+  // Las ocultas viven en una subcarpeta que la web no lista (ver ocultarFoto).
+  const { data: ficherosOcultos } = await admin.storage
+    .from("logos")
+    .list(`${carpeta}/ocultas`, { limit: 60, sortBy: { column: "name", order: "asc" } });
+  const ocultas = (ficherosOcultos ?? [])
+    .filter((f) => f.id)
+    .map((f) => ({
+      nombre: f.name,
+      url: urlMedia(
+        admin.storage.from("logos").getPublicUrl(`${carpeta}/ocultas/${f.name}`).data.publicUrl
+      ),
     }));
 
   const h = await headers();
@@ -241,14 +255,66 @@ export default async function WebsitePage() {
                   <input type="hidden" name="nombre" value={f.nombre} />
                   <ConfirmSubmit
                     className="btn-quiet h-8 min-h-8 w-8 rounded-full border-0 bg-bg/85 px-0 text-sm text-ink"
-                    message="¿Quitar esta foto de tu web?"
+                    message="¿Borrar esta foto? Si solo quieres que no salga en tu web, usa «Ocultar»."
+                    aria-label="Borrar foto"
                   >
                     ×
                   </ConfirmSubmit>
                 </form>
+                <form action={ocultarFoto} className="absolute bottom-1 left-1">
+                  <input type="hidden" name="nombre" value={f.nombre} />
+                  <SubmitButton
+                    className="btn-quiet h-8 min-h-8 rounded-full border-0 bg-bg/85 px-3 text-xs text-ink"
+                    pendingText="…"
+                  >
+                    Ocultar
+                  </SubmitButton>
+                </form>
               </li>
             ))}
           </ul>
+        )}
+
+        {ocultas.length > 0 && (
+          <div className="flex flex-col gap-2 border-t border-line pt-4">
+            <p className="text-sm text-muted text-pretty">
+              <b className="text-ink">Ocultas</b> · no salen en tu web, pero no se
+              han borrado. «Mostrar» la devuelve a su sitio.
+            </p>
+            <ul className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+              {ocultas.map((f) => (
+                <li key={f.nombre} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={f.url}
+                    alt=""
+                    loading="lazy"
+                    className="aspect-[3/4] w-full rounded-lg border border-line object-cover opacity-50"
+                  />
+                  <form action={removeFoto} className="absolute top-1 right-1">
+                    <input type="hidden" name="nombre" value={f.nombre} />
+                    <input type="hidden" name="oculta" value="1" />
+                    <ConfirmSubmit
+                      className="btn-quiet h-7 min-h-7 w-7 rounded-full border-0 bg-bg/85 px-0 text-xs text-ink"
+                      message="¿Borrar esta foto para siempre?"
+                      aria-label="Borrar foto"
+                    >
+                      ×
+                    </ConfirmSubmit>
+                  </form>
+                  <form action={mostrarFoto} className="absolute bottom-1 inset-x-1">
+                    <input type="hidden" name="nombre" value={f.nombre} />
+                    <SubmitButton
+                      className="btn-quiet h-7 min-h-7 w-full rounded-full border-0 bg-bg/90 px-2 text-xs text-ink"
+                      pendingText="…"
+                    >
+                      Mostrar
+                    </SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         <ActionForm action={uploadFotos} className="flex flex-wrap gap-2 items-end">

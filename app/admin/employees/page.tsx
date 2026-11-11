@@ -10,9 +10,11 @@ import Ayuda from "../ayuda";
 import EditorHorario from "./editor-horario";
 import {
   darAcceso, reenviarAcceso, quitarAcceso, renombrarEmpleado, guardarPermisos,
+  subirFotoEmpleado, quitarFotoEmpleado,
 } from "./acceso-actions";
 import { features } from "@/lib/features";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { fotosDelEquipo } from "@/lib/fotos-equipo";
 import {
   agruparHorario, diasCerrados, diasConSolape, estadoInicial, fmtMin, resumenDias,
   type Tramo,
@@ -43,6 +45,7 @@ export default async function EmployeesPage() {
   const deBaja = todos.filter((e) => !e.active);
   // Solo tiene sentido copiar de quien ya tiene algo que copiar.
   const conHorario = equipo.filter((e) => e.working_hours.length > 0);
+  const fotos = await fotosDelEquipo(salon.id);
 
   // Quién del equipo entra con su propia cuenta (0033). Con la migración sin
   // aplicar, ni se pregunta: pedir la tabla tumbaría la consulta.
@@ -118,6 +121,11 @@ export default async function EmployeesPage() {
               de un compañero y ajustarlo después.
             </p>
             <p>
+              <b>La foto</b> sale en tu web cuando el cliente elige con quién
+              reservar, en lugar de la inicial. Una de cara y con buena luz:
+              se ve en pequeño, dentro de un círculo.
+            </p>
+            <p>
               <b>«Bloquear vacaciones o ausencias»</b> quita esos días de la
               web para una persona: viajes, médico… Al volver, se quita con la
               ✕. <b>«Cerrar un día»</b> hace lo mismo para todo el equipo de
@@ -156,7 +164,25 @@ export default async function EmployeesPage() {
         return (
           <section key={emp.id} className="panel p-5 flex flex-col gap-4">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">{emp.name}</h2>
+              <div className="flex items-center gap-3 min-w-0">
+                {/* Como lo ve el cliente en la web: foto o, si no hay, la inicial. */}
+                {fotos[emp.id] ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={fotos[emp.id]}
+                    alt=""
+                    className="h-12 w-12 shrink-0 rounded-full border border-line object-cover"
+                  />
+                ) : (
+                  <span
+                    aria-hidden
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-2 font-display text-xl text-brand"
+                  >
+                    {emp.name.trim().charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <h2 className="text-lg font-semibold truncate">{emp.name}</h2>
+              </div>
               <form action={deactivateEmployee}>
                 <input type="hidden" name="id" value={emp.id} />
                 <ConfirmSubmit
@@ -185,6 +211,44 @@ export default async function EmployeesPage() {
                 </div>
                 <SubmitButton className="btn-quiet" pendingText="Guardando…">Guardar</SubmitButton>
               </ActionForm>
+            </details>
+
+            <details className="text-sm -mt-2">
+              <summary className="cursor-pointer text-muted hover:text-ink w-fit">
+                {fotos[emp.id] ? "Cambiar foto" : "Poner foto"}
+              </summary>
+              <div className="flex flex-col gap-2 mt-3">
+                <ActionForm action={subirFotoEmpleado} className="flex gap-2 items-end flex-wrap">
+                  <input type="hidden" name="employee_id" value={emp.id} />
+                  <div className="flex-1 min-w-48">
+                    <label htmlFor={`ft-${emp.id}`} className="label">Foto en la web de reservas</label>
+                    <input
+                      id={`ft-${emp.id}`}
+                      name="foto"
+                      type="file"
+                      required
+                      accept="image/png,image/jpeg,image/webp"
+                      className="field pt-2"
+                    />
+                  </div>
+                  <SubmitButton className="btn-quiet" pendingText="Subiendo…">Guardar foto</SubmitButton>
+                </ActionForm>
+                <p className="text-xs text-muted text-pretty">
+                  Sale cuando el cliente elige con quién reservar. Mejor de cara y
+                  con luz. PNG, JPG o WebP, hasta 3 MB.
+                </p>
+                {fotos[emp.id] && (
+                  <ActionForm action={quitarFotoEmpleado}>
+                    <input type="hidden" name="employee_id" value={emp.id} />
+                    <ConfirmSubmit
+                      className="btn-quiet text-danger"
+                      message={`¿Quitar la foto de ${emp.name}? En la web volverá a salir su inicial.`}
+                    >
+                      Quitar foto
+                    </ConfirmSubmit>
+                  </ActionForm>
+                )}
+              </div>
             </details>
 
             {/* ── Acceso a su agenda desde el móvil (0033) ─────────────── */}
