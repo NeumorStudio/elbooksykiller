@@ -25,7 +25,9 @@ export async function pedirEnlace(email: string): Promise<{ error: boolean }> {
   return { error: !!error };
 }
 
+// Solo este navegador: sin `scope`, signOut() es global y sacaría al
+// cliente también del móvil o de la app. Mismo motivo que `logout()` del panel.
 export async function cerrarSesion() {
   const supabase = await supabaseServer();
-  await supabase.auth.signOut();
+  await supabase.auth.signOut({ scope: "local" });
 }

@@ -840,8 +840,15 @@ export async function guardarPushDueno(
   return {};
 }
 
+/**
+ * Cierra la sesión de ESTE navegador y nada más.
+ *
+ * `signOut()` sin argumentos es `scope: "global"`: revoca todas las sesiones
+ * de la cuenta. Tras un «Entrar como» del superadmin, pulsar «Salir» echaba
+ * al dueño de su panel y de la app en todos sus dispositivos.
+ */
 export async function logout() {
   const supabase = await supabaseServer();
-  await supabase.auth.signOut();
+  await supabase.auth.signOut({ scope: "local" });
   redirect("/admin/login");
 }
