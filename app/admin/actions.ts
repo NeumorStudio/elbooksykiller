@@ -3,9 +3,8 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { moverCitaDelSalon } from "@/lib/mover-cita";
-import { cancelarCitaDelSalon } from "@/lib/cancelar-cita";
-import { marcarAsistenciaDelSalon } from "@/lib/marcar-asistencia";
+import { avisarCitaMovida, avisarCitaCancelada } from "@/lib/avisos-cita";
+import { aplicarFalta, redimirFalta } from "@/lib/penalizaciones";
 import { normalizarTel } from "@/lib/tel";
 import { sesionAdmin } from "@/lib/sesion-admin";
 
@@ -291,13 +290,20 @@ export async function cerrarDia(formData: FormData) {
  */
 export async function setBookingStatus(formData: FormData) {
   const { supabase } = await db();
-  // La lógica (marcar, escalera de faltas, redención) vive en
-  // lib/marcar-asistencia.ts: la comparte la app móvil del dueño.
-  await marcarAsistenciaDelSalon(
-    supabase,
-    String(formData.get("id")),
-    String(formData.get("status"))
-  );
+  const id = String(formData.get("id"));
+  const status = String(formData.get("status"));
+  if (!["confirmed", "completed", "no_show"].includes(status)) return;
+  // .select() confirma que RLS dejó tocar la fila: la escalera de faltas va
+  // con service role y no debe dispararse con ids de citas ajenas.
+  const { data: tocada } = await supabase
+    .from("bookings")
+    .update({ status })
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+  // Escalera de faltas: "no vino" suma falta, "atendida" redime una.
+  if (tocada && status === "no_show") await aplicarFalta(id);
+  else if (tocada && status === "completed") await redimirFalta(id);
   revalidatePath("/admin");
 }
 
@@ -320,24 +326,122 @@ export async function setBookingStatus(formData: FormData) {
  */
 export async function moverCita(formData: FormData) {
   const { supabase } = await db();
-  // La lógica (validar, mover, avisar al cliente) vive en lib/mover-cita.ts: la
-  // comparte la app móvil del dueño.
-  const r = await moverCitaDelSalon(
-    supabase,
-    String(formData.get("id") ?? ""),
-    String(formData.get("fecha") ?? ""),
-    String(formData.get("hora") ?? "")
-  );
-  if ("error" in r) return { error: r.error };
+  const id = String(formData.get("id") ?? "");
+  const fecha = String(formData.get("fecha") ?? "");
+  const hora = String(formData.get("hora") ?? "");
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^\d{2}:\d{2}$/.test(hora))
+    return { error: "Revisa la fecha y la hora." };
+
+  // RLS: si la cita no es de un salón suyo, esto no devuelve nada.
+  const { data: b } = await supabase
+    .from("bookings")
+    .select(
+      "id, status, starts_at, customer_name, customer_email, customer_id, public_token, " +
+        "services(name, duration_min), salons(name, slug, phone, timezone)"
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (!b) return { error: "Esa cita no existe." };
+
+  const cita = b as unknown as {
+    id: string; status: string; starts_at: string; customer_name: string;
+    customer_email: string | null; customer_id: string | null;
+    public_token?: string;
+    services: { name: string; duration_min: number };
+    salons: { name: string; slug: string; phone: string | null; timezone: string };
+  };
+
+  // Mover una cita cancelada o ya cerrada no significa nada: si el cliente
+  // vuelve, es una cita nueva.
+  if (!["confirmed", "pending_payment"].includes(cita.status))
+    return { error: "Solo se pueden mover las citas activas." };
+
+  const { zonedTimeUtc } = await import("@/lib/tz");
+  const inicio = zonedTimeUtc(fecha, hora, cita.salons.timezone);
+  const fin = new Date(
+    new Date(inicio).getTime() + cita.services.duration_min * 60000
+  ).toISOString();
+
+  if (new Date(inicio).getTime() === new Date(cita.starts_at).getTime())
+    return { error: "Esa es la hora que ya tenía." };
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({ starts_at: inicio, ends_at: fin })
+    .eq("id", id);
+  if (error) {
+    return {
+      error: error.message.includes("no_overlap")
+        ? "Ese profesional ya tiene una cita a esa hora."
+        : "No se pudo mover la cita. Inténtalo de nuevo.",
+    };
+  }
+
+  await avisarCitaMovida(cita, cita.starts_at, inicio);
 
   revalidatePath("/admin");
 }
 
 export async function cancelBooking(formData: FormData) {
   const { supabase } = await db();
-  // La lógica (marcar, reembolsar, avisar) vive en lib/cancelar-cita.ts: la
-  // comparte la app móvil del dueño.
-  await cancelarCitaDelSalon(supabase, String(formData.get("id")));
+  const id = String(formData.get("id"));
+
+  // Leer antes de cancelar (RLS: solo el dueño llega aquí con datos)
+  const { data: b } = await supabase
+    .from("bookings")
+    .select(
+      "customer_name, customer_email, starts_at, payment_status, stripe_session_id, services(name), salons(name, phone, timezone, stripe_account_id)"
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  // Marcada como del salón: estas nunca cuentan como cancelación tardía del
+  // cliente (ver migración 0026).
+  const { cancelaciones } = await (await import("@/lib/features")).features();
+  const { error } = await supabase
+    .from("bookings")
+    .update(
+      cancelaciones
+        ? { status: "cancelled", cancelled_by: "salon" }
+        : { status: "cancelled" }
+    )
+    .eq("id", id);
+
+  // Si el cliente había pagado, devolverle el dinero. Antes se cancelaba la
+  // cita y el cobro se quedaba hecho, sin aviso ni en la interfaz ni al
+  // cliente: dinero real de una persona real que no volvía.
+  if (!error && b?.payment_status === "paid" && b.stripe_session_id) {
+    const salon = b.salons as unknown as { stripe_account_id: string | null };
+    try {
+      const { stripe } = await import("@/lib/stripe");
+      const cuenta = salon.stripe_account_id
+        ? { stripeAccount: salon.stripe_account_id }
+        : undefined;
+      // retrieve() separa params de opciones: {} es el hueco de los params.
+      const sesion = await stripe.checkout.sessions.retrieve(b.stripe_session_id, {}, cuenta);
+      if (sesion.payment_intent) {
+        await stripe.refunds.create(
+          {
+            payment_intent: String(sesion.payment_intent),
+            reason: "requested_by_customer",
+          },
+          // Clave de idempotencia: si el dueño pulsa dos veces, un solo
+          // reembolso.
+          { ...cuenta, idempotencyKey: `refund-${id}` }
+        );
+        // No se marca payment_status: su CHECK solo admite none|pending|paid.
+        // El registro del reembolso vive en Stripe; para reflejarlo aquí hace
+        // falta una migración que añada 'refunded' al constraint.
+      }
+    } catch (e) {
+      // No romper la cancelación por un fallo de reembolso: la cita queda
+      // cancelada y el dueño ve el aviso para devolverlo a mano.
+      console.error(`[refund] no se pudo reembolsar la reserva ${id}:`, e);
+    }
+  }
+
+  if (!error && b) await avisarCitaCancelada(id, b);
   revalidatePath("/admin");
 }
 
