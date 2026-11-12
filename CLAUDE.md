@@ -51,7 +51,12 @@ nuestro dominio:
 - Fotos del Storage: `urlMedia()` de `lib/media.ts`, que las sirve por `/media/*`.
 
 Lo único que sigue yendo directo es entrar con Google o Apple, porque el proveedor redirige allí.
-Las apps de Expo todavía llaman directo a Supabase.
+
+**No hay app móvil nativa en producción: todo lo que usa la gente es esta PWA.** Hubo un intento
+con Expo que llamaba directo a Supabase; se dejó a medias y se descartó. La app nueva se está
+haciendo desde cero y su base de datos irá en InsForge, no en Supabase, así que no hay que
+preparar nada en este repo para ella. Los endpoints y la migración 0035 que se hicieron para
+aquella versión se revirtieron (`1813819`), y la numeración salta de la 0034 a la 0036 por eso.
 
 ## Reglas de prueba (no saltárselas)
 
