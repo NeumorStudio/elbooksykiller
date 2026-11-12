@@ -67,14 +67,22 @@ export async function enviarPush(customerId: string, aviso: Aviso): Promise<numb
  * libera a las diez de la mañana solo se rellena si se entera a las diez de
  * la mañana. Además es un único destinatario con un único móvil, así que
  * sacarlo del correo libera de golpe una parte grande de la cuota diaria.
+ *
+ * Van con urgencia alta: con la normal, Android en reposo (Doze) puede
+ * aplazar la entrega durante horas, y un aviso de reserva nueva que llega
+ * tarde no sirve para rellenar el hueco. Los de cliente se quedan en normal
+ * a propósito: un recordatorio no justifica despertar el móvil.
  */
 export async function enviarPushDueno(userId: string, aviso: Aviso): Promise<number> {
-  return enviarA({ columna: "user_id", valor: userId }, aviso);
+  return enviarA({ columna: "user_id", valor: userId }, aviso, "high");
 }
 
 async function enviarA(
   destino: { columna: "customer_id" | "user_id"; valor: string },
-  aviso: Aviso
+  aviso: Aviso,
+  // Cabecera `Urgency` de Web Push (RFC 8030). Va aparte de `Aviso` para que
+  // no acabe dentro del payload que lee el service worker.
+  urgencia: "normal" | "high" = "normal"
 ): Promise<number> {
   if (!pushConfigurado()) return 0;
   try {
@@ -95,7 +103,7 @@ async function enviarA(
           await webpush.sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
             payload,
-            { TTL: aviso.ttl ?? 3600 }
+            { TTL: aviso.ttl ?? 3600, urgency: urgencia }
           );
           entregados++;
         } catch (e) {
