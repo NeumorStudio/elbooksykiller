@@ -27,10 +27,15 @@ a los 7 días sin uso.
 | `recordatorios` | `*/10 * * * *` | Dos avisos por cita: la víspera (~24 h) y 1 h antes |
 | `autocompletar` | `30 * * * *` | Cierra como `completed` lo que acabó hace **12 h** → dispara los sellos |
 | `resenas` | `45 * * * *` | Pide valoración 2-3 h tras el servicio |
-| `newsletter` | `*/15 * * * *` | Despacha las campañas encoladas, en tandas de 60 |
+| `newsletter` | `*/15 * * * *` | Comprueba si hay campañas en curso y, si las hay, despacha una tanda de hasta 60 por campaña |
 
-Todos llaman a `https://reservas.neumorstudio.com/api/cron/<nombre>` con la
-cabecera `Authorization: Bearer <CRON_SECRET>`.
+Los jobs llaman a `https://reservas.neumorstudio.com/api/cron/<nombre>` con la
+cabecera `Authorization: Bearer <CRON_SECRET>`. La migración 0037 hace que
+el de newsletter compruebe primero si hay alguna campaña en estado `sending`.
+Si no la hay, la pasada termina en Supabase sin invocar Vercel. Si la última
+tanda dejó la cola vacía, la campaña sigue en `sending` hasta que una pasada
+la marque como enviada. Si se instala el job en un entorno nuevo, hay que
+incluir esta condición en su comando.
 
 **`recordatorios` manda dos avisos por cita y no hay que dar de alta nada nuevo
 en `pg_cron`:** el mismo endpoint recorre las dos ventanas en cada pasada.

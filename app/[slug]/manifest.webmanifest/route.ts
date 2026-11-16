@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { urlIconoSalon } from "@/lib/pwa-icon";
 
 // Manifest PWA por salón: la app instalada se llama como la peluquería.
 export async function GET(
@@ -14,7 +15,7 @@ export async function GET(
   );
   const { data: salon } = await anon
     .from("salons")
-    .select("name")
+    .select("name, logo_url")
     .eq("slug", slug)
     .maybeSingle();
   if (!salon) return new NextResponse(null, { status: 404 });
@@ -45,8 +46,8 @@ export async function GET(
       display: "standalone",
       background_color: "#1b1712",
       theme_color: "#1b1712",
-      icons: [192, 512].map((size) => ({
-        src: `/${slug}/pwa-icon?size=${size}`,
+      icons: ([192, 512] as const).map((size) => ({
+        src: urlIconoSalon(slug, size, salon),
         sizes: `${size}x${size}`,
         type: "image/png",
         purpose: "any maskable",

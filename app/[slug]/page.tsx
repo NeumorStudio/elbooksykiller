@@ -18,6 +18,7 @@ import { mapaUrl } from "@/lib/mapa";
 import { features } from "@/lib/features";
 import { estadoSalon, moduloActivo } from "@/lib/modulos";
 import { baseUrl } from "@/lib/urls";
+import { urlIconoSalon } from "@/lib/pwa-icon";
 
 export const viewport = { themeColor: "#1b1712" };
 
@@ -129,26 +130,6 @@ export async function generateMetadata({
     ? `https://${salon.custom_domain}`
     : `${baseUrl()}/${slug}`;
 
-  /**
-   * Sello de versión del icono.
-   *
-   * El icono se cachea un día en el CDN y hasta una semana sirviendo el
-   * viejo mientras revalida — bien para el coste, fatal cuando el salón
-   * cambia de logo o de nombre: la pestaña se queda con el anterior sin que
-   * nadie entienda por qué. Pasó en pruebas, con la inicial de un nombre que
-   * ya no existía.
-   *
-   * Metiendo el logo y el nombre en la URL, cambiar cualquiera de los dos
-   * cambia la dirección, y una dirección nueva no tiene caché que valga. Es
-   * un número corto, no un hash criptográfico: aquí solo hace falta que sea
-   * distinto cuando cambia la fuente.
-   */
-  const vIcono = ((s: string) => {
-    let h = 5381;
-    for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
-    return h.toString(36);
-  })(`${salon.logo_url ?? ""}|${salon.name}`);
-
   return {
     title: `${salon.name} — Reserva tu cita`,
     description,
@@ -172,10 +153,10 @@ export async function generateMetadata({
      */
     icons: {
       icon: [
-        { url: `/${slug}/pwa-icon?size=32&v=${vIcono}`, sizes: "32x32", type: "image/png" },
-        { url: `/${slug}/pwa-icon?size=192&v=${vIcono}`, sizes: "192x192", type: "image/png" },
+        { url: urlIconoSalon(slug, 32, salon), sizes: "32x32", type: "image/png" },
+        { url: urlIconoSalon(slug, 192, salon), sizes: "192x192", type: "image/png" },
       ],
-      apple: `/${slug}/pwa-icon?size=180&v=${vIcono}`,
+      apple: urlIconoSalon(slug, 180, salon),
     },
   };
 }

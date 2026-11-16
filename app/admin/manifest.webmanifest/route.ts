@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { urlIconoSalon } from "@/lib/pwa-icon";
 
 /**
  * Manifest del panel: el peluquero se instala su agenda en la tablet.
@@ -25,7 +26,7 @@ export async function GET(req: Request) {
 
   let nombre = "Salonio — mi agenda";
   let corto = "Salonio";
-  let iconos = "/admin/pwa-icon";
+  let icono = (size: 192 | 512) => `/admin/pwa-icon?size=${size}`;
 
   if (slug && /^[a-z0-9-]{1,60}$/.test(slug)) {
     const anon = createClient(
@@ -35,7 +36,7 @@ export async function GET(req: Request) {
     );
     const { data: salon } = await anon
       .from("salons")
-      .select("name")
+      .select("name, logo_url")
       .eq("slug", slug)
       .maybeSingle();
     if (salon) {
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
       // con el mismo logo.
       corto = trabajador ? "Mi agenda" : "Panel Admin";
       // El logo del salón, no el genérico: el dueño reconoce su marca.
-      iconos = `/${slug}/pwa-icon`;
+      icono = (size) => urlIconoSalon(slug, size, salon);
     }
   }
 
@@ -60,8 +61,8 @@ export async function GET(req: Request) {
       display: "standalone",
       background_color: "#222325",
       theme_color: "#222325",
-      icons: [192, 512].map((size) => ({
-        src: `${iconos}?size=${size}`,
+      icons: ([192, 512] as const).map((size) => ({
+        src: icono(size),
         sizes: `${size}x${size}`,
         type: "image/png",
         purpose: "any maskable",
