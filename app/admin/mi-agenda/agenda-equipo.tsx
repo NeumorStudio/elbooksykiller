@@ -1,5 +1,6 @@
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
 import type { Puesto } from "@/lib/puesto";
+import { porTandas } from "@/lib/por-tandas";
 import Agenda, { type Cita, type Profesional, type Servicio } from "../agenda";
 import { apuntarCita, moverCitaEquipo, cancelarCitaEquipo, marcarMiCita } from "./actions";
 
@@ -41,7 +42,14 @@ export default async function AgendaEquipo({ puesto }: { puesto: Puesto }) {
   const supabase = await supabaseServer();
   const admin = supabaseAdmin();
   const [{ data, error }, { data: staff }, { data: serviciosRaw }] = await Promise.all([
-    supabase.rpc("agenda_equipo", { p_desde: desde, p_hasta: hasta }),
+    // Por tandas, igual que la del dueño: PostgREST corta en 1000 filas
+    // también las RPC, y la RPC tenía su propio tope de 600 (subido en la
+    // 0038). Sin la 0038 aplicada esto sigue funcionando, con el tope viejo.
+    porTandas((a, b) => supabase
+      .rpc("agenda_equipo", { p_desde: desde, p_hasta: hasta })
+      .order("starts_at")
+      .order("id")
+      .range(a, b)),
     admin
       .from("employees")
       .select("id, name, working_hours(weekday, start_min, end_min)")
