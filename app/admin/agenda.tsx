@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { cancelBooking, setBookingStatus, addBooking, moverCita, type AltaOk } from "./actions";
 import ConfirmSubmit from "./confirm-submit";
 import ActionForm from "./action-form";
@@ -207,6 +208,27 @@ export default function Agenda({
   useEffect(() => {
     if (detalle && !citas.some((c) => c.id === detalle.id)) setDetalle(null);
   }, [citas, detalle]);
+
+  // Al volver a la pestaña o a la app después de un rato, pedir la agenda
+  // de nuevo: el dueño la deja abierta toda la mañana en el móvil y mientras
+  // tanto entran reservas por la web, así que lo que ve se queda viejo y un
+  // hueco que ya está cogido le sale libre. Solo al volver, no cada X
+  // segundos: nada de sondeos. `router.refresh()` conserva lo que esté
+  // escribiendo en el formulario.
+  const router = useRouter();
+  useEffect(() => {
+    let oculta = 0;
+    const alCambiar = () => {
+      if (document.visibilityState === "hidden") {
+        oculta = Date.now();
+      } else if (oculta && Date.now() - oculta > 30_000) {
+        oculta = 0;
+        router.refresh();
+      }
+    };
+    document.addEventListener("visibilitychange", alCambiar);
+    return () => document.removeEventListener("visibilitychange", alCambiar);
+  }, [router]);
   // Cambiar de ronda remonta el formulario y lo deja limpio: después de
   // guardar, el nombre anterior en el campo invita a crear la misma cita dos
   // veces, que es justo el error que no se puede cometer con gente delante.
