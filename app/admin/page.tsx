@@ -9,6 +9,7 @@ import Ayuda from "./ayuda";
 import { esSuperadmin } from "@/lib/superadmin";
 import { estadoSalon, moduloActivo } from "@/lib/modulos";
 import { miPuesto } from "@/lib/puesto";
+import { porTandas } from "@/lib/por-tandas";
 
 type Row = {
   id: string;
@@ -115,7 +116,10 @@ export default async function AdminHome() {
     { data: staffed },
     { data: serviciosRaw },
   ] = await Promise.all([
-      supabase
+      // Por tandas y sin tope: un tope deja fuera las últimas citas de la
+      // ventana, y una cita que no se carga es un hueco que sale libre sin
+      // estarlo (ver lib/por-tandas.ts).
+      porTandas((desde, hasta) => supabase
         .from("bookings")
         .select(
           "id, starts_at, ends_at, employee_id, customer_name, customer_phone, customer_email, payment_status, status" +
@@ -150,8 +154,11 @@ export default async function AdminHome() {
          */
         .in("status", ["confirmed", "completed", "no_show"])
         .order("starts_at")
-        .limit(400),
-      supabase
+        .order("id")
+        .range(desde, hasta)),
+      // También por tandas: sin ellas PostgREST cortaría en 1000 y la caja
+      // del mes de un salón con mucho trabajo saldría por debajo.
+      porTandas((desde, hasta) => supabase
         .from("bookings")
         .select("services(price_cents)")
         .eq("salon_id", salon.id)
@@ -161,7 +168,10 @@ export default async function AdminHome() {
         // los dos números del panel por fin cuadran.
         .lt("starts_at", monthEnd)
         .neq("status", "cancelled")
-        .neq("status", "pending_payment"),
+        .neq("status", "pending_payment")
+        .order("starts_at")
+        .order("id")
+        .range(desde, hasta)),
       supabase
         .from("services")
         .select("id", { count: "exact", head: true })
@@ -181,8 +191,8 @@ export default async function AdminHome() {
     ]);
 
   const upcoming = (upcomingRaw ?? []) as unknown as Row[];
-  const revenue = (monthBookings ?? []).reduce(
-    (sum, b) => sum + ((b.services as unknown as { price_cents: number })?.price_cents ?? 0),
+  const revenue = (monthBookings as { services: unknown }[]).reduce(
+    (sum, b) => sum + ((b.services as { price_cents: number } | null)?.price_cents ?? 0),
     0
   );
 
@@ -216,13 +226,30 @@ export default async function AdminHome() {
     if (prog?.active) {
       programa = { required_visits: prog.required_visits, reward: prog.reward };
       const ids = [...new Set(upcoming.map((b) => b.customer_id).filter(Boolean))] as string[];
-      if (ids.length) {
-        const { data: stamps } = await supabase
-          .from("loyalty_stamps")
-          .select("customer_id")
-          .in("customer_id", ids)
-          .is("redemption_id", null);
-        for (const st of stamps ?? []) {
+      /**
+       * Los clientes de cien en cien, y cada grupo por tandas.
+       *
+       * Ahora que la agenda carga todas sus citas, la lista de clientes
+       * puede pasar de varios cientos, y cada id son 37 caracteres en la
+       * URL: de golpe, la petición se haría demasiado larga y fallaría en
+       * silencio —sin distintivos de sellos—. Y los sellos de cien clientes
+       * pueden pasar de las 1000 filas que devuelve PostgREST.
+       */
+      const grupos: string[][] = [];
+      for (let i = 0; i < ids.length; i += 100) grupos.push(ids.slice(i, i + 100));
+      const respuestas = await Promise.all(
+        grupos.map((grupo) =>
+          porTandas((desde, hasta) => supabase
+            .from("loyalty_stamps")
+            .select("customer_id")
+            .in("customer_id", grupo)
+            .is("redemption_id", null)
+            .order("id")
+            .range(desde, hasta))
+        )
+      );
+      for (const { data: stamps } of respuestas) {
+        for (const st of stamps as { customer_id: string }[]) {
           sellosDe.set(st.customer_id, (sellosDe.get(st.customer_id) ?? 0) + 1);
         }
       }

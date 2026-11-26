@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
 import { aplicarFalta, redimirFalta } from "@/lib/penalizaciones";
-import { miPuesto } from "@/lib/puesto";
+import { miPuesto, type Puesto } from "@/lib/puesto";
+import { mensajeChoque } from "@/lib/choque";
 import { normalizarTel } from "@/lib/tel";
 import { avisarCitaMovida, avisarCitaCancelada, type CitaMovida } from "@/lib/avisos-cita";
 import type { AltaOk } from "../actions";
@@ -76,6 +77,31 @@ function traducir(mensaje: string | undefined, porDefecto: string): string {
   return porDefecto;
 }
 
+/**
+ * Con quién choca, cuando la base rechaza la hora por solape.
+ *
+ * Solo se cuenta si la columna es la suya o si ve la agenda del equipo: a
+ * quien no ve las citas de los demás no se le dice quién va con quién. La
+ * lectura va con service role acotada a su salón; a estas alturas la RPC ya
+ * ha dicho que puede apuntar en esa columna.
+ */
+async function choqueEquipo(
+  puesto: Puesto,
+  o: { employeeId: string; duracionMin: number; inicio: string; excluir?: string }
+): Promise<string> {
+  if (o.employeeId !== puesto.employee_id && !puesto.ver_agenda_equipo)
+    return traducir("no_overlap", "");
+  const fin = new Date(new Date(o.inicio).getTime() + o.duracionMin * 60000).toISOString();
+  return mensajeChoque(supabaseAdmin(), {
+    salonId: puesto.salon_id,
+    employeeId: o.employeeId,
+    inicio: o.inicio,
+    fin,
+    tz: puesto.timezone,
+    excluir: o.excluir,
+  });
+}
+
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const HORA = /^\d{2}:\d{2}$/;
 
@@ -109,6 +135,20 @@ export async function apuntarCita(
     p_customer_phone: telefono,
   });
   const fila = ((data as { cita_token: string; cita_fin: string; servicio: string }[] | null) ?? [])[0];
+  if (error?.message.includes("no_overlap")) {
+    // El hueco le salía libre y no lo estaba: refrescar y decir con quién.
+    revalidatePath("/admin/mi-agenda");
+    const { data: sv } = await supabaseAdmin()
+      .from("services")
+      .select("duration_min")
+      .eq("id", serviceId)
+      .eq("salon_id", puesto.salon_id)
+      .maybeSingle();
+    if (sv)
+      return {
+        error: await choqueEquipo(puesto, { employeeId, duracionMin: sv.duration_min, inicio }),
+      };
+  }
   if (error || !fila) {
     if (error) console.error("apuntarCita:", error.message);
     return { error: traducir(error?.message, "No se pudo apuntar la cita. Inténtalo de nuevo.") };
@@ -156,6 +196,25 @@ export async function moverCitaEquipo(formData: FormData) {
     p_booking: id,
     p_starts_at: inicio,
   });
+  if (error?.message.includes("no_overlap")) {
+    revalidatePath("/admin/mi-agenda");
+    const { data: c } = await supabaseAdmin()
+      .from("bookings")
+      .select("employee_id, services(duration_min)")
+      .eq("id", id)
+      .eq("salon_id", puesto.salon_id)
+      .maybeSingle();
+    const cita = c as unknown as { employee_id: string; services: { duration_min: number } | null } | null;
+    if (cita?.services)
+      return {
+        error: await choqueEquipo(puesto, {
+          employeeId: cita.employee_id,
+          duracionMin: cita.services.duration_min,
+          inicio,
+          excluir: id,
+        }),
+      };
+  }
   if (error || !antes) {
     if (error) console.error("moverCitaEquipo:", error.message);
     return { error: traducir(error?.message, "No se pudo mover la cita. Inténtalo de nuevo.") };

@@ -7,6 +7,7 @@ import { avisarCitaMovida, avisarCitaCancelada } from "@/lib/avisos-cita";
 import { aplicarFalta, redimirFalta } from "@/lib/penalizaciones";
 import { normalizarTel } from "@/lib/tel";
 import { sesionAdmin } from "@/lib/sesion-admin";
+import { mensajeChoque } from "@/lib/choque";
 
 // Comprueba sesión y que el salón no esté bloqueado por el superadmin.
 const db = sesionAdmin;
@@ -338,7 +339,7 @@ export async function moverCita(formData: FormData) {
     .from("bookings")
     .select(
       "id, status, starts_at, customer_name, customer_email, customer_id, public_token, " +
-        "services(name, duration_min), salons(name, slug, phone, timezone)"
+        "employee_id, salon_id, services(name, duration_min), salons(name, slug, phone, timezone)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -347,7 +348,7 @@ export async function moverCita(formData: FormData) {
   const cita = b as unknown as {
     id: string; status: string; starts_at: string; customer_name: string;
     customer_email: string | null; customer_id: string | null;
-    public_token?: string;
+    public_token?: string; employee_id: string; salon_id: string;
     services: { name: string; duration_min: number };
     salons: { name: string; slug: string; phone: string | null; timezone: string };
   };
@@ -371,10 +372,20 @@ export async function moverCita(formData: FormData) {
     .update({ starts_at: inicio, ends_at: fin })
     .eq("id", id);
   if (error) {
+    if (!error.message.includes("no_overlap"))
+      return { error: "No se pudo mover la cita. Inténtalo de nuevo." };
+    // Si choca es que la agenda que tiene delante está vieja: se le
+    // refresca y se le dice con quién, para que no vuelva a probar a ciegas.
+    revalidatePath("/admin");
     return {
-      error: error.message.includes("no_overlap")
-        ? "Ese profesional ya tiene una cita a esa hora."
-        : "No se pudo mover la cita. Inténtalo de nuevo.",
+      error: await mensajeChoque(supabase, {
+        salonId: cita.salon_id,
+        employeeId: cita.employee_id,
+        inicio,
+        fin,
+        tz: cita.salons.timezone,
+        excluir: id,
+      }),
     };
   }
 
@@ -552,10 +563,19 @@ export async function addBooking(
     .maybeSingle();
 
   if (error) {
+    if (!error.message.includes("no_overlap"))
+      return { error: "No se pudo crear la cita. Revisa los datos." };
+    // El hueco le salía libre y no lo estaba: refrescar la agenda y decirle
+    // qué cita lo ocupa. Es justo el caso del salón piloto.
+    revalidatePath("/admin");
     return {
-      error: error.message.includes("no_overlap")
-        ? "Ese profesional ya tiene una cita a esa hora."
-        : "No se pudo crear la cita. Revisa los datos.",
+      error: await mensajeChoque(supabase, {
+        salonId: salon.id,
+        employeeId,
+        inicio,
+        fin,
+        tz: salon.timezone,
+      }),
     };
   }
   revalidatePath("/admin");
